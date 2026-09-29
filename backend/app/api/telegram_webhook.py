@@ -7,9 +7,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-# Минимальный allowlist: private/group команды (/start, /game) и игровые
-# callback-кнопки. Остальное — ack "ignored", чтобы Telegram не ретраил.
-ALLOWED_UPDATE_TYPES = frozenset({"message", "callback_query"})
+# Минимальный allowlist: команды (/start, /game), игровые callback-кнопки
+# и inline_query — шаринг карточки игры в любой чат через @cawSkatebot.
+ALLOWED_UPDATE_TYPES = frozenset({"message", "callback_query", "inline_query"})
 MAX_UPDATE_BODY_BYTES = 64 * 1024
 WEBHOOK_SECRET_HEADER = "x-telegram-bot-api-secret-token"
 

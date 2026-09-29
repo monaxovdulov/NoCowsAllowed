@@ -7,6 +7,7 @@ from aiogram.types import (
     CallbackGame,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InlineQueryResultGame,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,8 @@ class GameGateway(Protocol):
         message_id: int | None,
         inline_message_id: str | None,
     ) -> None: ...
+
+    async def answer_inline_game(self, inline_query_id: str) -> None: ...
 
     async def register_webhook(self, url: str, secret_token: str) -> None: ...
 
@@ -99,11 +102,24 @@ class AiogramGameGateway:
             request_timeout=int(self._request_timeout),
         )
 
+    async def answer_inline_game(self, inline_query_id: str) -> None:
+        await self._bot.answer_inline_query(
+            inline_query_id=inline_query_id,
+            results=[
+                InlineQueryResultGame(
+                    id="play",
+                    game_short_name=self._game_short_name,
+                )
+            ],
+            cache_time=0,
+            request_timeout=int(self._request_timeout),
+        )
+
     async def register_webhook(self, url: str, secret_token: str) -> None:
         await self._bot.set_webhook(
             url=url,
             secret_token=secret_token,
-            allowed_updates=["message", "callback_query"],
+            allowed_updates=["message", "callback_query", "inline_query"],
             request_timeout=int(self._request_timeout),
         )
 
@@ -142,6 +158,7 @@ class InMemoryGameGateway:
         self.registered_webhooks: list[tuple[str, str]] = []
         self.fail_next_score: list[Exception] = []
         self.sent_messages: list[tuple[int, str]] = []
+        self.answered_inline: list[str] = []
 
     async def send_message(self, chat_id: int, text: str) -> None:
         self.sent_messages.append((chat_id, text))
@@ -177,6 +194,9 @@ class InMemoryGameGateway:
                 inline_message_id=inline_message_id,
             )
         )
+
+    async def answer_inline_game(self, inline_query_id: str) -> None:
+        self.answered_inline.append(inline_query_id)
 
     async def register_webhook(self, url: str, secret_token: str) -> None:
         self.registered_webhooks.append((url, secret_token))

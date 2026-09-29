@@ -1,6 +1,6 @@
 import logging
 
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineQuery, Message
 from sqlmodel import Session
 
 from app.modules.scores import PlayerIdentity, register_session, upsert_player
@@ -31,6 +31,12 @@ async def on_message(message: Message, services: AppServices) -> None:
     if command == "/start" and message.chat.type == "private":
         await services.game_gateway.send_message(message.chat.id, _GREETING_PRIVATE)
     await services.game_gateway.send_game(message.chat.id)
+
+
+async def on_inline_query(query: InlineQuery, services: AppServices) -> None:
+    """@cawSkatebot в поле ввода → карточка игры для отправки в чат
+    (InlineQueryResultGame). Механика «позвать друзей» без команд."""
+    await services.game_gateway.answer_inline_game(query.id)
 
 
 async def on_game_callback_query(query: CallbackQuery, services: AppServices) -> None:

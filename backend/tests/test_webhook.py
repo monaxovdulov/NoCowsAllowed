@@ -105,6 +105,26 @@ def test_webhook_unknown_game_answers_alert(client, game_gateway) -> None:
     assert len(game_gateway.answered_texts) == 1
 
 
+def test_webhook_inline_query_answers_game(client, game_gateway) -> None:
+    update = {
+        "update_id": 4,
+        "inline_query": {
+            "id": "iq-1",
+            "from": PLAYER_USER,
+            "query": "",
+            "offset": "",
+            "chat_type": "supergroup",
+        },
+    }
+    response = client.post(
+        "/telegram/webhook",
+        content=json.dumps(update),
+        headers={**SECRET_HEADERS, "Content-Type": "application/json"},
+    )
+    assert response.status_code == 200
+    assert game_gateway.answered_inline == ["iq-1"]
+
+
 def test_webhook_ignores_foreign_update_types(client) -> None:
     response = client.post(
         "/telegram/webhook",
