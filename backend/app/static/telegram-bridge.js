@@ -86,8 +86,7 @@
     overlay = document.createElement('div');
     overlay.style.cssText =
       'position:fixed;inset:0;z-index:60;display:none;align-items:center;' +
-      'justify-content:center;background:rgba(5,8,15,.72);' +
-      'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)';
+      'justify-content:center;background:rgba(5,8,15,.82)';
     overlay.innerHTML =
       '<div class="ui" style="width:min(420px,92vw);max-height:78vh;display:flex;' +
       'flex-direction:column;border-radius:18px;border:1px solid rgba(255,255,255,.18);' +
@@ -126,9 +125,8 @@
     boardBtn.style.cssText =
       'position:fixed;right:16px;top:calc(52px + env(safe-area-inset-top,0px));' +
       'z-index:40;width:40px;height:40px;border-radius:12px;cursor:pointer;' +
-      'border:1px solid rgba(255,255,255,.18);background:rgba(10,14,26,.52);' +
-      'color:#eef2fb;font-size:16px;display:grid;place-items:center;' +
-      'backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)';
+      'border:1px solid rgba(255,255,255,.18);background:rgba(10,14,26,.72);' +
+      'color:#eef2fb;font-size:16px;display:grid;place-items:center';
     document.body.appendChild(boardBtn);
     boardBtn.addEventListener('click', openBoard);
   }
