@@ -1,0 +1,11 @@
+# генерируемые файлы
+cow-skate-standalone.html
+uv.lock
+node_modules/
+.venv/
+
+# data-блоб base64 — не форматируем
+backend/app/static/game/assets.js
+
+# es5-файл вне рамок карты рефакторинга (§7)
+backend/app/static/telegram-bridge.js

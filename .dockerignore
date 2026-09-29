@@ -1,0 +1,4 @@
+# контекст сборки — корень репо (compose.yml: context .)
+node_modules/
+.venv/
+.git/

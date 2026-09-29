@@ -1,4 +1,4 @@
-.PHONY: dev down test lint migrate deploy standalone
+.PHONY: dev down test lint fix migrate deploy standalone
 
 dev:
 	docker compose up --build
@@ -11,6 +11,10 @@ test:
 
 lint:
 	cd backend && uvx ruff check . && uvx ruff format --check .
+	npm run lint
+
+fix:
+	npm run fix
 
 standalone:
 	python3 tools/build-standalone.py
