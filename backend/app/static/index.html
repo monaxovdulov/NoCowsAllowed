@@ -76,6 +76,33 @@
   }
   .hint.dim { opacity: 0; }
 
+  /* большой призыв «тапни» поверх демо-режима и контекстный тренер */
+  .cta, .coach, .result {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    display: grid; justify-items: center; gap: 7px; text-align: center;
+    pointer-events: none; transition: opacity .45s ease;
+  }
+  .cta { top: 30%; }
+  .cta b {
+    font-weight: 800; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--gold); animation: ctaPulse 1.15s ease-in-out infinite;
+  }
+  .cta span, .result span {
+    font-weight: 500; font-size: 10px; line-height: 1.6; letter-spacing: .12em;
+    text-transform: uppercase; opacity: .82;
+  }
+  @keyframes ctaPulse { 50% { transform: scale(1.08); } }
+  .coach {
+    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+    padding: 9px 16px; border-radius: 999px; white-space: nowrap;
+    background: rgba(255, 216, 74, .14); border: 1px solid rgba(255, 216, 74, .55);
+    color: var(--gold); font-weight: 800; font-size: 13px; letter-spacing: .08em;
+    text-transform: uppercase; animation: ctaPulse .85s ease-in-out infinite;
+  }
+  .result { top: 26%; }
+  .result b { font-weight: 800; font-size: 21px; letter-spacing: .04em; }
+  .cta.dim, .coach.dim, .result.dim { opacity: 0; }
+
   .pad {
     position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(14px + env(safe-area-inset-bottom, 0px));
@@ -103,6 +130,9 @@
     .pad { left: 16px; right: 16px; transform: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
     .pad button { min-width: 0; padding: 13px 2px; font-size: 11px; }
     .hint { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+    .cta { top: 24%; }
+    .cta b { font-size: 20px; }
+    .coach { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); font-size: 12px; }
     .score { font-size: 26px; }
   }
   @media (prefers-reduced-motion: reduce) { .auto::before { animation: none; } }
@@ -118,8 +148,14 @@
   <span class="score" id="score">0</span>
   <span class="best">рекорд <b id="best">0</b></span>
 </div>
-<div class="auto ui" id="auto">Автопилот</div>
+<div class="auto ui" id="auto">Демо</div>
 <p class="hint ui" id="hint">Зажми мышь или → — разгон · ← — тормоз · двойной прыжок — второй раз в воздухе</p>
+<div class="cta ui dim" id="cta">
+  <b id="ctaMain">Пробел — прыжок</b>
+  <span>перепрыгивай препятствия · трюки дают очки</span>
+</div>
+<div class="coach ui dim" id="coach"></div>
+<div class="result ui dim" id="result"></div>
 <nav class="pad" aria-label="Трюки">
   <button type="button" data-act="jump">Прыжок<kbd>Пробел</kbd></button>
   <button type="button" data-act="spin">360<kbd>Q</kbd></button>
@@ -202,11 +238,16 @@
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
   const autoEl = document.getElementById('auto');
+  const ctaEl = document.getElementById('cta');
+  const ctaMain = document.getElementById('ctaMain');
+  const coachEl = document.getElementById('coach');
+  const resultEl = document.getElementById('result');
   const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
   let reduce = mqReduce.matches;
   if (mqReduce.addEventListener) mqReduce.addEventListener('change', (e) => { reduce = e.matches; });
   if (matchMedia('(pointer: coarse)').matches) {
     hintEl.textContent = 'Тап по экрану — прыжок, ещё тап в воздухе — двойной · зажми — разгон';
+    ctaMain.textContent = 'Тапни — прыгнуть';
   }
 
   let W = 1, H = 1, DPR = 1, perfScale = 1;   // perfScale — динамическое разрешение под нагрузкой
@@ -225,12 +266,12 @@
     kick: { name: 'КИКФЛИП', dur: 0.4, pts: 120 },
   };
   const OBS = {            // ширина и высота — в ростах коровы
-    cone: { w: 0.17, h: 0.21, wt: 3 },
-    hay: { w: 0.38, h: 0.26, wt: 2 },
-    tire: { w: 0.24, h: 0.24, wt: 2 },
-    can: { w: 0.16, h: 0.27, wt: 2 },
-    barrier: { w: 0.42, h: 0.3, wt: 1.4, tall: true },
-    cones: { w: 0.78, h: 0.21, wt: 1.4, long: true },
+    cone: { w: 0.19, h: 0.24, wt: 3 },
+    hay: { w: 0.42, h: 0.29, wt: 2 },
+    tire: { w: 0.26, h: 0.26, wt: 2 },
+    can: { w: 0.18, h: 0.3, wt: 2 },
+    barrier: { w: 0.46, h: 0.31, wt: 1.4, tall: true },
+    cones: { w: 0.85, h: 0.24, wt: 1.4, long: true },
   };
 
   const S = {
@@ -246,6 +287,9 @@
     hist: [], histAcc: 0,
     lastInput: -100, autoSeq: [], autoDouble: 0, autoAfter: null, nextFlourish: 2.5,
     nextSpawnX: 0, score: 0, best: 0,
+    touched0: false, playT0: 0,                  // первый ввод и начало первого заезда
+    coachStage: 0, coachText: null, coachUntil: 0, // микро-обучение в первом заезде
+    resultUntil: 0,                              // карточка результата после крэша
   };
   try { S.best = Math.max(0, parseInt(localStorage.getItem('cow-skate-best'), 10) || 0); } catch (e) { /* без рекорда */ }
 
@@ -271,11 +315,11 @@
     // корова (в пикселях фото: макушка y=45, колёса y=591, ширина ~545)
     // на узких экранах корова меньше, левее и ниже — иначе она съедает всю дорогу впереди
     const narrow = W < H * 0.8;
-    const s = Math.min(0.58 * H / 546, (narrow ? 0.5 : 0.86) * W / 545);
+    const s = Math.min(0.58 * H / 546, (narrow ? 0.4 : 0.86) * W / 545);
     const cowH = 546 * s;
-    const bottom = Math.min(H * (narrow ? 0.84 : 0.8), H * (narrow ? 0.62 : 0.54) + cowH * 0.5);
+    const bottom = Math.min(H * (narrow ? 0.88 : 0.8), H * (narrow ? 0.64 : 0.54) + cowH * 0.5);
     const top = bottom - cowH;
-    const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.3 : 0.44);   // впереди коровы — место, чтобы видеть препятствия
+    const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.27 : 0.44);   // впереди коровы — место, чтобы видеть препятствия
     Object.assign(G, { s, cowH, u: cowH / 670, ox: cx - 312 * s, oy: top - 45 * s });
     G.horizon = G.oy + 200 * s;           // линия горизонта как на фото
     G.edgeY = G.oy + 329 * s;             // дальний край дороги
@@ -287,7 +331,7 @@
     G.kR = 150 / cowH;                    // пикселей текстуры асфальта на мировую единицу
     G.kF = 60 / cowH;                     // … поля
     G.obD = G.ox + 200 * s - G.vx;        // смещение доски от камеры — здесь z=1
-    G.obL = W * 1.15;                     // шкала схода препятствий к горизонту
+    G.obL = W * 1.45;                     // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
     if (oldCowH) {                        // мир в пикселях — пересчитываем всё под новый масштаб
       const k = cowH / oldCowH;
       S.camX *= k; S.nextSpawnX *= k;
@@ -629,7 +673,7 @@
   }
 
   // ---------------------------------------------------------------- scene objects
-  let imgs, ghostCv, streakCv, streaks = [], dustImg, woodImg, lineImg, shadowImg;
+  let imgs, ghostCv, streakCv, streaks = [], dustImg, woodImg, lineImg, shadowImg, glowImg;
 
   // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
   function makeShadow() {
@@ -843,12 +887,49 @@
     if (S.score > S.best) endRun();
     popup(mult > 1 ? `+${pts}  ×${mult}` : `+${pts}`, 'pts');
   }
-  let shown = { score: -1, best: -1, auto: null };
+  let shown = { score: -1, best: -1, auto: null, cta: null, res: null };
   function hud() {
     if (S.score !== shown.score) { scoreEl.textContent = S.score.toLocaleString('ru-RU'); shown.score = S.score; }
     if (S.best !== shown.best) { bestEl.textContent = S.best.toLocaleString('ru-RU'); shown.best = S.best; }
     const auto = !playerMode();
     if (auto !== shown.auto) { autoEl.hidden = !auto; hudEl.classList.toggle('dim', auto); shown.auto = auto; }
+    const cta = auto && !S.touched0;   // призыв виден только в демо до первого касания
+    if (cta !== shown.cta) { ctaEl.classList.toggle('dim', !cta); shown.cta = cta; }
+    const res = S.t < S.resultUntil;
+    if (res !== shown.res) { resultEl.classList.toggle('dim', !res); shown.res = res; }
+  }
+
+  // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
+  function showResult(sc) {
+    resultEl.innerHTML =
+      `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
+    resultEl.classList.remove('dim');
+    S.resultUntil = S.t + 2.6;
+  }
+
+  // ---------------------------------------------------------------- coach (первый заезд)
+  function setCoach(text, dur) {
+    if (!text) { coachEl.classList.add('dim'); S.coachText = null; S.coachUntil = 0; return; }
+    if (S.coachText !== text) { S.coachText = text; coachEl.textContent = text; }
+    coachEl.classList.remove('dim');
+    S.coachUntil = dur ? S.t + dur : Infinity;
+  }
+  // подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
+  function coachStep() {
+    if (S.coachText && S.coachUntil !== Infinity && S.t > S.coachUntil) setCoach(null);
+    if (!playerMode()) { if (S.coachText) setCoach(null); return; }   // в демо подсказок нет
+    if (S.crash || S.coachStage > 2) return;
+    if (S.coachStage === 0) {
+      if (S.air) { S.coachStage = 1; setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7); }
+      else {
+        const Xb = boardX(), V = Math.max(1, S.speed * G.cowH);
+        const nx = feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb);
+        if (nx && (nx.X - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
+        else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
+      }
+    } else if (S.coachStage === 1) {
+      if (!S.air || S.jumps >= 2) { S.coachStage = 2; setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3); }
+    } else if (S.t > S.coachUntil) S.coachStage = 3;
   }
 
   // ---------------------------------------------------------------- jumps & tricks
@@ -954,7 +1035,12 @@
     S.hV = Math.max(S.hV, 0) + 1.7; S.shake = 1.8; S.sqV -= 2;
     popup(pick(['БАМ!', 'ОЙ!', 'МУУУ!']), 'crash');
     for (const p of w) { puff(p.x, p.y, p.z, 16, 1.8); sparks(p.x, p.y, p.z, 8); }
-    if (playerMode()) { endRun(); S.score = 0; }
+    if (playerMode()) {
+      const sc = S.score;
+      endRun(); S.score = 0;
+      showResult(sc);
+      setCoach(sc < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
+    }
   }
   function crashStep(dt) {
     const c = S.crash;
@@ -1034,7 +1120,9 @@
         if (S.crash || S.invuln > 0) { if (S.h < o.h) knock(f, 0.7); continue; }
         if (S.h < o.h * 0.85) { knock(f, 1); crash(); } else f.over = true;
       } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
-        f.cleared = true; S.airBonus += 50;
+        f.cleared = true;
+        // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
+        if (playerMode()) { S.score += 50; bumpScore(); popup('+50', 'pts'); if (S.score > S.best) endRun(); }
       }
     }
   }
@@ -1078,7 +1166,8 @@
   // ---------------------------------------------------------------- input
   let holdTimer = 0, holding = false;
   function touched() {
-    if (!playerMode()) S.score = 0;   // новый заезд
+    if (!playerMode()) { S.score = 0; S.playT0 = S.t; }   // новый заезд — с мягкого разгона
+    S.touched0 = true;
     S.lastInput = S.t; S.autoSeq = []; S.autoDouble = 0; S.autoAfter = null;
     hintEl.classList.add('dim');
   }
@@ -1164,7 +1253,10 @@
 
   function update(dt) {
     S.t += dt;
-    const target = S.crash ? 1.3 : S.throttle > 0 ? MAXSPD : S.throttle < 0 ? MINSPD : (reduce ? 3.2 : CRUISE);
+    // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
+    const rampT = S.playT0 ? smooth(clamp((S.t - S.playT0) / 14, 0, 1)) : 1;
+    const cruise = lerp(3.3, CRUISE, rampT);
+    const target = S.crash ? 1.3 : S.throttle > 0 ? MAXSPD : S.throttle < 0 ? MINSPD : (reduce ? 3.2 : cruise);
     S.speed += (target - S.speed) * (1 - Math.exp(-dt * (S.crash ? 3 : S.throttle > 0 ? 1.3 : 0.9)));
     S.boost = clamp((S.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
     S.spdN = S.speed / CRUISE;
@@ -1185,6 +1277,7 @@
 
     checkObstacles();
     autopilot();
+    coachStep();
 
     // история для призраков (фиксированный шаг 1/60)
     S.histAcc += dt;
@@ -1501,6 +1594,12 @@
     ctx.save(); ctx.translate(x, y); ctx.scale(rx / 64, ry / 64);
     ctx.globalAlpha = a; ctx.drawImage(shadowImg, -64, -64); ctx.restore();
   }
+  // тёплое свечение под препятствием — отделяет тёмный спрайт от тёмного асфальта
+  function groundGlow(x, y, rx, ry, a) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(rx / 64, ry / 64);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = a; ctx.drawImage(glowImg, -64, -64); ctx.restore();
+  }
   function drawFeatures() {
     const blur = S.speed * G.cowH / 45;
     const items = [];                                     // дальние рисуем первыми
@@ -1519,6 +1618,7 @@
       const a = clamp((G.zEdge * 1.12 - z) * 2.4, 0, 1);  // проступают из дали
       if (a <= 0.02) continue;
       ctx.globalAlpha = 1;
+      groundGlow(it.x, it.y - 0.01 * G.cowH / z, o.w * G.cowH * 0.85 / z, 0.09 * G.cowH / z, 0.2 * a);
       groundShadow(it.x + 0.03 * G.cowH / z, it.y, o.w * G.cowH * 0.62 / z, 0.035 * G.cowH / z, 0.55 * a);
       drawObSprite(f.kind, it.x, it.y, 0, blur / z, 1 / z, a);
     }
@@ -1532,6 +1632,39 @@
       groundShadow(x, y, OBS[f.kind].w * G.cowH * 0.5 / (z * (1 + f.fly.h * 2)), 0.03 * G.cowH / z, 0.4);
       drawObSprite(f.kind, x, y - f.fly.h * G.cowH / z, f.fly.rot || 0.001, 0, 1 / z);
     }
+  }
+
+  // маркер над приближающимся препятствием — виден, пока спрайт ещё мелкий;
+  // «×2» — длинные/высокие, где нужен двойной прыжок; краснеет к моменту прыжка
+  function drawMarkers() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    const V = Math.max(1, S.speed * G.cowH), Xb = boardX();
+    for (const f of feats) {
+      if (f.type !== 'ob' || f.fly || f.over) continue;
+      const o = OBS[f.kind], t = (f.X - Xb) / V;
+      if (t <= 0 || t > 2.6) continue;
+      const z = obZ(f.X - S.camX);
+      const p = CAM.transformPoint(new DOMPoint(
+        G.vx + (f.X - S.camX) / z, yAt(z) - (o.h + 0.06) * G.cowH / z));
+      if (p.x < -24 * DPR || p.x > W + 24 * DPR) continue;
+      const lead = o.long || o.tall ? 0.5 : 0.3;
+      const urgent = t < lead + 0.35;
+      const a = smooth(clamp((2.6 - t) / 0.9, 0, 1));
+      const s = (urgent ? 15 : 12) * DPR;
+      const bob = (0.5 + 0.5 * Math.sin(S.t * (urgent ? 13 : 7))) * s * 0.35;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = urgent ? '#ff5a4a' : '#ffd84a';
+      ctx.beginPath();
+      ctx.moveTo(p.x - s, p.y - bob - s * 1.9);
+      ctx.lineTo(p.x + s, p.y - bob - s * 1.9);
+      ctx.lineTo(p.x, p.y - bob);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(10,14,26,.92)';
+      ctx.font = `800 ${(s * 1.05).toFixed(1)}px Unbounded, "Arial Black", system-ui, sans-serif`;
+      ctx.fillText(o.long || o.tall ? '×2' : '!', p.x, p.y - bob - s * 1.14);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // значок у правого края: препятствие ещё за кадром, кольцо заполняется к моменту прыжка
@@ -1766,6 +1899,7 @@
     drawFlying();
     drawParticles();
     drawLines(true);
+    drawMarkers();
     drawWarnings();
     drawPops();
     post();
@@ -1809,6 +1943,7 @@
     fieldPat = ctx.createPattern(makeFieldTex(), 'repeat');
     dustImg = softDot('rgba(170,166,164,1)');
     woodImg = softDot('rgba(186,140,86,1)');
+    glowImg = softDot('rgba(255,214,90,1)');
     lineImg = lineStrip();
     buildObSprites();
     buildCowCaches();
