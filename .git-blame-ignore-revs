@@ -1,0 +1,7 @@
+# Коммиты, которые git blame пропускает (git config blame.ignoreRevsFile).
+# Настройка локальная:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# На GitHub подхватывается автоматически.
+
+# ad11297 — «Только формат»: prettier по репозиторию (этап 1, D7)
+ad11297f3938798fd09a0bb5f85b2e3f0d49cb79
