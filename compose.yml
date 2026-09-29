@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: cowskate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: cowskate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cowskate -d cowskate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - cowskate-db-data:/var/lib/postgresql
+
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      [
+        "sh",
+        "-c",
+        "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+      ]
+    environment:
+      DATABASE_HOST: db
+      DATABASE_NAME: cowskate
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      DATABASE_PORT: "5432"
+      DATABASE_USER: cowskate
+      FASTAPI_ENV: development
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - ./backend/app:/app/backend/app
+      - ./backend/migrations:/app/backend/migrations
+
+volumes:
+  cowskate-db-data:

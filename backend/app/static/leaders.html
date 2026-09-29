@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Cow Skate — общий топ игроков.">
+<title>Cow Skate — общий топ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&display=swap">
+<style>
+  :root { --bg: #0b0e17; --ink: #eef2fb; --line: rgba(255,255,255,.14); --gold: #ffd84a; color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+         font-family: "Unbounded", ui-rounded, "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 15px; letter-spacing: .12em; text-transform: uppercase; margin: 8px 0 18px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 12px;
+         border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px;
+         background: rgba(255,255,255,.03); }
+  .pos { width: 30px; text-align: right; opacity: .55; font-size: 12px; }
+  .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          font-size: 12px; font-weight: 500; }
+  .score { color: var(--gold); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .state { opacity: .6; font-size: 12px; text-align: center; padding: 32px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🐮🛹 Cow Skate — общий топ</h1>
+  <div id="board" class="state">Загрузка…</div>
+</main>
+<script>
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  fetch('/api/leaderboard?limit=100')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var board = document.getElementById('board');
+      var rows = (data && data.entries) || [];
+      if (!rows.length) {
+        board.textContent = 'Пока пусто — сыграй первым!';
+        return;
+      }
+      board.className = '';
+      board.innerHTML = rows.map(function (row) {
+        var name = row.username ? '@' + row.username : row.first_name;
+        return '<div class="row"><span class="pos">' + row.position +
+          '</span><span class="name">' + esc(name) +
+          '</span><span class="score">' +
+          Number(row.score).toLocaleString('ru-RU') + '</span></div>';
+      }).join('');
+    })
+    .catch(function () {
+      document.getElementById('board').textContent = 'Не удалось загрузить топ.';
+    });
+</script>
+</body>
+</html>

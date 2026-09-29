@@ -1,0 +1,18 @@
+# Override для публикации через общий Caddy botops (granit-staging_default).
+# Подключает app к общей Docker-сети, где работает granit-staging-caddy-1,
+# с алиасом cowskate-app. Свой Caddy не нужен: порты 80/443 держит общий.
+#
+# Запуск:
+#   docker compose --env-file .env -f compose.production.yml -f compose.botops.yml up -d --build db app
+services:
+  app:
+    networks:
+      default:
+      granit-staging:
+        aliases:
+          - cowskate-app
+
+networks:
+  granit-staging:
+    external: true
+    name: granit-staging_default

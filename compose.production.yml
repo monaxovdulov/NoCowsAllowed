@@ -1,0 +1,52 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: db
+      DATABASE_NAME: cowskate
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      DATABASE_PORT: "5432"
+      DATABASE_USER: cowskate
+      FASTAPI_ENV: production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:?TELEGRAM_BOT_USERNAME is required}
+      TELEGRAM_GAME_SHORT_NAME: ${TELEGRAM_GAME_SHORT_NAME:?TELEGRAM_GAME_SHORT_NAME is required}
+      GAME_PUBLIC_URL: ${GAME_PUBLIC_URL:?GAME_PUBLIC_URL is required}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?TELEGRAM_WEBHOOK_SECRET is required}
+      GAME_SESSION_SECRET: ${GAME_SESSION_SECRET:?GAME_SESSION_SECRET is required}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: cowskate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: cowskate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cowskate -d cowskate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - cowskate-db-data:/var/lib/postgresql
+
+volumes:
+  cowskate-db-data:
