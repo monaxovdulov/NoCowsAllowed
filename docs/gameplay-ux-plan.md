@@ -2,9 +2,10 @@
 
 Рабочий документ для обсуждения агентами. Не спека «высечено в камне» —
 здесь разбор проблем, варианты решений, открытые вопросы и порядок внедрения.
-Перед реализацией прочитать актуальный код: `backend/app/static/index.html`
-(рабочая копия) и `cow-skate-standalone.html` (зеркало — правки всегда в оба
-файла, различия только в telegram-подключениях и событии `cowskate:run-end`).
+Перед реализацией прочитать актуальный код: `backend/app/static/game/*.js`
+(ES-модули) и `backend/app/static/index.html` (DOM/CSS). После рефактора E
+`cow-skate-standalone.html` генерируется (`make standalone`) — руками не
+правится.
 
 ## Контекст и фидбек
 
@@ -283,9 +284,24 @@ sq/ear/tag`), приседания, моушн-призраки. Чтобы phys
 
 ## E. Модульность — рефакторинг однофайловой игры
 
-**Статус (2026-09-29): рефакторинг нужен — направление утверждено,
-к реализации принято нижеприведённое разбиение; сроки и гранулярность
-уточняются перед стартом.**
+**Статус (2026-09-29): выполнено** — полный вариант (~10 модулей +
+`utils.js`), чистый move без изменения логики. Проверено: eslint
+(`no-undef`/`no-import-assign`/`no-unused-vars`), `node --check`, pytest,
+детерминированный headless-прогон (seeded `Math.random`, ручные кадры,
+скриптованный ввод) — пиксели canvas и DOM-состояние идентичны до/после
+для `index.html` и standalone.
+
+Отличия от эскиза ниже, продиктованные ES-модулями (импорты read-only):
+- `update()` — в `main.js` (цикл кадра), камера пишется через `setCAM()`;
+- `W/H/DPR/perfScale` и `X0/X1` живут в `layout.js` (пишет их только
+  `layout()`), `perfScale` из цикла — через `setPerfScale()`;
+- текстуры/изображения, которые раньше присваивал boot, собирает
+  `initAssets()`/`initShadow()` в `sprites.js`;
+- `playerMode`, массивы сцены (`feats`, `parts`, `cracks`…) — в `state.js`;
+  поза коровы (`poseMatrix`…) и автопилот — в `player.js`, `setT/setCam` —
+  в `render.js`, `drawCracks` — в `effects.js`;
+- standalone собирается в порядке исполнения ES-модулей; событие
+  `cowskate:run-end` в нём теперь тоже есть (без слушателя — no-op).
 
 ### Почему он нужен
 
@@ -370,14 +386,16 @@ cow-skate-standalone.html   # ГЕНЕРИРУЕМЫЙ артефакт (make st
 3. B (петля) — флагман, после утверждения варианта физики.
 4. C.2–C.4 по остатку.
 
-## Места в коде (index.html на 36377ae)
+## Места в коде (`backend/app/static/game/`, после рефактора E)
 
-- Игровой цикл: `frame()`/`update(dt)` — пауза здесь.
-- Ввод: `act()`, `jump()`, `trick()`, `keydown`/`pointerdown` — гейтинг.
-- Тренер: `setCoach`, `coachStep`, `hud()` (cta/res) — замена на гейты.
+- Игровой цикл: `frame()`/`update(dt)` — `main.js`, пауза здесь.
+- Ввод: `act()` (`ui.js`), `jump()`, `trick()` (`player.js`),
+  `keydown`/`pointerdown` (`ui.js`) — гейтинг.
+- Тренер: `setCoach`, `coachStep`, `hud()` (cta/res) — `ui.js`, замена на гейты.
 - Фичи трассы: `spawnFeatures`, `groundInfo`, `checkObstacles`,
-  `drawRamp`, `drawFeatures`, `drawMarkers`.
-- Полёт/трюки: `launch`, `land`, `stepTrick`, `award`, `physicsStep`.
-- Поза/рендер коровы: `poseMatrix`, `boardMatrix`, `drawCow`
-  (вращение на петле — поверх этих).
-- Константы: `CRUISE/MAXSPD/GRAV/OLLIE_V`, `OBS`, `TRICKS`.
+  `drawRamp`, `drawFeatures`, `drawMarkers` — `features.js`.
+- Полёт/трюки: `launch`, `land`, `stepTrick`, `physicsStep` — `player.js`;
+  `award` — `ui.js`.
+- Поза/рендер коровы: `poseMatrix`, `boardMatrix` (`player.js`), `drawCow`
+  (`render.js`) — вращение на петле поверх этих.
+- Константы: `CRUISE/MAXSPD/GRAV/OLLIE_V`, `OBS`, `TRICKS` — `constants.js`.

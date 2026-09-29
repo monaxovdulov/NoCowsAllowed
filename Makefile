@@ -1,4 +1,4 @@
-.PHONY: dev down test lint migrate deploy
+.PHONY: dev down test lint migrate deploy standalone
 
 dev:
 	docker compose up --build
@@ -11,6 +11,9 @@ test:
 
 lint:
 	cd backend && uvx ruff check . && uvx ruff format --check .
+
+standalone:
+	python3 tools/build-standalone.py
 
 migrate:
 	docker compose run --rm app alembic upgrade head
