@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, create_engine
@@ -40,6 +41,13 @@ def engine(settings: Settings) -> Iterator[Engine]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    # SQLite по умолчанию не проверяет FK — включаем, иначе нарушения
+    # порядка вставок проходят мимо тестов и всплывают только на Postgres.
+    @event.listens_for(database_engine, "connect")
+    def _fk_pragma(connection, _):
+        connection.execute("PRAGMA foreign_keys=ON")
+
     SQLModel.metadata.create_all(database_engine)
     yield database_engine
     SQLModel.metadata.drop_all(database_engine)

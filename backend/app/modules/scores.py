@@ -49,12 +49,17 @@ def upsert_player(session: Session, identity: PlayerIdentity, now: datetime) -> 
             updated_at=now,
         )
         session.add(player)
+        # UOW не сортирует вставки по «голому» FK (только по Relationship):
+        # без flush строки gamesession/scorerun могут уйти раньше player
+        # и словить FK violation на Postgres.
+        session.flush()
         return player
     if identity.first_name is not None:
         player.first_name = identity.first_name
         player.last_name = identity.last_name
         player.username = identity.username
     player.updated_at = now
+    session.flush()
     return player
 
 

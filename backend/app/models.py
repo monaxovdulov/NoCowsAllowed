@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
+from sqlalchemy import BigInteger
 from sqlmodel import Field, SQLModel
 
 
@@ -12,7 +13,8 @@ class ScoreVia(StrEnum):
 
 
 class Player(SQLModel, table=True):
-    telegram_user_id: int = Field(primary_key=True)
+    # Telegram id давно за пределами int32 — BigInteger, как в миграции.
+    telegram_user_id: int = Field(primary_key=True, sa_type=BigInteger)
     first_name: str
     last_name: str | None = None
     username: str | None = None
@@ -26,8 +28,10 @@ class GameSession(SQLModel, table=True):
     # nonce — случайная часть подписанного токена ?s=; по ней сессия
     # находится в БД и привязывается к отправленным счетам.
     nonce: str = Field(primary_key=True)
-    telegram_user_id: int = Field(foreign_key="player.telegram_user_id", index=True)
-    chat_id: int | None = None
+    telegram_user_id: int = Field(
+        foreign_key="player.telegram_user_id", index=True, sa_type=BigInteger
+    )
+    chat_id: int | None = Field(default=None, sa_type=BigInteger)
     message_id: int | None = None
     inline_message_id: str | None = None
     issued_at: datetime
@@ -36,7 +40,9 @@ class GameSession(SQLModel, table=True):
 
 class ScoreRun(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    telegram_user_id: int = Field(foreign_key="player.telegram_user_id", index=True)
+    telegram_user_id: int = Field(
+        foreign_key="player.telegram_user_id", index=True, sa_type=BigInteger
+    )
     session_nonce: str | None = Field(default=None, index=True)
     score: int
     via: ScoreVia
