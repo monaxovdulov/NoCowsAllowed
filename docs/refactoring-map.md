@@ -1,0 +1,338 @@
+# Cow Skate — карта рефакторинга игры (game/*.js)
+
+Продолжение раздела E `docs/gameplay-ux-plan.md`: модули уже разнесены
+(коммит `46814fe`), теперь — качество кода внутри модулей и архитектура
+под **сложные конструкции** (трамплины, столы, ямы, рейлы, петли — всё,
+через что делаются трюки). Игра развивается маленькими шагами, поэтому
+главная цель рефакторинга — чтобы каждая новая конструкция добавлялась
+локально, по рецепту (раздел 5), а не правками в пяти модулях.
+
+Ориентир по стилю и паттернам — скилы
+[metarhia/metaskills](https://github.com/metarhia/metaskills) (`fe4c423`):
+`js-conventions`, `js-data-structures`, `data-structures`, `js-gof`,
+`error-handling`. Типы — только в `.d.ts`
+(`backend/app/static/game/types.d.ts`), подключаются из JS через JSDoc,
+проверяются `tsc --checkJs`. На TypeScript-исходники и бандлер не
+переходим: игра «без сборки», standalone открывается из `file://`.
+
+**Статус: утверждено (2026-09-29).** Решения в разделе 3 приняты,
+этапы выполняются по порядку раздела 4. Выполнено: `types.d.ts`
+(текущие типы + целевой контракт; рантайм его не грузит).
+
+Как пользоваться документом агенту:
+1. Прочитать разделы 0, 3, 4 и найти первый невыполненный этап
+   (отмечается `**Выполнено** (коммит …)` у заголовка этапа).
+2. Сделать этап маленькими коммитами, пройти гейт из раздела 0.
+3. Отметить этап выполненным здесь же, обновить `types.d.ts` и
+   `AGENTS.md`, если поменялись контракты или команды.
+4. Новые конструкции — только после этапа 5, по рецепту раздела 5.
+
+## 0. Инварианты каждого шага
+
+- Один этап = несколько маленьких коммитов; каждый проходит гейт.
+  Поведенческие правки и чистые move/rename/format — в разных коммитах.
+- Гейт:
+  1. `npm run lint` (eslint-config-metarhia + prettier; до этапа 1 —
+     eslint с `no-undef`, `no-import-assign`, `no-unused-vars`);
+  2. `npm run typecheck` (`tsc`, после этапа 2 — 0 ошибок);
+  3. `make standalone` + `cd backend && uv run pytest` (свежесть standalone);
+  4. `npm run snapshot` — детерминированный прогон: seeded `Math.random`,
+     ручные кадры rAF, фиксированный `performance.now`, скриптованный
+     ввод; хэш пикселей `#scene`/`#bloom` + DOM-состояние HUD во
+     вьюпортах 1280×720 и 390×780. Для чистых рефакторингов хэши
+     **обязаны совпасть** с `tools/game-snapshot.json`.
+- Последовательность вызовов `Math.random` — часть инварианта:
+  перестановка спавна/частиц меняет всю дальнейшую сцену. Если коммит
+  осознанно меняет поведение — он отдельный, эталон перегенерируется
+  в нём же (`npm run snapshot -- --update`), в сообщении коммита — почему.
+- Правки игры — только `backend/app/static/index.html` и `game/*.js`;
+  `cow-skate-standalone.html` генерируется.
+
+## 1. Снимок состояния (замеры на `46814fe`)
+
+| Модуль | Строк | Строк > 80 | Импортирует |
+|---|---|---|---|
+| assets | 3 | — (base64) | — |
+| utils | 47 | 8 | — |
+| constants | 17 | 4 | — |
+| state | 59 | 15 | constants |
+| layout | 56 | 16 | utils state **sprites** |
+| sprites | 433 | 100 | assets utils constants state **layout** |
+| player | 273 | 34 | assets utils constants state layout sprites **effects ui** |
+| features | 235 | 48 | utils constants state layout sprites player effects ui |
+| effects | 135 | 19 | utils state layout sprites **player** |
+| render | 308 | 40 | всё, кроме constants |
+| ui | 120 | 25 | constants state layout **player effects** |
+| main | 169 | 28 | всё |
+
+- Циклы импортов: `layout ↔ sprites`, `player ↔ effects`, `player ↔ ui`,
+  `ui → effects → player → ui`. Работают (биндинги живые), но мешают
+  тестировать модули по отдельности.
+- Функции > 40 строк: `update` 116 (main), `buildObSprites` 92,
+  `buildSizeDependent` 82, `makeCloud` 57, `buildCowCaches` 47 (sprites),
+  `drawCow` 54 (render), `drawRamp` 41 (features).
+- `tsc --checkJs`, `strict: false`: без типов — 18 ошибок (17 DOM-типов +
+  B1); с `types.d.ts` (проверено на временной копии) — 36: плюс union
+  `Feature` без сужения (10), `pad` у спрайтов (7), литералы
+  `type: 'ramp'`/`kind`. `strict: true` — 583.
+
+## 2. Найденные проблемы
+
+### Баги и ошибки (`error-handling`)
+
+- **B1.** `land()` вызывает `crash('bail')`, а `crash()` без параметров —
+  причина падения теряется. Решение в разделе 3 (`CrashReason`).
+- **B2.** `drawFlying` и цикл «сбитые препятствия летят» в `update`
+  читают `f.fly`/`f.X` у рампы (`undefined` → пропуск). Работает на
+  неявном контракте; новая конструкция с полем `fly`/`X` его сломает.
+- **B3.** `Promise.all(loadImg…)` в boot без `.catch` — при ошибке
+  декодирования чёрный экран без сообщения.
+- **B4.** `localStorage` get/set (state, ui) и `getImageData` в
+  `buildCowCaches` — пустые `catch (e)`: ошибка проглочена молча,
+  имя `e` вместо `error`.
+
+### Формы объектов (`js-conventions` → Optimizations)
+
+- **S1.** `feats` — две формы в одном массиве (`Ramp` и `Obstacle`),
+  горячие циклы читают общие поля → полиморфные доступы.
+- **S2.** `parts` — три формы по `k` (у кольца нет `img/r0/r1/a`).
+- **S3.** `G = {}` дозаполняется в `layout()` и `buildSizeDependent`.
+- **S4.** `S` — 53 поля из 6 доменов (тело, воздух/трюки, крэш,
+  автопилот, заезд/счёт, тренер), состояние игрока — набор флагов
+  `air`/`onRamp`/`crash` вместо одного режима.
+
+### Структуры данных (`js-data-structures`, `data-structures`)
+
+- `S.hist.unshift` (каждые 1/60 с, длина 14) и `cracks.shift()` — O(n)
+  на концах массива → кольцевой буфер фиксированной ёмкости.
+- `splice` в обратных циклах по `parts`/`pops`/`feats` → компактизация
+  одним проходом.
+- `new DOMPoint`/`new DOMMatrix` в кадре (`wheelsScreen`, маркеры,
+  `popup`, камера) — переиспользовать **только по замеру**.
+
+### Связность (`js-gof`)
+
+- Модель зовёт UI/эффекты напрямую: `player` → `ui.award/endRun/
+  setCoach/showResult`, `player` → `effects.puff/popup`.
+- Тип фичи зашит `if (f.type === 'ramp')` в `spawnFeatures`,
+  `groundInfo`, `drawFeatures`, `update`, `autopilot`, `layout()` — нет
+  точки расширения для новых конструкций.
+- `buildObSprites` — 6 анонимных рисовальщиков в одной функции.
+
+### Стиль (`js-conventions`)
+
+- Нет Prettier/`eslint-config-metarhia`: 337 строк > 80, однострочные
+  `if (…) { …; …; }`, `let a = 1, b = 2`.
+- Однобуквенные синглтоны (`S`, `G`, `CAM`, `PM`), нет единиц в именах
+  (`AUTO_DELAY`, `dur`), булевы без `is/has`.
+
+## 3. Принятые решения
+
+| # | Вопрос | Решение | Почему |
+|---|---|---|---|
+| D1 | Где Node-инструменты | `package.json` **в корне** (`private`, только `devDependencies`), `eslint.config.js`, `prettier.config.js`, `tsconfig.json` — тоже в корне | так ждут `js-conventions` и любой агент (`npm run lint`); Docker копирует только `backend/`, в образ не попадает; `node_modules/` уже в `.gitignore` |
+| D2 | `crash('bail')` | вводим `CrashReason = 'hit' \| 'bail' \| 'fall' \| 'stall'`, `crash(reason)` пишет `S.crash.reason` | ямы, рейлы и петли дают разные падения (попап, совет тренера, аналитика); на этапе 3 причина только сохраняется — поведение и хэши те же |
+| D3 | Форма фич трассы | **единая оболочка** `TrackFeature {id, type, x0, x1, data}` + таблица стратегий `FEATURE_TYPES` | конструкций будет много и они разные: раздельные массивы на каждый тип не масштабируются, «все поля всех типов» раздувают объект; оболочка даёт одну форму для горячих циклов, а `data` читает только стратегия своего типа |
+| D4 | Единицы в фичах | `x0/x1` — мировые пиксели (их масштабирует `layout()`), всё в `data` — в ростах коровы | resize масштабирует одну пару полей у любой конструкции, стратегиям не нужен свой `rescale` |
+| D5 | Состояние игрока | конечный автомат `S.mode: 'ground' \| 'air' \| 'ride' \| 'crash'` + `S.ride` для катания по конструкции | петли, рейлы, дуги — это «катание по траектории с одной степенью свободы» (план §B); флагами `air/onRamp/crash` его не выразить |
+| D6 | Связь модели и UI | шина событий `events.js` на платформенном `EventTarget` (`GameEventMap` в `types.d.ts`), синхронная доставка | развязывает циклы импортов; тренер, туториал-гейты (§A), попапы и очки подписываются, а не вызываются из физики; синхронность сохраняет порядок вызовов и хэши |
+| D7 | Форматирование | Prettier + `eslint-config-metarhia` **рано**, сразу после инструментов, одним коммитом «только формат» + `.git-blame-ignore-revs` | дальше код будет постоянно меняться — форматировать поздно значит переформатировать новые фичи и ловить конфликты |
+| D8 | Кэш модулей в Telegram webview | статика отдаётся с `Cache-Control: no-cache` (ревалидация по ETag) | свежий `index.html` + устаревший модуль = сломанный импорт; `no-cache` не мешает 304-ответам, трафик почти тот же |
+| D9 | Строгость tsc | `strict: false` до этапа 6, потом `strict` помодульно | 583 ошибки strict — в основном параметры без типов; сначала контракты, потом строгость |
+| D10 | Physics-библиотеки | не подключаем (решение §D плана остаётся) | конструкции делаются параметрически через `ride` |
+
+## 4. Этапы
+
+Порядок подчинён целям: 1–2 — страховка, 3–5 — архитектура под
+конструкции и туториал, 6 — гигиена. После этапа 5 фичи A–C из
+`gameplay-ux-plan.md` делаются уже поверх новой архитектуры.
+
+### Этап 1. Инструменты, страховка, формат
+
+1. `package.json` (D1): `eslint`, `eslint-config-metarhia`, `prettier`,
+   `typescript`, `playwright-core` — точные версии, опубликованные
+   ≥ 7 дней назад. Скрипты: `lint`, `fix`, `typecheck`, `snapshot`.
+   Makefile: `make lint` зовёт и ruff, и `npm run lint`.
+   `.dockerignore` с `node_modules/` и `.venv/` — контекст сборки —
+   корень репо, иначе `node_modules` уезжает в docker build.
+2. `tools/game-snapshot.mjs` + `tools/game-snapshot.json`. Сценарий:
+   демо → прыжок → двойной + 360 → разгон → сальто → долгий заезд →
+   возврат в демо; вьюпорты 1280×720 и 390×780, плюс эмуляция
+   `prefers-reduced-motion` и `pointer: coarse`. Двойной прогон
+   должен дать одинаковые хэши. Браузер — установленный
+   chromium-headless-shell от playwright (`npx playwright install
+   chromium-headless-shell`, если нет).
+3. `tsconfig.json`: `allowJs`, `checkJs`, `noEmit`, `strict: false`,
+   `lib: ES2022, DOM, DOM.Iterable`, `moduleResolution: Bundler`,
+   `include: backend/app/static/game`. На этом шаге ошибки tsc
+   допустимы — `typecheck` включается в гейт с этапа 2.
+4. D8: `Cache-Control: no-cache` для StaticFiles в `backend/app/main.py`
+   + тест в `backend/tests`.
+5. Коммит «только формат» (D7): `npm run fix`, никаких ручных правок;
+   снапшот совпадает; хэш коммита — в `.git-blame-ignore-revs`.
+
+Критерий: `npm run lint` зелёный, снапшот стабилен и совпадает.
+
+### Этап 2. Типы через `.d.ts`
+
+- JSDoc-аннотации на объявлениях (не в горячем коде): `META`, `SRC`,
+  `TRICKS`, `OBS`, `G`, `S`, `clouds`, `parts`, `lines`, `cracks`,
+  `feats`, `pops`, `obSprites`, `imgs`, `streaks`; DOM-ссылки —
+  `/** @type {HTMLCanvasElement} */` и т. п.
+- `@param`/`@returns` у экспортируемых функций модулей.
+- Починить, не меняя поведения: `sprite()` → `ObstacleSprite`; литералы
+  через `@type`; B2 — явные проверки `f.type === 'ob'`.
+- `telegram-bridge.js`: `// @ts-check` + событие из `DocumentEventMap`.
+
+Критерий: `npm run typecheck` — 0 ошибок; снапшот совпадает.
+
+### Этап 3. События и развязка циклов (D2, D6)
+
+- `pose.js` ← из `player.js`: `poseMatrix`, `curPose`, `kickT`,
+  `boardMatrix`, `vib`, `wheelsScreen`.
+- `score.js` ← из `ui.js`: `award`, `endRun`, `bumpScore`-логика;
+  DOM остаётся в `ui.js`.
+- `events.js`: `export const bus = new EventTarget()` + `emit(type,
+  detail)`; события — `GameEventMap`. `player` публикует `airborne`,
+  `trick`, `land`, `crash`; `ui`, `effects`, `score` подписываются в
+  `main.js` (композиция в корне, IoC).
+- `crash(reason)` + `S.crash.reason` (D2, B1).
+- `layout()` только считает геометрию; пересборку буферов зовёт `main`.
+
+Критерий: граф импортов ациклический (скрипт-проверка в
+`npm run lint`), снапшот совпадает.
+
+### Этап 4. Автомат режимов игрока и разрезанный `update` (D5)
+
+- `S.mode` заменяет пары флагов: `air` → `mode === 'air'`,
+  `crash !== null` → `mode === 'crash'`. `onRamp` остаётся свойством
+  режима `ground` (едем по поверхности конструкции). Переходы — только
+  через функции `enterGround/enterAir/enterCrash` (позже `enterRide`)
+  в `player.js`; каждая публикует событие.
+- `update(dt)` → шаги с одной ответственностью в прежнем порядке:
+  `stepSpeed`, `stepGround`, `stepPhysics`, `stepHistory`, `stepCracks`,
+  `stepFlying`, `stepDust`, `stepParticles`, `stepLines`, `stepClouds`,
+  `stepCamera`.
+- `camera.js` владеет `CAM` и `stepCamera` (уходит `setCAM`).
+- Пауза для туториал-гейтов (§A плана): флаг в `frame()` + ранний выход
+  в `act()` — делается уже фичей поверх этого этапа.
+- `buildSizeDependent`, `drawCow` → функции ≤ 40 строк.
+
+Критерий: `S.air`/`S.onRamp`-флагов вне `player.js` нет, снапшот совпадает.
+
+### Этап 5. Конструкции — data-driven (D3, D4)
+
+Сердце карты: после него новые конструкции — по рецепту раздела 5.
+
+1. **Move без изменения поведения.** `feats` хранит `TrackFeature`
+   (`types.d.ts`): рампа → `{type:'ramp', x0:X0, x1:X1, data:{hr}}`,
+   препятствие → `{type:'ob', x0, x1, data:{kind, over, cleared, fly}}`
+   (центр = `(x0 + x1) / 2`). Фабрика `createFeature(type, x0, x1, data)`
+   с монотонным `id`.
+2. `game/track/` — по файлу на вид: `ramp.js`, `obstacle.js`; каждый
+   экспортирует `FeatureTypeSpec`. `game/track/index.js` собирает
+   `FEATURE_TYPES = { ramp, ob }`.
+3. Движок трассы `features.js` диспатчит по таблице: `groundInfo` →
+   `spec.ground`, `checkObstacles` → `spec.collide`, `drawFeatures` →
+   `spec.depth` + `spec.draw`, маркеры → `spec.marker`, масштабирование
+   в `layout()` — только `x0/x1`. Автопилот спрашивает у стратегии
+   «что делать перед конструкцией» (`spec.autopilot` → `AutopilotHint`).
+   Отладочный параметр `?feat=<type>` в URL спавнит конструкцию
+   первой — для ручной проверки и сценария снапшота.
+4. **Спавн оставить с прежней последовательностью `Math.random`**
+   (`< 0.24` → рампа, иначе взвешенное препятствие): порядок вызовов
+   `rand` сохранить, чтобы снапшот совпал.
+5. Отдельным поведенческим коммитом — спавн по весам таблицы
+   (`weight`, `minGapBeforeCowH`, правило «не больше одной спец-
+   конструкции на N ростов», чистая зона после приземления) и новый
+   эталон снапшота.
+6. Частицы (S2): единая форма и фабрики `createDust/createSpark/
+   createRing`. Рисовальщики препятствий — таблица рядом с `OBS`.
+7. Режим `ride` (D5): `enterRide(feat)` → `S.mode = 'ride'`,
+   `S.ride = {feat, s, v}`; `stepRide` берёт позу из `spec.ride.path`,
+   трюки разрешены, если `spec.ride.tricks`; выход — `RideStep`:
+   `exit` → ground/air по углу, `fail` → `crash('stall'|'fall')`.
+   Проверяется первой ride-конструкцией (петля, план §B).
+
+Критерий: `grep "type === 'ramp'"` вне `game/track/` — пусто; старые
+`Feature/Ramp/Obstacle` удалены из `types.d.ts`; снапшот совпадает
+(кроме шага 5 с новым эталоном).
+
+### Этап 6. Гигиена
+
+- Нейминг экспортируемого API (`js-conventions`): `S` → `state`,
+  `G` → `geometry`, булевы `isCleared`, `isOver`, единицы
+  `AUTO_DELAY_S`, `durationS`. Синхронно — `types.d.ts`.
+- `hist`, `cracks` → кольцевой буфер; удаление из `parts`/`pops`/
+  `feats` — компактизация; пул частиц — только если замер покажет
+  GC-паузы (skill `performance-optimization`).
+- `storage.js` (`readBest`/`writeBest`, одно `console.warn` при
+  недоступном `localStorage`), `.catch` на boot с сообщением на экране
+  (B3, B4), `catch (error)`.
+- `strict: true` помодульно от листьев: utils → constants → state →
+  layout → pose → track/* → …
+
+## 5. Архитектура конструкций и рецепт добавления
+
+Цель: игрок едет по трассе, на которой встречаются конструкции; через
+каждую можно проехать, перепрыгнуть, прокатиться по ней или упасть,
+и на многих — делать трюки.
+
+### Три способа взаимодействия (в `FeatureTypeSpec`)
+
+| Хук | Что описывает | Примеры |
+|---|---|---|
+| `ground(feat, X)` → `{h, slope}` или `null` | поверхность под колёсами: игрок в режиме `ground`, физика прежняя, при сходе с края — вылет (`launch`) | кикер, высокий кикер, стол, вупсы, яма (`h < 0` + порог срыва → `crash('fall')`) |
+| `collide(feat, X, h)` → `clear \| over \| hit` | препятствие, которое надо перепрыгнуть | конусы, сено, барьер, бочки |
+| `ride` (`RideSpec`) | катание по траектории `path(s)` с одной степенью свободы, свой `step` (гравитация вдоль касательной), вход по `canEnter` | мёртвая петля, рейл/грайнд, halfpipe-дуга, wallride |
+
+Конструкция может сочетать хуки: стол = `ground`; рейл над ямой =
+`ride` + `ground`. Кольцо-бонус над рампой = отдельная лёгкая
+конструкция с `collide`, которая на `over` даёт очки, а не крэш.
+
+### Рецепт: новая конструкция (после этапа 5)
+
+1. Описать геймплей в `docs/gameplay-ux-plan.md` (раздел C или новый):
+   размеры в ростах коровы, как пройти, как упасть, очки, трюки.
+2. `types.d.ts`: `XxxData` (только поля в ростах коровы), при
+   необходимости — новый `CrashReason`/событие.
+3. `game/track/xxx.js`: `FeatureTypeSpec<XxxData>` — `plan`
+   (размер и зазор после), нужные хуки, `depth`, `draw` (приём
+   `P(X, h, z)` из `drawRamp`), `marker` если нужна подсказка.
+   Физику держать в хуках, не в `player.js`.
+4. Зарегистрировать в `game/track/index.js`, вес спавна — низкий.
+   Проверять через `?feat=xxx` в URL (конструкция появляется первой),
+   не дожидаясь случайного спавна. `autopilot` — чтобы демо-режим
+   проходил конструкцию красиво.
+5. Очки/попапы/тренер — подписки на события (`ride-exit`, `land`,
+   `crash`) в `score.js`/`ui.js`, а не вызовы из стратегии.
+6. Гейт раздела 0. Новая конструкция меняет спавн → отдельным
+   коммитом обновить эталон снапшота; добавить в сценарий снапшота
+   проход через конструкцию (через `?feat=`).
+7. `make standalone`, отметить конструкцию в плане.
+
+### Порядок конструкций (с опорой на план §B/§C)
+
+1. Высокий кикер (та же стратегия `ramp`, другой `hr`) — проверка
+   весов спавна.
+2. Кольцо-бонус (`collide` → очки) — первая «не препятствие».
+3. Стол/tabletop (`ground` из трёх участков).
+4. Мёртвая петля — первая `ride`-конструкция, проверяет автомат D5.
+5. Рейл/грайнд (`ride`, трюки на рейле) — переиспользует `ride`.
+6. Яма/gap (`ground` с `h < 0`, `crash('fall')`), вупсы.
+
+## 6. Риски
+
+- Переформатирование затирает `git blame` → `.git-blame-ignore-revs`.
+- Горячие циклы (`drawGround`, частицы, пыль): перед S2/пулом —
+  замер на телефоне (`emaFrame`); динамический DPR маскирует регрессии.
+- Снапшот не покрывает fallback без `mix-blend-mode` (старые WebView) —
+  проверять руками при правках `post()`.
+- Ошибка в порядке `Math.random` превращает «чистый» коммит в
+  поведенческий — если хэши разошлись, сначала искать перестановку
+  вызовов, не обновлять эталон.
+
+## 7. Вне рамок
+
+- Бэкенд (кроме D8) и логика `telegram-bridge.js` (кроме типов).
+- TypeScript-исходники, бандлер, physics-движки (D10).
