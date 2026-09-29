@@ -8,9 +8,10 @@ from warnings import warn
 from aiogram import Bot
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import Engine
+from starlette.types import Scope
 
 from app.api.router import api_router
 from app.api.telegram_webhook import router as telegram_webhook_router
@@ -117,8 +118,20 @@ def create_app(
     if not static_dir.is_dir():
         warn(f"Static game directory does not exist: {static_dir}", stacklevel=2)
     # Монтирование последним: /api и /telegram обслуживаются роутерами выше.
-    application.mount("/", StaticFiles(directory=static_dir, html=True), name="game")
+    application.mount(
+        "/", NoCacheStaticFiles(directory=static_dir, html=True), name="game"
+    )
     return application
+
+
+class NoCacheStaticFiles(StaticFiles):
+    # D8: Telegram webview агрессивно кэширует модули — свежий index.html
+    # поверх устаревшего game/*.js ломал импорты. no-cache заставляет
+    # ревалидировать по ETag (Starlette сам отдаёт 304), трафик тот же.
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
 
 
 def _resolve_telegram_bot(settings: Settings) -> Bot:
