@@ -1,170 +1,404 @@
 <!doctype html>
 <html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Canvas-анимация: корова на скейтборде мчит по трассе — моушн-блюр, шлейф, пыль, искры и тряска камеры.">
-<title>Корова на скейте</title>
-<!-- telegram:begin -->
-<script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-<script src="https://telegram.org/js/games.js" defer></script>
-<script src="telegram-bridge.js" defer></script>
-<!-- telegram:end -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&display=swap">
-<style>
-  :root {
-    --bg: #0b0e17;
-    --ink: #eef2fb;
-    --glass: rgba(10, 14, 26, .52);
-    --line: rgba(255, 255, 255, .18);
-    --gold: #ffd84a;
-    color-scheme: dark;
-  }
-  html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--ink); overflow: hidden; }
-  #scene {
-    position: fixed; inset: 0; width: 100%; height: 100%; display: block;
-    touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent; background: var(--bg);
-  }
-  /* Пост-эффекты DOM-слоями: блум/виньетку/зерно смешивает композитор,
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Canvas-анимация: корова на скейтборде мчит по трассе — моушн-блюр, шлейф, пыль, искры и тряска камеры."
+    />
+    <title>Корова на скейте</title>
+    <!-- telegram:begin -->
+    <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    <script src="https://telegram.org/js/games.js" defer></script>
+    <script src="telegram-bridge.js" defer></script>
+    <!-- telegram:end -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&display=swap"
+    />
+    <style>
+      :root {
+        --bg: #0b0e17;
+        --ink: #eef2fb;
+        --glass: rgba(10, 14, 26, 0.52);
+        --line: rgba(255, 255, 255, 0.18);
+        --gold: #ffd84a;
+        color-scheme: dark;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        overflow: hidden;
+      }
+      #scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        background: var(--bg);
+      }
+      /* Пост-эффекты DOM-слоями: блум/виньетку/зерно смешивает композитор,
      и canvas не тратит fullscreen-проходы с дорогими blend-режимами */
-  #bloom, .vig, .grain { position: fixed; inset: 0; pointer-events: none; }
-  #bloom { width: 100%; height: 100%; mix-blend-mode: screen; opacity: .42; }
-  .vig {
-    background:
-      radial-gradient(circle 55vmax at 0 0, rgba(255,246,225,.10), rgba(255,246,225,0) 70%),
-      linear-gradient(to bottom right, rgba(2,3,8,0) 40%, rgba(2,3,8,.5) 100%),
-      radial-gradient(circle 62vmax at 47% 45%, rgba(0,0,0,0) 28%, rgba(6,8,20,.26) 57%, rgba(3,4,12,.72) 100%);
-  }
-  .grain {
-    inset: -170px; opacity: .075; mix-blend-mode: overlay;
-    background-repeat: repeat; will-change: transform;
-  }
-  .ui { font-family: "Unbounded", ui-rounded, "Segoe UI", system-ui, sans-serif; text-shadow: 0 2px 14px rgba(0, 0, 0, .55); }
+      #bloom,
+      .vig,
+      .grain {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      #bloom {
+        width: 100%;
+        height: 100%;
+        mix-blend-mode: screen;
+        opacity: 0.42;
+      }
+      .vig {
+        background:
+          radial-gradient(
+            circle 55vmax at 0 0,
+            rgba(255, 246, 225, 0.1),
+            rgba(255, 246, 225, 0) 70%
+          ),
+          linear-gradient(
+            to bottom right,
+            rgba(2, 3, 8, 0) 40%,
+            rgba(2, 3, 8, 0.5) 100%
+          ),
+          radial-gradient(
+            circle 62vmax at 47% 45%,
+            rgba(0, 0, 0, 0) 28%,
+            rgba(6, 8, 20, 0.26) 57%,
+            rgba(3, 4, 12, 0.72) 100%
+          );
+      }
+      .grain {
+        inset: -170px;
+        opacity: 0.075;
+        mix-blend-mode: overlay;
+        background-repeat: repeat;
+        will-change: transform;
+      }
+      .ui {
+        font-family: 'Unbounded', ui-rounded, 'Segoe UI', system-ui, sans-serif;
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+      }
 
-  .hud {
-    position: fixed; left: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
-    display: grid; gap: 4px; pointer-events: none; transition: opacity .6s ease;
-  }
-  .hud.dim { opacity: .55; }
-  .score {
-    font-weight: 800; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums;
-    transform-origin: left center; transition: transform .18s ease, color .18s ease;
-  }
-  .score.bump { transform: scale(1.14); color: var(--gold); }
-  .best { font-weight: 500; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .78; }
-  .best b { font-weight: 800; font-variant-numeric: tabular-nums; }
+      .hud {
+        position: fixed;
+        left: 16px;
+        top: calc(14px + env(safe-area-inset-top, 0px));
+        display: grid;
+        gap: 4px;
+        pointer-events: none;
+        transition: opacity 0.6s ease;
+      }
+      .hud.dim {
+        opacity: 0.55;
+      }
+      .score {
+        font-weight: 800;
+        font-size: 30px;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        transform-origin: left center;
+        transition:
+          transform 0.18s ease,
+          color 0.18s ease;
+      }
+      .score.bump {
+        transform: scale(1.14);
+        color: var(--gold);
+      }
+      .best {
+        font-weight: 500;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0.78;
+      }
+      .best b {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
 
-  .auto {
-    position: fixed; right: 16px; top: calc(16px + env(safe-area-inset-top, 0px));
-    padding: 7px 11px 7px 24px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line);
-    font-weight: 700; font-size: 10px; line-height: 1; letter-spacing: .12em; text-transform: uppercase;
-    pointer-events: none; text-shadow: none;
-  }
-  .auto::before {
-    content: ""; position: absolute; left: 10px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px;
-    border-radius: 50%; background: #7dffa1; box-shadow: 0 0 8px #7dffa1; animation: blink 1.4s ease-in-out infinite;
-  }
-  @keyframes blink { 50% { opacity: .3; } }
+      .auto {
+        position: fixed;
+        right: 16px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        padding: 7px 11px 7px 24px;
+        border-radius: 999px;
+        background: var(--glass);
+        border: 1px solid var(--line);
+        font-weight: 700;
+        font-size: 10px;
+        line-height: 1;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        pointer-events: none;
+        text-shadow: none;
+      }
+      .auto::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        width: 7px;
+        height: 7px;
+        margin-top: -3.5px;
+        border-radius: 50%;
+        background: #7dffa1;
+        box-shadow: 0 0 8px #7dffa1;
+        animation: blink 1.4s ease-in-out infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0.3;
+        }
+      }
 
-  .hint {
-    position: fixed; left: 16px; right: 16px; margin: 0; text-align: center; pointer-events: none;
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-    font-weight: 500; font-size: 10px; line-height: 1.6; letter-spacing: .1em; text-transform: uppercase;
-    opacity: .85; transition: opacity 1.8s ease;
-  }
-  .hint.dim { opacity: 0; }
+      .hint {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        margin: 0;
+        text-align: center;
+        pointer-events: none;
+        bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+        font-weight: 500;
+        font-size: 10px;
+        line-height: 1.6;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.85;
+        transition: opacity 1.8s ease;
+      }
+      .hint.dim {
+        opacity: 0;
+      }
 
-  /* большой призыв «тапни» поверх демо-режима и контекстный тренер */
-  .cta, .coach, .result {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    display: grid; justify-items: center; gap: 7px; text-align: center;
-    pointer-events: none; transition: opacity .45s ease;
-  }
-  .cta { top: 30%; }
-  .cta b {
-    font-weight: 800; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--gold); animation: ctaPulse 1.15s ease-in-out infinite;
-  }
-  .cta span, .result span {
-    font-weight: 500; font-size: 10px; line-height: 1.6; letter-spacing: .12em;
-    text-transform: uppercase; opacity: .82;
-  }
-  @keyframes ctaPulse { 50% { transform: scale(1.08); } }
-  .coach {
-    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
-    padding: 9px 16px; border-radius: 999px; white-space: nowrap;
-    background: rgba(255, 216, 74, .14); border: 1px solid rgba(255, 216, 74, .55);
-    color: var(--gold); font-weight: 800; font-size: 13px; letter-spacing: .08em;
-    text-transform: uppercase; animation: ctaPulse .85s ease-in-out infinite;
-  }
-  .result { top: 26%; }
-  .result b { font-weight: 800; font-size: 21px; letter-spacing: .04em; }
-  .cta.dim, .coach.dim, .result.dim { opacity: 0; }
+      /* большой призыв «тапни» поверх демо-режима и контекстный тренер */
+      .cta,
+      .coach,
+      .result {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        display: grid;
+        justify-items: center;
+        gap: 7px;
+        text-align: center;
+        pointer-events: none;
+        transition: opacity 0.45s ease;
+      }
+      .cta {
+        top: 30%;
+      }
+      .cta b {
+        font-weight: 800;
+        font-size: 24px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--gold);
+        animation: ctaPulse 1.15s ease-in-out infinite;
+      }
+      .cta span,
+      .result span {
+        font-weight: 500;
+        font-size: 10px;
+        line-height: 1.6;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0.82;
+      }
+      @keyframes ctaPulse {
+        50% {
+          transform: scale(1.08);
+        }
+      }
+      .coach {
+        bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+        padding: 9px 16px;
+        border-radius: 999px;
+        white-space: nowrap;
+        background: rgba(255, 216, 74, 0.14);
+        border: 1px solid rgba(255, 216, 74, 0.55);
+        color: var(--gold);
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        animation: ctaPulse 0.85s ease-in-out infinite;
+      }
+      .result {
+        top: 26%;
+      }
+      .result b {
+        font-weight: 800;
+        font-size: 21px;
+        letter-spacing: 0.04em;
+      }
+      .cta.dim,
+      .coach.dim,
+      .result.dim {
+        opacity: 0;
+      }
 
-  .pad {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-    display: flex; gap: 8px;
-  }
-  .pad button {
-    appearance: none; -webkit-appearance: none; margin: 0; cursor: pointer; touch-action: manipulation;
-    display: grid; justify-items: center; gap: 5px; min-width: 88px; padding: 10px 14px 8px;
-    border-radius: 14px; border: 1px solid var(--line); background: var(--glass); color: var(--ink);
-    font: 700 12px/1.1 "Unbounded", ui-rounded, "Segoe UI", system-ui, sans-serif;
-    letter-spacing: .05em; text-transform: uppercase;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    transition: transform .12s ease, background .12s ease, border-color .12s ease;
-  }
-  .pad button:hover { background: rgba(24, 32, 56, .62); }
-  .pad button.on { transform: scale(.94); background: rgba(255, 216, 74, .3); border-color: rgba(255, 216, 74, .7); }
-  .pad button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .pad kbd { font-family: inherit; font-weight: 500; font-size: 9px; line-height: 1; letter-spacing: .1em; opacity: .55; }
-  @media (pointer: coarse) {
-    .pad kbd { display: none; }
-    /* на тачах backdrop-filter пересчитывается каждый кадр поверх живого canvas — дорого */
-    .pad button { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(10, 14, 26, .78); }
-  }
-  @media (max-width: 520px) {
-    .pad { left: 16px; right: 16px; transform: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-    .pad button { min-width: 0; padding: 13px 2px; font-size: 11px; }
-    .hint { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
-    .cta { top: 24%; }
-    .cta b { font-size: 20px; }
-    .coach { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); font-size: 12px; }
-    .score { font-size: 26px; }
-  }
-  @media (prefers-reduced-motion: reduce) { .auto::before { animation: none; } }
-</style>
-</head>
-<body>
-<canvas id="scene" role="img" aria-label="Корова на скейтборде несётся по трассе, прыгает через препятствия и делает трюки"></canvas>
-<canvas id="bloom" aria-hidden="true"></canvas>
-<div class="vig" aria-hidden="true"></div>
-<div class="grain" aria-hidden="true"></div>
+      .pad {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        display: flex;
+        gap: 8px;
+      }
+      .pad button {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        min-width: 88px;
+        padding: 10px 14px 8px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: var(--glass);
+        color: var(--ink);
+        font:
+          700 12px/1.1 'Unbounded',
+          ui-rounded,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition:
+          transform 0.12s ease,
+          background 0.12s ease,
+          border-color 0.12s ease;
+      }
+      .pad button:hover {
+        background: rgba(24, 32, 56, 0.62);
+      }
+      .pad button.on {
+        transform: scale(0.94);
+        background: rgba(255, 216, 74, 0.3);
+        border-color: rgba(255, 216, 74, 0.7);
+      }
+      .pad button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .pad kbd {
+        font-family: inherit;
+        font-weight: 500;
+        font-size: 9px;
+        line-height: 1;
+        letter-spacing: 0.1em;
+        opacity: 0.55;
+      }
+      @media (pointer: coarse) {
+        .pad kbd {
+          display: none;
+        }
+        /* на тачах backdrop-filter пересчитывается каждый кадр поверх живого canvas — дорого */
+        .pad button {
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          background: rgba(10, 14, 26, 0.78);
+        }
+      }
+      @media (max-width: 520px) {
+        .pad {
+          left: 16px;
+          right: 16px;
+          transform: none;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 6px;
+        }
+        .pad button {
+          min-width: 0;
+          padding: 13px 2px;
+          font-size: 11px;
+        }
+        .hint {
+          bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+        }
+        .cta {
+          top: 24%;
+        }
+        .cta b {
+          font-size: 20px;
+        }
+        .coach {
+          bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+          font-size: 12px;
+        }
+        .score {
+          font-size: 26px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .auto::before {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas
+      id="scene"
+      role="img"
+      aria-label="Корова на скейтборде несётся по трассе, прыгает через препятствия и делает трюки"
+    ></canvas>
+    <canvas id="bloom" aria-hidden="true"></canvas>
+    <div class="vig" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
 
-<div class="hud ui" id="hud">
-  <span class="score" id="score">0</span>
-  <span class="best">рекорд <b id="best">0</b></span>
-</div>
-<div class="auto ui" id="auto">Демо</div>
-<p class="hint ui" id="hint">Зажми мышь или → — разгон · ← — тормоз · двойной прыжок — второй раз в воздухе</p>
-<div class="cta ui dim" id="cta">
-  <b id="ctaMain">Пробел — прыжок</b>
-  <span>перепрыгивай препятствия · трюки дают очки</span>
-</div>
-<div class="coach ui dim" id="coach"></div>
-<div class="result ui dim" id="result"></div>
-<nav class="pad" aria-label="Трюки">
-  <button type="button" data-act="jump">Прыжок<kbd>Пробел</kbd></button>
-  <button type="button" data-act="spin">360<kbd>Q</kbd></button>
-  <button type="button" data-act="flip">Сальто<kbd>E</kbd></button>
-  <button type="button" data-act="kick">Кикфлип<kbd>R</kbd></button>
-</nav>
+    <div class="hud ui" id="hud">
+      <span class="score" id="score">0</span>
+      <span class="best">рекорд <b id="best">0</b></span>
+    </div>
+    <div class="auto ui" id="auto">Демо</div>
+    <p class="hint ui" id="hint">
+      Зажми мышь или → — разгон · ← — тормоз · двойной прыжок — второй раз в
+      воздухе
+    </p>
+    <div class="cta ui dim" id="cta">
+      <b id="ctaMain">Пробел — прыжок</b>
+      <span>перепрыгивай препятствия · трюки дают очки</span>
+    </div>
+    <div class="coach ui dim" id="coach"></div>
+    <div class="result ui dim" id="result"></div>
+    <nav class="pad" aria-label="Трюки">
+      <button type="button" data-act="jump">Прыжок<kbd>Пробел</kbd></button>
+      <button type="button" data-act="spin">360<kbd>Q</kbd></button>
+      <button type="button" data-act="flip">Сальто<kbd>E</kbd></button>
+      <button type="button" data-act="kick">Кикфлип<kbd>R</kbd></button>
+    </nav>
 
-<script type="module" src="game/main.js"></script>
-</body>
+    <script type="module" src="game/main.js"></script>
+  </body>
 </html>

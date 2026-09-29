@@ -45,7 +45,13 @@ export interface TrickSpec {
   pts: number;
 }
 
-export type ObstacleKind = 'cone' | 'hay' | 'tire' | 'can' | 'barrier' | 'cones';
+export type ObstacleKind =
+  | 'cone'
+  | 'hay'
+  | 'tire'
+  | 'can'
+  | 'barrier'
+  | 'cones';
 
 export interface ObstacleSpec {
   w: number;

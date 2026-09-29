@@ -8,11 +8,22 @@ export function newLine(init) {
   const front = Math.random() < 0.3;
   const edge = Math.random() < 0.5;
   const yN = front
-    ? (edge ? rand(0.02, 0.2) : rand(0.88, 0.99))
-    : (Math.random() < 0.6 ? (edge ? rand(0.02, 0.4) : rand(0.6, 0.99)) : rand(0, 1));
+    ? edge
+      ? rand(0.02, 0.2)
+      : rand(0.88, 0.99)
+    : Math.random() < 0.6
+      ? edge
+        ? rand(0.02, 0.4)
+        : rand(0.6, 0.99)
+      : rand(0, 1);
   return {
-    x: init ? rand(-0.2, 1.3) : rand(1.02, 1.5), yN, len: rand(0.12, 0.5), th: rand(0.8, 2.2),
-    a: rand(0.03, 0.12), sp: rand(1.3, 2.8), front,
+    x: init ? rand(-0.2, 1.3) : rand(1.02, 1.5),
+    yN,
+    len: rand(0.12, 0.5),
+    th: rand(0.8, 2.2),
+    a: rand(0.03, 0.12),
+    sp: rand(1.3, 2.8),
+    front,
   };
 }
 
@@ -22,9 +33,17 @@ export function puff(x, y, z, n, strength, img) {
   const V = S.speed * G.cowH;
   for (let i = 0; i < n; i++) {
     parts.push({
-      k: 0, img: img || dustImg, x: x + rand(-6, 6) * G.u, y: y - rand(0, 8) * G.u, z,
-      vx: -rand(0.05, 0.35) * V / z, vy: -rand(0.04, 0.26) * G.cowH * strength,
-      life: 0, max: rand(0.45, 1.1), r0: rand(3, 8) * G.u / z, r1: rand(24, 60) * G.u / z * (0.5 + strength * 0.5),
+      k: 0,
+      img: img || dustImg,
+      x: x + rand(-6, 6) * G.u,
+      y: y - rand(0, 8) * G.u,
+      z,
+      vx: (-rand(0.05, 0.35) * V) / z,
+      vy: -rand(0.04, 0.26) * G.cowH * strength,
+      life: 0,
+      max: rand(0.45, 1.1),
+      r0: (rand(3, 8) * G.u) / z,
+      r1: ((rand(24, 60) * G.u) / z) * (0.5 + strength * 0.5),
       a: rand(0.1, 0.24) * Math.min(1.4, 0.6 + strength * 0.4),
     });
   }
@@ -34,42 +53,66 @@ export function sparks(x, y, z, n) {
   const V = S.speed * G.cowH;
   for (let i = 0; i < n; i++) {
     parts.push({
-      k: 1, x, y: y - 2 * G.u, z, vx: -rand(0.2, 0.9) * V / z + rand(-80, 80) * G.u,
-      vy: -rand(0.25, 1.5) * G.cowH, life: 0, max: rand(0.18, 0.45),
+      k: 1,
+      x,
+      y: y - 2 * G.u,
+      z,
+      vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * G.u,
+      vy: -rand(0.25, 1.5) * G.cowH,
+      life: 0,
+      max: rand(0.18, 0.45),
     });
   }
 }
-export function ring(x, y) { parts.push({ k: 2, x, y, z: 1, vx: 0, vy: 0, life: 0, max: 0.45 }); }
+export function ring(x, y) {
+  parts.push({ k: 2, x, y, z: 1, vx: 0, vy: 0, life: 0, max: 0.45 });
+}
 export function popup(text, kind) {
   if (!G.cowH) return;
   const m = poseMatrix({ y: S.bob - S.h, tilt: 0, sq: 1 });
   const nose = CAM.transformPoint(m.transformPoint(new DOMPoint(580, 120)));
   const head = CAM.transformPoint(m.transformPoint(new DOMPoint(400, 40)));
-  const right = W - nose.x > 0.5 * G.cowH;   // справа от морды есть место — пишем там, иначе над головой
+  const right = W - nose.x > 0.5 * G.cowH; // справа от морды есть место — пишем там, иначе над головой
   const used = new Set(pops.map((q) => q.slot));
   let slot = 0;
   while (used.has(slot)) slot++;
   pops.push({
-    text, kind, slot, right, t: 0, dur: kind === 'pts' ? 1.35 : 1.05,
-    x: right ? Math.min(nose.x + 0.36 * G.cowH, W - 0.3 * G.cowH) : clamp(head.x, W * 0.3, W * 0.7),
+    text,
+    kind,
+    slot,
+    right,
+    t: 0,
+    dur: kind === 'pts' ? 1.35 : 1.05,
+    x: right
+      ? Math.min(nose.x + 0.36 * G.cowH, W - 0.3 * G.cowH)
+      : clamp(head.x, W * 0.3, W * 0.7),
     y: right ? head.y + 0.05 * G.cowH : head.y - 0.12 * G.cowH,
   });
 }
 
 export function drawCracks() {
-  const V = S.speed * G.cowH, zE = G.zEdge * 0.99, zB = G.zBottom;
-  const yE = yAt(zE), yB = yAt(zB);
-  const cw = 0.016 * G.cowH, blur = V / 150;
+  const V = S.speed * G.cowH,
+    zE = G.zEdge * 0.99,
+    zB = G.zBottom;
+  const yE = yAt(zE),
+    yB = yAt(zB);
+  const cw = 0.016 * G.cowH,
+    blur = V / 150;
   ctx.fillStyle = '#06070c';
-  ctx.globalAlpha = 0.5 * cw / (cw + blur);
+  ctx.globalAlpha = (0.5 * cw) / (cw + blur);
   for (const c of cracks) {
-    const xe = xAt(c.X, zE), xb = xAt(c.X, zB);
+    const xe = xAt(c.X, zE),
+      xb = xAt(c.X, zB);
     if (Math.max(xe, xb) < -W * 0.2 || Math.min(xe, xb) > W * 1.2) continue;
-    const we = (cw + blur) / zE, wb = (cw + blur) / zB;
+    const we = (cw + blur) / zE,
+      wb = (cw + blur) / zB;
     ctx.beginPath();
-    ctx.moveTo(xe - we / 2, yE); ctx.lineTo(xe + we / 2, yE);
-    ctx.lineTo(xb + wb / 2, yB); ctx.lineTo(xb - wb / 2, yB);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(xe - we / 2, yE);
+    ctx.lineTo(xe + we / 2, yE);
+    ctx.lineTo(xb + wb / 2, yB);
+    ctx.lineTo(xb - wb / 2, yB);
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
@@ -82,7 +125,8 @@ export function drawLines(front) {
     ctx.globalAlpha = clamp(l.a * k, 0, 0.5);
     ctx.drawImage(lineImg, l.x * W, l.yN * H, l.len * W, l.th * DPR * 2);
   }
-  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 export function drawParticles() {
@@ -91,13 +135,22 @@ export function drawParticles() {
     if (p.k === 0) {
       const r = lerp(p.r0, p.r1, Math.sqrt(t));
       const stretch = Math.abs(p.vx) * 0.02;
-      ctx.globalAlpha = p.a * Math.pow(1 - t, 1.4);
-      ctx.drawImage(p.img, p.x - r - stretch * 0.3, p.y - r, r * 2 + stretch, r * 2);
+      ctx.globalAlpha = p.a * (1 - t) ** 1.4;
+      ctx.drawImage(
+        p.img,
+        p.x - r - stretch * 0.3,
+        p.y - r,
+        r * 2 + stretch,
+        r * 2,
+      );
     } else if (p.k === 2) {
       const rx = G.cowH * 0.34 * (0.35 + 1.3 * t);
       ctx.globalAlpha = 0.85 * (1 - t);
-      ctx.strokeStyle = '#f4f8ff'; ctx.lineWidth = Math.max(1.5, 4 * G.u * (1 - t));
-      ctx.beginPath(); ctx.ellipse(p.x, p.y, rx, rx * 0.26, 0, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = '#f4f8ff';
+      ctx.lineWidth = Math.max(1.5, 4 * G.u * (1 - t));
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, rx, rx * 0.26, 0, 0, TAU);
+      ctx.stroke();
     }
   }
   ctx.globalCompositeOperation = 'lighter';
@@ -108,26 +161,42 @@ export function drawParticles() {
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * G.u);
-    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.022, p.y - p.vy * 0.022); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x - p.vx * 0.022, p.y - p.vy * 0.022);
+    ctx.stroke();
   }
-  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
 }
 
 export function drawPops() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-  const lh = 0.12 * G.cowH, top = H * 0.13 + lh * 0.5;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  const lh = 0.12 * G.cowH,
+    top = H * 0.13 + lh * 0.5;
   for (const q of pops) {
-    const k = q.t / q.dur, a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+    const k = q.t / q.dur,
+      a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     const sc = q.t < 0.2 ? Math.max(0.01, easeOutBack(q.t / 0.2)) : 1;
-    const size = (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) * G.cowH;
-    const y = q.right ? clamp(q.y, top, H * 0.45) + q.slot * lh : Math.max(top + q.slot * lh, q.y - q.slot * lh);
+    const size =
+      (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) * G.cowH;
+    const y = q.right
+      ? clamp(q.y, top, H * 0.45) + q.slot * lh
+      : Math.max(top + q.slot * lh, q.y - q.slot * lh);
     ctx.save();
-    ctx.translate(q.x, y - k * 0.06 * G.cowH); ctx.scale(sc, sc); ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
+    ctx.translate(q.x, y - k * 0.06 * G.cowH);
+    ctx.scale(sc, sc);
+    ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
     ctx.font = `800 ${size.toFixed(1)}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
     ctx.globalAlpha = a;
-    ctx.lineWidth = size * 0.17; ctx.strokeStyle = 'rgba(8,10,22,0.8)'; ctx.strokeText(q.text, 0, 0);
-    ctx.fillStyle = q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff';
+    ctx.lineWidth = size * 0.17;
+    ctx.strokeStyle = 'rgba(8,10,22,0.8)';
+    ctx.strokeText(q.text, 0, 0);
+    ctx.fillStyle =
+      q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff';
     ctx.fillText(q.text, 0, 0);
     ctx.restore();
   }

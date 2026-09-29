@@ -11,7 +11,7 @@ services:
       DATABASE_HOST: db
       DATABASE_NAME: cowskate
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      DATABASE_PORT: "5432"
+      DATABASE_PORT: '5432'
       DATABASE_USER: cowskate
       FASTAPI_ENV: production
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN is required}
@@ -23,9 +23,9 @@ services:
     healthcheck:
       test:
         [
-          "CMD",
-          "python",
-          "-c",
+          'CMD',
+          'python',
+          '-c',
           "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)",
         ]
       interval: 10s
@@ -40,7 +40,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_USER: cowskate
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cowskate -d cowskate"]
+      test: ['CMD-SHELL', 'pg_isready -U cowskate -d cowskate']
       interval: 5s
       timeout: 5s
       retries: 10
