@@ -8,7 +8,9 @@ import { popup } from './effects.js';
 import { bumpScore, endRun } from './ui.js';
 
 // ---------------------------------------------------------------- road features
-const OBS_ENTRIES = Object.entries(OBS);
+const OBS_ENTRIES = /** @type {import('./types').ObstacleEntry[]} */ (
+  Object.entries(OBS)
+);
 const OBS_TOTAL = OBS_ENTRIES.reduce((a, [, o]) => a + o.wt, 0);
 export function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
@@ -17,12 +19,14 @@ export function spawnFeatures() {
   while (S.nextSpawnX < ahead) {
     const X = S.nextSpawnX;
     if (Math.random() < 0.24) {
+      /** @type {import('./types').Ramp} */
       const f = { type: 'ramp', X0: X, X1: X + 1.15 * G.cowH, hr: 0.3 };
       feats.push(f);
       S.nextSpawnX = f.X1 + rand(12, 17) * G.cowH * Math.max(1, 0.8 * S.spdN);
     } else {
-      let r = Math.random() * OBS_TOTAL,
-        kind = 'cone';
+      let r = Math.random() * OBS_TOTAL;
+      /** @type {import('./types').ObstacleKind} */
+      let kind = 'cone';
       for (const [k, o] of OBS_ENTRIES) {
         r -= o.wt;
         if (r <= 0) {
@@ -48,6 +52,10 @@ export function spawnFeatures() {
     if (G.vx + (end - S.camX) < -W * 0.5) feats.splice(i, 1);
   }
 }
+/**
+ * @param {number} X мировой X
+ * @returns {import('./types').GroundInfo} высота и наклон поверхности
+ */
 export function groundInfo(X) {
   for (const f of feats) {
     if (f.type === 'ramp' && X >= f.X0 && X <= f.X1) {
@@ -57,6 +65,10 @@ export function groundInfo(X) {
   }
   return { h: 0, slope: 0 };
 }
+/**
+ * @param {import('./types').Obstacle} f
+ * @param {number} power
+ */
 function knock(f, power) {
   f.fly = {
     h: 0.02,
@@ -82,7 +94,7 @@ export function checkObstacles() {
       }
       if (S.h < o.h * 0.85) {
         knock(f, 1);
-        crash();
+        crash('hit');
       } else f.over = true;
     } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
       f.cleared = true;
@@ -98,6 +110,11 @@ export function checkObstacles() {
 }
 
 // трамплин: деревянный клин в перспективе (боковая стенка, настил, металлический край)
+/**
+ * @param {number[][]} pts
+ * @param {string | CanvasGradient | CanvasPattern} style
+ * @param {number} dx
+ */
 function fillPoly(pts, style, dx) {
   ctx.beginPath();
   ctx.moveTo(pts[0][0] + dx, pts[0][1]);
@@ -106,11 +123,16 @@ function fillPoly(pts, style, dx) {
   ctx.fillStyle = style;
   ctx.fill();
 }
+/**
+ * @param {import('./types').Ramp} f
+ * @param {number} blur смаз по x в пикселях
+ */
 function drawRamp(f, blur) {
   const q = obZ(f.X0 - S.camX),
     zn = 0.8 * q,
     zf = 1.28 * q,
     hh = f.hr * G.cowH;
+  /** @type {(X: number, h: number, z: number) => number[]} */
   const P = (X, h, z) => [G.vx + (X - S.camX) / z, yAt(z) - h / z];
   const A = P(f.X0, 0, zn),
     B = P(f.X1, hh, zn),
@@ -173,6 +195,15 @@ function drawRamp(f, blur) {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * @param {import('./types').ObstacleKind} kind
+ * @param {number} x
+ * @param {number} y
+ * @param {number} rot
+ * @param {number} blur
+ * @param {number} zs
+ * @param {number} [al]
+ */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
   const spr = obSprites[kind],
     sc = (G.cowH * (zs || 1)) / OBR,
@@ -198,6 +229,13 @@ function drawObSprite(kind, x, y, rot, blur, zs, al) {
   ctx.globalAlpha = a;
   ctx.drawImage(spr, x0, y0, w, h);
 }
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} rx
+ * @param {number} ry
+ * @param {number} a
+ */
 function groundShadow(x, y, rx, ry, a) {
   ctx.save();
   ctx.translate(x, y);
@@ -207,6 +245,13 @@ function groundShadow(x, y, rx, ry, a) {
   ctx.restore();
 }
 // тёплое свечение под препятствием — отделяет тёмный спрайт от тёмного асфальта
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} rx
+ * @param {number} ry
+ * @param {number} a
+ */
 function groundGlow(x, y, rx, ry, a) {
   ctx.save();
   ctx.translate(x, y);
@@ -218,6 +263,7 @@ function groundGlow(x, y, rx, ry, a) {
 }
 export function drawFeatures() {
   const blur = (S.speed * G.cowH) / 45;
+  /** @type {{z: number, f: import('./types').Feature, x?: number, y?: number}[]} */
   const items = []; // дальние рисуем первыми
   for (const f of feats) {
     if (f.type === 'ramp') {
@@ -261,7 +307,7 @@ export function drawFeatures() {
 }
 export function drawFlying() {
   for (const f of feats) {
-    if (!f.fly) continue;
+    if (f.type !== 'ob' || !f.fly) continue;
     const [x, y, z] = obPos(f.X);
     if (x < X0() - G.cowH || x > X1() + G.cowH) continue;
     groundShadow(

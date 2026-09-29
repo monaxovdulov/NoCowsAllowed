@@ -50,6 +50,7 @@ import { newLine, puff } from './effects.js';
 import { render } from './render.js';
 import { coachStep } from './ui.js';
 
+/** @param {number} dt шаг кадра, секунды */
 function update(dt) {
   S.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
@@ -114,7 +115,10 @@ function update(dt) {
     : S.camX + W * 0.6 * zB;
   while (last < farX) {
     last += rand(5, 13) * G.cowH;
-    cracks.push({ X: last, hit: [false, false] });
+    cracks.push({
+      X: last,
+      hit: /** @type {[boolean, boolean]} */ ([false, false]),
+    });
   }
   while (cracks.length && xAt(cracks[0].X, G.zEdge) < -W * 0.3) cracks.shift();
   const restM = poseMatrix({ y: S.bob, tilt: S.tilt, sq: S.sq });
@@ -132,8 +136,8 @@ function update(dt) {
 
   // сбитые препятствия летят
   for (const f of feats) {
+    if (f.type !== 'ob' || !f.fly) continue;
     const q = f.fly;
-    if (!q) continue;
     q.vh -= GRAV * dt;
     q.h += q.vh * dt;
     q.rot += q.vr * dt;
@@ -236,6 +240,7 @@ let last = 0,
   emaFrame = 16.7,
   emaWork = 8,
   perfCool = 0;
+/** @param {number} now метка requestAnimationFrame, мс */
 function frame(now) {
   let dt = last ? (now - last) / 1000 : 1 / 60;
   last = now;

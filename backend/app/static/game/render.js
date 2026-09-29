@@ -448,6 +448,7 @@ function post() {
   }
 }
 
+/** Рисует весь кадр и обновляет HUD. */
 export function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = true;

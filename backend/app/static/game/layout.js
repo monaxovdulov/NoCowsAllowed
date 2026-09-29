@@ -7,15 +7,29 @@ export let W = 1,
   H = 1,
   DPR = 1,
   perfScale = 1; // perfScale — динамическое разрешение под нагрузкой
+/** @param {number} v */
 export function setPerfScale(v) {
   perfScale = v;
 }
+/** @param {number} y @returns {number} глубина z по экранному y */
 export const zAt = (y) => G.K / Math.max(1e-3, y - G.horizon);
+/** @param {number} z @returns {number} экранный y по глубине z */
 export const yAt = (z) => G.horizon + G.K / z;
+/**
+ * @param {number} X мировой X
+ * @param {number} z
+ * @returns {number} экранный x
+ */
 export const xAt = (X, z) => G.vx + (X - S.camX) / z;
-export const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx); // центр доски в мире (глубина 1)
+/** @returns {number} центр доски в мире (глубина 1) */
+export const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);
 // препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
+/** @param {number} d расстояние до камеры @returns {number} глубина z */
 export const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
+/**
+ * @param {number} X мировой X препятствия
+ * @returns {import('./types').Vec3} экранные x, y и глубина z
+ */
 export const obPos = (X) => {
   const d = X - S.camX,
     z = obZ(d);
@@ -81,5 +95,7 @@ export function layout() {
   buildSizeDependent();
 }
 
-export const X0 = () => -W * 0.12,
-  X1 = () => W * 1.12;
+/** @returns {number} левый край видимого мира */
+export const X0 = () => -W * 0.12;
+/** @returns {number} правый край видимого мира */
+export const X1 = () => W * 1.12;

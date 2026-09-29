@@ -1,3 +1,4 @@
+// @ts-check
 /* Cow Skate × Telegram: отправка рекордов, общий топ, share.
    Работает и в game-webview (карточка игры, ?s=session) и как Mini App
    (initData). Вне Telegram — тихий no-op, игра остаётся standalone. */
@@ -29,6 +30,7 @@
     } catch (e) { /* старые клиенты — просто играем */ }
   }
 
+  /** @param {string} text */
   function toast(text) {
     var el = document.createElement('div');
     el.className = 'ui';
@@ -49,6 +51,7 @@
     }, 2200);
   }
 
+  /** @param {number} best */
   function submitScore(best) {
     if (!session && !initData) return; // нет идентичности — локальный заезд
     if (!(best > 0)) return;
@@ -79,7 +82,9 @@
   });
 
   // ------------------------------------------------------------------ top
+  /** @type {HTMLDivElement | null} */
   var overlay = null;
+  /** @type {HTMLButtonElement | null} */
   var boardBtn = null;
 
   function buildOverlay() {
@@ -110,10 +115,11 @@
       '</div>';
     document.body.appendChild(overlay);
     overlay.addEventListener('click', function (e) {
-      if (e.target === overlay || e.target.hasAttribute('data-close')) {
+      var t = /** @type {HTMLElement} */ (e.target);
+      if (t === overlay || t.hasAttribute('data-close')) {
         overlay.style.display = 'none';
       }
-      if (e.target.hasAttribute('data-share') && proxy) {
+      if (t.hasAttribute('data-share') && proxy) {
         proxy.shareScore();
       }
     });
@@ -133,7 +139,9 @@
 
   function openBoard() {
     overlay.style.display = 'flex';
-    var list = overlay.querySelector('[data-list]');
+    var list = /** @type {HTMLElement} */ (
+      overlay.querySelector('[data-list]')
+    );
     list.innerHTML =
       '<div style="padding:18px;text-align:center;opacity:.6;' +
       'font:500 11px/1.6 Unbounded,sans-serif">Загрузка…</div>';
@@ -176,6 +184,7 @@
       });
   }
 
+  /** @param {string} s */
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return {

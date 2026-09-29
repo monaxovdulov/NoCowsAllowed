@@ -5,10 +5,23 @@ import { bloomEl, bloomG, clouds, cssPost, ctx, G } from './state.js';
 import { DPR, H, W } from './layout.js';
 
 // ---------------------------------------------------------------- textures
-export const RT = { w: 2048, h: 256 },
-  FT = { w: 2048, h: 256 };
-export let roadPat, fieldPat;
+/** @type {import('./types').TextureSize} */
+export const RT = { w: 2048, h: 256 };
+/** @type {import('./types').TextureSize} */
+export const FT = { w: 2048, h: 256 };
+/** @type {CanvasPattern} */
+export let roadPat;
+/** @type {CanvasPattern} */
+export let fieldPat;
 
+/**
+ * @param {number} w
+ * @param {number} h
+ * @param {Float32Array} R
+ * @param {Float32Array} Gc
+ * @param {Float32Array} B
+ * @returns {HTMLCanvasElement}
+ */
 function toCanvas(w, h, R, Gc, B) {
   const c = mk(w, h),
     g = c.getContext('2d'),
@@ -23,6 +36,12 @@ function toCanvas(w, h, R, Gc, B) {
   g.putImageData(img, 0, 0);
   return c;
 }
+/**
+ * @param {Float32Array} buf
+ * @param {number} w
+ * @param {number} h
+ * @returns {Float32Array}
+ */
 function vblur(buf, w, h) {
   const out = new Float32Array(buf.length);
   for (let y = 0; y < h; y++) {
@@ -36,6 +55,7 @@ function vblur(buf, w, h) {
 }
 
 // асфальт: горизонтальные «смазанные» полосы
+/** @returns {HTMLCanvasElement} */
 function makeRoadTex() {
   const { w, h } = RT,
     r = rng(11),
@@ -68,6 +88,7 @@ function makeRoadTex() {
 }
 
 // поле: трава, смазанная скоростью
+/** @returns {HTMLCanvasElement} */
 function makeFieldTex() {
   const { w, h } = FT,
     r = rng(23);
@@ -113,6 +134,14 @@ function makeFieldTex() {
 }
 
 // облака: кучевые из пуфов, плоское основание, голубоватая тень снизу
+/**
+ * @param {number} seed
+ * @param {number} w
+ * @param {number} h
+ * @param {number} n
+ * @param {boolean} [flat]
+ * @returns {HTMLCanvasElement}
+ */
 function makeCloud(seed, w, h, n, flat) {
   const r = rng(seed),
     c = mk(w, h),
@@ -194,6 +223,11 @@ function makeCloud(seed, w, h, n, flat) {
   return out;
 }
 
+/**
+ * @param {string} color
+ * @param {number} [size]
+ * @returns {HTMLCanvasElement}
+ */
 function softDot(color, size = 64) {
   const c = mk(size, size),
     g = c.getContext('2d'),
@@ -206,6 +240,7 @@ function softDot(color, size = 64) {
   g.fillRect(0, 0, size, size);
   return c;
 }
+/** @returns {HTMLCanvasElement} */
 function lineStrip() {
   const c = mk(256, 4),
     g = c.getContext('2d'),
@@ -221,16 +256,30 @@ function lineStrip() {
 
 // ---------------------------------------------------------------- obstacle sprites (рисуются один раз)
 export const OBR = 520; // пикселей спрайта на рост коровы
+/** @type {import('./types').ObstacleSprites} */
 export const obSprites = {};
+/**
+ * @param {number} w ширина в ростах коровы
+ * @param {number} h высота в ростах коровы
+ * @param {(g: CanvasRenderingContext2D, w: number, h: number) => void} draw
+ * @returns {import('./types').ObstacleSprite}
+ */
 function sprite(w, h, draw) {
-  const pad = 8,
-    c = mk(w * OBR + pad * 2, h * OBR + pad * 2),
-    g = c.getContext('2d');
+  const pad = 8;
+  const c = /** @type {import('./types').ObstacleSprite} */ (
+    mk(w * OBR + pad * 2, h * OBR + pad * 2)
+  );
+  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
   g.translate(pad, pad);
   draw(g, w * OBR, h * OBR);
   c.pad = pad;
   return c;
 }
+/**
+ * @param {CanvasRenderingContext2D} g
+ * @param {number} w
+ * @param {number} h
+ */
 function coneTo(g, w, h) {
   const cx = w / 2,
     baseH = h * 0.08,
@@ -504,16 +553,26 @@ function buildObSprites() {
 }
 
 // ---------------------------------------------------------------- size-dependent buffers
-export let skyCv,
-  vigCv,
-  bA,
-  bB,
-  bC,
-  bAg,
-  bBg,
-  bCg,
-  grainPats = [],
-  grainTiles = [];
+/** @type {HTMLCanvasElement} */
+export let skyCv;
+/** @type {HTMLCanvasElement} */
+export let vigCv;
+/** @type {HTMLCanvasElement} */
+export let bA;
+/** @type {HTMLCanvasElement} */
+export let bB;
+/** @type {HTMLCanvasElement} */
+export let bC;
+/** @type {CanvasRenderingContext2D} */
+export let bAg;
+/** @type {CanvasRenderingContext2D} */
+export let bBg;
+/** @type {CanvasRenderingContext2D} */
+export let bCg;
+/** @type {CanvasPattern[]} */
+export let grainPats = [];
+/** @type {HTMLCanvasElement[]} */
+export let grainTiles = [];
 
 export function buildSizeDependent() {
   // небо уходит высоко вверх: камера поднимается за коровой на трамплинах
@@ -655,17 +714,27 @@ export function buildSizeDependent() {
   }
 }
 
-export let imgs,
-  ghostCv,
-  streakCv,
-  streaks = [],
-  dustImg,
-  woodImg,
-  lineImg,
-  shadowImg,
-  glowImg;
+/** @type {import('./types').CowImages} */
+export let imgs;
+/** @type {HTMLCanvasElement} */
+export let ghostCv;
+/** @type {HTMLCanvasElement} */
+export let streakCv;
+/** @type {import('./types').Streak[]} */
+export let streaks = [];
+/** @type {HTMLCanvasElement} */
+export let dustImg;
+/** @type {HTMLCanvasElement} */
+export let woodImg;
+/** @type {HTMLCanvasElement} */
+export let lineImg;
+/** @type {HTMLCanvasElement} */
+export let shadowImg;
+/** @type {HTMLCanvasElement} */
+export let glowImg;
 
 // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
+/** @returns {HTMLCanvasElement} */
 function makeShadow() {
   const c = mk(128, 128),
     g = c.getContext('2d');
@@ -792,6 +861,7 @@ export function initClouds() {
   clouds.sort((a, b) => b.yN - a.yN);
 }
 
+/** @param {import('./types').CowImages} loaded декодированные слои коровы */
 export function initAssets(loaded) {
   imgs = loaded;
   roadPat = ctx.createPattern(makeRoadTex(), 'repeat');

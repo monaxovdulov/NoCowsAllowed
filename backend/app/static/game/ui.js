@@ -19,12 +19,14 @@ import { jump, trick } from './player.js';
 import { popup } from './effects.js';
 
 // ---------------------------------------------------------------- score
+/** Визуальный «бамп» счётчика очков при начислении. */
 export function bumpScore() {
   scoreEl.classList.remove('bump');
   void scoreEl.offsetWidth;
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
+/** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
 export function endRun() {
   if (S.score > S.best) {
     S.best = S.score;
@@ -40,6 +42,7 @@ export function endRun() {
     );
   }
 }
+/** Начисляет очки за трюки воздуха при приземлении. */
 export function award() {
   const list = S.airTricks,
     tricks = list.filter((k) => k !== 'double');
@@ -56,6 +59,7 @@ export function award() {
   popup(mult > 1 ? `+${pts}  ×${mult}` : `+${pts}`, 'pts');
 }
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
+/** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
   if (S.score !== shown.score) {
     scoreEl.textContent = S.score.toLocaleString('ru-RU');
@@ -84,6 +88,7 @@ export function hud() {
 }
 
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
+/** @param {number} sc очки заезда */
 export function showResult(sc) {
   resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
   resultEl.classList.remove('dim');
@@ -91,6 +96,10 @@ export function showResult(sc) {
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
+/**
+ * @param {string | null} text текст подсказки (null — скрыть)
+ * @param {number} [dur] секунды показа (по умолчанию — до замены)
+ */
 export function setCoach(text, dur) {
   if (!text) {
     coachEl.classList.add('dim');
@@ -121,7 +130,9 @@ export function coachStep() {
     } else {
       const Xb = boardX(),
         V = Math.max(1, S.speed * G.cowH);
-      const nx = feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb);
+      const nx = /** @type {import('./types').Obstacle | undefined} */ (
+        feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb)
+      );
       if (nx && (nx.X - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
       else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
@@ -148,6 +159,7 @@ function touched() {
   S.autoAfter = null;
   hintEl.classList.add('dim');
 }
+/** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
   touched();
   if (a === 'jump') jump();
@@ -176,25 +188,25 @@ addEventListener('blur', () => {
   release();
   S.throttle = 0;
 });
-for (const b of document.querySelectorAll('.pad [data-act]')) {
+const padBtns = /** @type {NodeListOf<HTMLElement>} */ (
+  document.querySelectorAll('.pad [data-act]')
+);
+for (const b of padBtns) {
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    act(b.dataset.act);
+    act(/** @type {import('./types').Action} */ (b.dataset.act));
     b.classList.add('on');
     setTimeout(() => b.classList.remove('on'), 160);
   });
   b.addEventListener('click', (e) => {
-    if (e.detail === 0) act(b.dataset.act);
+    if (e.detail === 0)
+      act(/** @type {import('./types').Action} */ (b.dataset.act));
   }); // Enter/пробел на кнопке
 }
 addEventListener('keydown', (e) => {
   const k = e.code;
-  if (
-    e.target &&
-    e.target.closest &&
-    e.target.closest('button') &&
-    (k === 'Space' || k === 'Enter')
-  )
+  const t = /** @type {HTMLElement | null} */ (e.target);
+  if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
   const keyAct = {
     Space: 'jump',

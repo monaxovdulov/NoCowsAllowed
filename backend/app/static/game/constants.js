@@ -6,11 +6,13 @@ export const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
 export const AUTO_DELAY = 4.5; // через столько секунд без касаний рулит автопилот
+/** @type {import('./types').TrickTable} */
 export const TRICKS = {
   spin: { name: '360', dur: 0.5, pts: 100 },
   flip: { name: 'САЛЬТО', dur: 0.56, pts: 150 },
   kick: { name: 'КИКФЛИП', dur: 0.4, pts: 120 },
 };
+/** @type {import('./types').ObstacleTable} */
 export const OBS = {
   // ширина и высота — в ростах коровы
   cone: { w: 0.19, h: 0.24, wt: 3 },

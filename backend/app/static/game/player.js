@@ -21,8 +21,14 @@ import { popup, puff, ring, sparks } from './effects.js';
 import { award, endRun, setCoach, showResult } from './ui.js';
 
 // ---------------------------------------------------------------- pose → matrix
+/** @type {import('./types').Vec2} */
 const PIV = [200, 540]; // центр доски в координатах фото — вокруг него наклон
+/** @type {import('./types').Vec2} */
 const CEN = [300, 330]; // центр коровы — вокруг него сальто и 360
+/**
+ * @param {import('./types').Pose} p
+ * @returns {DOMMatrix}
+ */
 export function poseMatrix(p) {
   const sqX = 1 + (1 - p.sq) * 0.55;
   const m = new DOMMatrix()
@@ -41,6 +47,7 @@ export function poseMatrix(p) {
   }
   return m.translateSelf(-CEN[0], -CEN[1]);
 }
+/** @returns {import('./types').Pose} текущая поза коровы */
 export const curPose = () => ({
   y: S.bob + vib() - S.h,
   tilt: S.tilt,
@@ -48,6 +55,12 @@ export const curPose = () => ({
   spin: S.spin,
   roll: S.roll,
 });
+/**
+ * @param {DOMMatrix} m
+ * @param {number} ang
+ * @param {number} drop
+ * @returns {DOMMatrix}
+ */
 function kickT(m, ang, drop) {
   const [a, b] = META.board.axis,
     cx = (a[0] + b[0]) / 2,
@@ -63,6 +76,7 @@ function kickT(m, ang, drop) {
     .rotate(-al)
     .translate(-cx, -cy);
 }
+/** @param {DOMMatrix} m @returns {DOMMatrix} */
 export function boardMatrix(m) {
   const c = S.crash;
   if (c)
@@ -73,6 +87,7 @@ export function boardMatrix(m) {
     );
   return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
 }
+/** @returns {number} вибрация подвески на ходу */
 export function vib() {
   if (S.air || S.onRamp || S.crash) return 0;
   const t = S.t,
@@ -84,6 +99,7 @@ export function vib() {
       nE(t * 38) * 0.6)
   );
 }
+/** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
 export function wheelsScreen() {
   const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
   return META.contact.map(([x, y]) => {
@@ -94,9 +110,11 @@ export function wheelsScreen() {
 
 // ---------------------------------------------------------------- jumps & tricks
 const ready = () => !!imgs && !!G.cowH;
+/** @returns {number} секунды до касания земли при текущей вертикальной скорости */
 function timeToLand() {
   return (S.hV + Math.sqrt(Math.max(0, S.hV * S.hV + 2 * GRAV * S.h))) / GRAV;
 }
+/** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 export function jump() {
   if (!ready() || S.crash) return false;
   if (!S.air) {
@@ -130,17 +148,19 @@ export function jump() {
   S.airDur = S.airT + timeToLand();
   return true;
 }
+/** @param {import('./types').TrickKind} kind */
 function startTrick(kind) {
   const T = TRICKS[kind];
   S.trick = {
     kind,
     t: 0,
     dur: clamp(timeToLand() - 0.06, 0.28, T.dur),
-    dir: Math.random() < 0.5 ? 1 : -1,
+    dir: /** @type {1 | -1} */ (Math.random() < 0.5 ? 1 : -1),
   };
   S.earV -= 1.5;
   S.tagV += rand(-3, 3);
 }
+/** @param {import('./types').TrickKind} kind */
 export function trick(kind) {
   if (!ready() || S.crash) return;
   if (!S.air && !jump()) return;
@@ -180,8 +200,8 @@ function stepTrick(dt) {
   }
   if (p >= 1) finishTrick();
 }
+/** слетели с трамплина */
 export function launch() {
-  // слетели с трамплина
   S.air = true;
   S.airT = 0;
   S.jumps = 1;
@@ -196,7 +216,7 @@ export function launch() {
   const w = wheelsScreen();
   puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
   if (!playerMode()) {
-    S.autoSeq = pick(
+    const seqs = /** @type {import('./types').TrickKind[][]} */ (
       S.airDur > 0.95
         ? [
             ['spin', 'kick'],
@@ -205,10 +225,12 @@ export function launch() {
             ['flip'],
             ['spin', 'flip'],
           ]
-        : [['flip'], ['spin'], ['kick']],
-    ).slice();
+        : [['flip'], ['spin'], ['kick']]
+    );
+    S.autoSeq = pick(seqs).slice();
   }
 }
+/** @param {number} g высота земли под доской (росты коровы) */
 function land(g) {
   if (S.trick) {
     if (S.trick.t / S.trick.dur > 0.8) finishTrick();
@@ -244,10 +266,12 @@ function land(g) {
 }
 
 // ---------------------------------------------------------------- crash
-export function crash() {
+/** @param {import('./types').CrashReason} reason причина падения */
+export function crash(reason) {
   if (S.crash) return;
   const w = wheelsScreen();
   S.crash = {
+    reason,
     t: 0,
     dur: 1.4,
     r0: S.roll,
@@ -291,6 +315,7 @@ export function crash() {
     setCoach(sc < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
   }
 }
+/** @param {number} dt шаг, секунды */
 function crashStep(dt) {
   const c = S.crash;
   c.t += dt;
@@ -401,6 +426,10 @@ export function autopilot() {
   }
 }
 
+/**
+ * @param {number} dt шаг, секунды
+ * @param {number} g высота земли под доской (росты коровы)
+ */
 export function physicsStep(dt, g) {
   // подвеска
   S.bobV += (-760 * S.bob - 17 * S.bobV) * dt;
@@ -461,6 +490,10 @@ export function physicsStep(dt, g) {
   }
 }
 
+/**
+ * @param {number} i колесо (0 — заднее, 1 — переднее)
+ * @param {number} strength сила удара
+ */
 export function bumpAt(i, strength) {
   if (S.air || S.onRamp || S.crash) return;
   S.bobV -= 0.11 * strength;

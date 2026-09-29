@@ -10,5 +10,5 @@
     "moduleResolution": "Bundler",
     "skipLibCheck": true
   },
-  "include": ["backend/app/static/game"]
+  "include": ["backend/app/static"]
 }

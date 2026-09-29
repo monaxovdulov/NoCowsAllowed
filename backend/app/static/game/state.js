@@ -1,10 +1,21 @@
 import { AUTO_DELAY, CRUISE } from './constants.js';
 
 // ---------------------------------------------------------------- DOM, canvas
-export const cv = document.getElementById('scene');
-export const ctx = cv.getContext('2d', { alpha: false, desynchronized: true });
-export const bloomEl = document.getElementById('bloom');
-export const grainEl = document.querySelector('.grain');
+/** @type {HTMLCanvasElement} */
+export const cv = /** @type {HTMLCanvasElement} */ (
+  document.getElementById('scene')
+);
+export const ctx = /** @type {CanvasRenderingContext2D} */ (
+  cv.getContext('2d', { alpha: false, desynchronized: true })
+);
+/** @type {HTMLCanvasElement} */
+export const bloomEl = /** @type {HTMLCanvasElement} */ (
+  document.getElementById('bloom')
+);
+/** @type {HTMLElement} */
+export const grainEl = /** @type {HTMLElement} */ (
+  document.querySelector('.grain')
+);
 // Пост-эффекты DOM-слоями: смешивание делает композитор бесплатно.
 // Старые WebView без mix-blend-mode — запасной путь внутри canvas.
 export const cssPost =
@@ -17,15 +28,40 @@ if (!cssPost) {
   if (bloomEl) bloomEl.style.display = 'none';
   if (grainEl) grainEl.style.display = 'none';
 }
-export const hintEl = document.getElementById('hint');
-export const hudEl = document.getElementById('hud');
-export const scoreEl = document.getElementById('score');
-export const bestEl = document.getElementById('best');
-export const autoEl = document.getElementById('auto');
-export const ctaEl = document.getElementById('cta');
-const ctaMain = document.getElementById('ctaMain');
-export const coachEl = document.getElementById('coach');
-export const resultEl = document.getElementById('result');
+/** @type {HTMLElement} */
+export const hintEl = /** @type {HTMLElement} */ (
+  document.getElementById('hint')
+);
+/** @type {HTMLElement} */
+export const hudEl = /** @type {HTMLElement} */ (
+  document.getElementById('hud')
+);
+/** @type {HTMLElement} */
+export const scoreEl = /** @type {HTMLElement} */ (
+  document.getElementById('score')
+);
+/** @type {HTMLElement} */
+export const bestEl = /** @type {HTMLElement} */ (
+  document.getElementById('best')
+);
+/** @type {HTMLElement} */
+export const autoEl = /** @type {HTMLElement} */ (
+  document.getElementById('auto')
+);
+/** @type {HTMLElement} */
+export const ctaEl = /** @type {HTMLElement} */ (
+  document.getElementById('cta')
+);
+/** @type {HTMLElement} */
+const ctaMain = /** @type {HTMLElement} */ (document.getElementById('ctaMain'));
+/** @type {HTMLElement} */
+export const coachEl = /** @type {HTMLElement} */ (
+  document.getElementById('coach')
+);
+/** @type {HTMLElement} */
+export const resultEl = /** @type {HTMLElement} */ (
+  document.getElementById('result')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 export let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -38,16 +74,41 @@ if (matchMedia('(pointer: coarse)').matches) {
   ctaMain.textContent = 'Тапни — прыгнуть';
 }
 
-export const G = {}; // геометрия кадра
+// Геометрия кадра: все поля создаются сразу (стабильная форма объекта),
+// значения пересчитывает layout() при resize.
+/** @type {import('./types').Geometry} */
+export const G = {
+  s: 0,
+  cowH: 0,
+  u: 0,
+  ox: 0,
+  oy: 0,
+  horizon: 0,
+  edgeY: 0,
+  refY: 0,
+  K: 0,
+  vx: 0,
+  zEdge: 0,
+  zBottom: 0,
+  kR: 0,
+  kF: 0,
+  obD: 0,
+  obL: 0,
+  skyOff: 0,
+  hg: null,
+  rg: null,
+};
 export let CAM = new DOMMatrix(); // камера (тряска, зум, подъём за коровой)
 export const PM = new DOMMatrix(); // переиспользуемая матрица для паттернов
 export const canPatternTransform =
   typeof CanvasPattern !== 'undefined' &&
   'setTransform' in CanvasPattern.prototype;
+/** @param {DOMMatrix} m */
 export function setCAM(m) {
   CAM = m;
 }
 
+/** @type {import('./types').GameState} */
 export const S = {
   t: 0,
   camX: 90000 + Math.random() * 5000,
@@ -111,10 +172,17 @@ try {
 } catch (e) {
   /* без рекорда */
 }
-export const clouds = [],
-  parts = [],
-  lines = [],
-  cracks = [],
-  feats = [],
-  pops = [];
+/** @type {import('./types').Cloud[]} */
+export const clouds = [];
+/** @type {import('./types').Particle[]} */
+export const parts = [];
+/** @type {import('./types').SpeedLine[]} */
+export const lines = [];
+/** @type {import('./types').Crack[]} */
+export const cracks = [];
+/** @type {import('./types').Feature[]} */
+export const feats = [];
+/** @type {import('./types').Pop[]} */
+export const pops = [];
+/** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
 export const playerMode = () => S.t - S.lastInput <= AUTO_DELAY;

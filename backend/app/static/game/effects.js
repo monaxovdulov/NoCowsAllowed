@@ -4,6 +4,10 @@ import { DPR, H, W, xAt, yAt } from './layout.js';
 import { dustImg, lineImg } from './sprites.js';
 import { poseMatrix } from './player.js';
 
+/**
+ * @param {boolean} init полоса по всему экрану (true) или справа за краем
+ * @returns {import('./types').SpeedLine}
+ */
 export function newLine(init) {
   const front = Math.random() < 0.3;
   const edge = Math.random() < 0.5;
@@ -28,6 +32,14 @@ export function newLine(init) {
 }
 
 // ---------------------------------------------------------------- particles, popups
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z глубина точки спавна
+ * @param {number} n число частиц
+ * @param {number} strength сила разлёта
+ * @param {CanvasImageSource} [img]
+ */
 export function puff(x, y, z, n, strength, img) {
   if (reduce) n = Math.ceil(n * 0.4);
   const V = S.speed * G.cowH;
@@ -48,6 +60,12 @@ export function puff(x, y, z, n, strength, img) {
     });
   }
 }
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number} n
+ */
 export function sparks(x, y, z, n) {
   if (reduce) return;
   const V = S.speed * G.cowH;
@@ -64,9 +82,17 @@ export function sparks(x, y, z, n) {
     });
   }
 }
+/**
+ * @param {number} x
+ * @param {number} y
+ */
 export function ring(x, y) {
   parts.push({ k: 2, x, y, z: 1, vx: 0, vy: 0, life: 0, max: 0.45 });
 }
+/**
+ * @param {string} text
+ * @param {import('./types').PopKind} kind
+ */
 export function popup(text, kind) {
   if (!G.cowH) return;
   const m = poseMatrix({ y: S.bob - S.h, tilt: 0, sq: 1 });
@@ -117,6 +143,7 @@ export function drawCracks() {
   ctx.globalAlpha = 1;
 }
 
+/** @param {boolean} front передний (true) или задний план */
 export function drawLines(front) {
   ctx.globalCompositeOperation = 'screen';
   const k = (reduce ? 0.4 : 1) * (0.45 + 1.3 * S.boost) * (0.8 + 0.2 * S.spdN);

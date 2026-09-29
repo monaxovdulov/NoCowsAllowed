@@ -3,6 +3,7 @@
 // Рантайм их не грузит; проверка — tsc --checkJs (см. docs/refactoring-map.md).
 
 export type Vec2 = [number, number];
+export type Vec3 = [number, number, number];
 
 // ---------------------------------------------------------------- assets
 
@@ -63,6 +64,7 @@ export interface ObstacleSpec {
 
 export type TrickTable = Record<TrickKind, TrickSpec>;
 export type ObstacleTable = Record<ObstacleKind, ObstacleSpec>;
+export type ObstacleEntry = [ObstacleKind, ObstacleSpec];
 
 // ---------------------------------------------------------------- geometry
 
@@ -124,7 +126,12 @@ export interface BoardSnap {
   bkick: number;
 }
 
+// hit — врезался; bail — не докрутил трюк; fall — упал в яму/с рейла;
+// stall — не дотянул петлю и сорвался.
+export type CrashReason = 'hit' | 'bail' | 'fall' | 'stall';
+
 export interface CrashState extends BoardSnap {
+  reason: CrashReason;
   t: number;
   dur: number;
   r0: number;
@@ -321,14 +328,6 @@ export type ObstacleSprites = Partial<Record<ObstacleKind, ObstacleSprite>>;
 // crash — анимация падения.
 export type PlayerMode = 'ground' | 'air' | 'ride' | 'crash';
 
-// hit — врезался; bail — не докрутил трюк; fall — упал в яму/с рейла;
-// stall — не дотянул петлю и сорвался.
-export type CrashReason = 'hit' | 'bail' | 'fall' | 'stall';
-
-export interface TargetCrashState extends CrashState {
-  reason: CrashReason;
-}
-
 // ---------------------------------------------------------------- конструкции
 
 // Единая «оболочка» для всех фич трассы: горячие циклы (спавн, отсечение,
@@ -461,8 +460,35 @@ export interface RunEndDetail {
   best: number;
 }
 
+// ---------------------------------------------------------------- telegram
+
+// Минимальный контракт Telegram для telegram-bridge.js: WebApp (Mini App)
+// и Game.Proxy (карточка игры). Проверки вида typeof в мосте остаются —
+// поля опциональны, потому что старые клиенты их не дают.
+export interface TelegramWebApp {
+  initData: string;
+  initDataUnsafe: { user?: { id?: number } };
+  ready(): void;
+  expand(): void;
+  setHeaderColor(color: string): void;
+  setBackgroundColor(color: string): void;
+  disableVerticalSwipes?(): void;
+}
+
+export interface TelegramGameProxy {
+  shareScore(): void;
+}
+
 declare global {
   interface DocumentEventMap {
     'cowskate:run-end': CustomEvent<RunEndDetail>;
+  }
+
+  interface Window {
+    Telegram?: {
+      WebApp?: TelegramWebApp;
+      Game?: { Proxy?: TelegramGameProxy };
+    };
+    TelegramGameProxy?: TelegramGameProxy;
   }
 }
