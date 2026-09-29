@@ -1,0 +1,274 @@
+{
+  "seed": 5360254,
+  "frameMs": 16.666666666666668,
+  "viewports": {
+    "desktop-1280x720": {
+      "canvas": {
+        "w": 1280,
+        "h": 720
+      },
+      "checkpoints": [
+        {
+          "label": "demo",
+          "frame": 360,
+          "scene": "f2e87e3b50d506e5a89ebd50032ac885a7989a85c8604d7bbac2e2cd8ace1a3c",
+          "bloom": "65d4aee87eb37a12bf982245aa383b118e90278fb30d024256d1b795d00dea2a",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui",
+            "coachText": "",
+            "coachClass": "coach ui dim",
+            "resultHtml": "",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui"
+          }
+        },
+        {
+          "label": "jump",
+          "frame": 460,
+          "scene": "13b54a499db84b28fe44419e37599a328c7cc9b6a902d6d26824de014ea835b2",
+          "bloom": "fe233fc41c2203f1447b01b8374af74e2f3e4748fea6025ca732e76b1a8bef7c",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "double-360",
+          "frame": 603,
+          "scene": "c8f41cfe29a0a1860b71379a378adb1d9d1e0f6b028a6034301411d53641bb94",
+          "bloom": "04c72069546061c87158c299da2a5c8b734c05531fe45290eeccf0ef62007caa",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "boost",
+          "frame": 753,
+          "scene": "31212920797483e51b4be0c26e79488a95e65ccd475e4f4cf734ad4834a5c7c4",
+          "bloom": "165a5080fb962878c1e0fb1de2b671aaf3a9ab1d95e203cc281e2dc603626680",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "flip",
+          "frame": 903,
+          "scene": "f0c965b6910783c46d2e5a31310e0e8382a1e06b429f1f8db495041a109e1757",
+          "bloom": "96992f9624648caa4a35867b160160b17917c50bd9fb0709e5fe5bdc38c5e3b3",
+          "hud": {
+            "score": "150",
+            "best": "150",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "run",
+          "frame": 1623,
+          "scene": "d8e7f9b45a9388d0a40594783919a087277b6a12829a19bafa5a2613ad83484e",
+          "bloom": "be4ef1989e0ead556e8200e1fb28f36d1fc9e88ea5dd0f828938509521b1200f",
+          "hud": {
+            "score": "0",
+            "best": "150",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "back-to-demo",
+          "frame": 2043,
+          "scene": "dd22df43c188ce36a76f7e1b8f346ebc673af96683d8344d05e9eea44a12a40f",
+          "bloom": "162760de784e412e1b4b2e482b37b287b9f48c912447e940857c463c3e6f2cc4",
+          "hud": {
+            "score": "0",
+            "best": "150",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        }
+      ]
+    },
+    "mobile-390x780": {
+      "canvas": {
+        "w": 780,
+        "h": 1560
+      },
+      "checkpoints": [
+        {
+          "label": "demo",
+          "frame": 360,
+          "scene": "1d8835018f373a4ee6ff2ce69d7148b0b789672da4500fab6c88593b787988b2",
+          "bloom": "ffae09b262cb8ae471c04d869e942da4dc07ae4b940aae75e029560c2552b264",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui",
+            "coachText": "",
+            "coachClass": "coach ui dim",
+            "resultHtml": "",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui"
+          }
+        },
+        {
+          "label": "jump",
+          "frame": 460,
+          "scene": "e976b015db3d85dcc6108ad39bad67492e24ba3fb52d8e7727330334c359f5c0",
+          "bloom": "a540fa68875a901cfad00092325fcca359a34d1b55d30f6bf55d8d132736f0c6",
+          "hud": {
+            "score": "0",
+            "best": "0",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "double-360",
+          "frame": 603,
+          "scene": "900919c38a26b3475704cbf8cd4c5d7317a51990add892fa3db93eb03d830524",
+          "bloom": "8ba1d97db952928e3820222d75f409c9111f74857072d671c40d3909a8d644fd",
+          "hud": {
+            "score": "100",
+            "best": "100",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachClass": "coach ui",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "boost",
+          "frame": 753,
+          "scene": "0fb70425cda1b7105bc88bfd9038aeeba018f5ea708bccc7b23996e5b20516f9",
+          "bloom": "8e72928a55e85c03f98ddf96546823b62b3d2e189b1b15a989b83eaa7a3a9eff",
+          "hud": {
+            "score": "0",
+            "best": "100",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
+            "resultClass": "result ui",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "flip",
+          "frame": 903,
+          "scene": "c51e2878cfcca7e4e2441153b0769a9a9110963bb2e61c79612a248179354ade",
+          "bloom": "70e7aad52f848cdfc5b5b1f8f5ab7e7f008cebe0d5e5ac9ffc177fcce069caca",
+          "hud": {
+            "score": "150",
+            "best": "150",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "run",
+          "frame": 1623,
+          "scene": "65de5d11da5cceb1ea5cf30670599ac991587da6018e30dc73d46a199feb82f1",
+          "bloom": "8f4fc6cde12d2fe424b85141b9949d0690a8de9b528b2fd382964468056b3891",
+          "hud": {
+            "score": "0",
+            "best": "150",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        },
+        {
+          "label": "back-to-demo",
+          "frame": 2043,
+          "scene": "42b72bd4b1c4d798c89daf974c40d1df612ef9c8f61eaae2c2791c5b010c0cdb",
+          "bloom": "bb0cfe304a876e8e03b69695f7864c0eab80f448c6f5efda4b207171e899f6ba",
+          "hud": {
+            "score": "0",
+            "best": "150",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim"
+          }
+        }
+      ]
+    }
+  }
+}
