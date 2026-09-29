@@ -214,6 +214,9 @@
   const yAt = (z) => G.horizon + G.K / z;
   const xAt = (X, z) => G.vx + (X - S.camX) / z;
   const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);   // центр доски в мире (глубина 1)
+  // препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
+  const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
+  const obPos = (X) => { const d = X - S.camX, z = obZ(d); return [G.vx + d / z, yAt(z), z]; };
 
   function layout() {
     const cssW = Math.max(1, innerWidth), cssH = Math.max(1, innerHeight);
@@ -226,12 +229,13 @@
     cv.width = W; cv.height = H;
 
     // корова (в пикселях фото: макушка y=45, колёса y=591, ширина ~545)
+    // на узких экранах корова меньше, левее и ниже — иначе она съедает всю дорогу впереди
     const narrow = W < H * 0.8;
-    const s = Math.min(0.58 * H / 546, (narrow ? 0.74 : 0.86) * W / 545);
+    const s = Math.min(0.58 * H / 546, (narrow ? 0.5 : 0.86) * W / 545);
     const cowH = 546 * s;
-    const bottom = Math.min(H * 0.8, H * 0.54 + cowH * 0.5);
+    const bottom = Math.min(H * (narrow ? 0.84 : 0.8), H * (narrow ? 0.62 : 0.54) + cowH * 0.5);
     const top = bottom - cowH;
-    const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.4 : 0.44);   // впереди коровы — место, чтобы видеть препятствия
+    const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.3 : 0.44);   // впереди коровы — место, чтобы видеть препятствия
     Object.assign(G, { s, cowH, u: cowH / 670, ox: cx - 312 * s, oy: top - 45 * s });
     G.horizon = G.oy + 200 * s;           // линия горизонта как на фото
     G.edgeY = G.oy + 329 * s;             // дальний край дороги
@@ -242,6 +246,8 @@
     G.zBottom = G.K / (H * 1.2 - G.horizon);
     G.kR = 150 / cowH;                    // пикселей текстуры асфальта на мировую единицу
     G.kF = 60 / cowH;                     // … поля
+    G.obD = G.ox + 200 * s - G.vx;        // смещение доски от камеры — здесь z=1
+    G.obL = W * 1.15;                     // шкала схода препятствий к горизонту
     if (oldCowH) {                        // мир в пикселях — пересчитываем всё под новый масштаб
       const k = cowH / oldCowH;
       S.camX *= k; S.nextSpawnX *= k;
@@ -908,7 +914,8 @@
 
   // ---------------------------------------------------------------- road features
   function spawnFeatures() {
-    const ahead = S.camX + (W * 1.5 - G.vx);
+    // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
+    const ahead = S.camX + Math.max(W * 1.5 - G.vx, G.zEdge * 1.15 * (W - G.vx) + 2 * G.cowH);
     const total = Object.values(OBS).reduce((a, o) => a + o.wt, 0);
     while (S.nextSpawnX < ahead) {
       const X = S.nextSpawnX;
@@ -1356,11 +1363,13 @@
     ctx.closePath(); ctx.fillStyle = style; ctx.fill();
   }
   function drawRamp(f, blur) {
-    const zn = 0.8, zf = 1.28, hh = f.hr * G.cowH;
+    const q = obZ(f.X0 - S.camX), zn = 0.8 * q, zf = 1.28 * q, hh = f.hr * G.cowH;
     const P = (X, h, z) => [G.vx + (X - S.camX) / z, yAt(z) - h / z];
     const A = P(f.X0, 0, zn), B = P(f.X1, hh, zn), C = P(f.X1, hh, zf), D = P(f.X0, 0, zf);
     const F = P(f.X1, 0, zn), Gp = P(f.X1, 0, zf);
     if (Math.max(B[0], F[0]) < X0() - 60 || Math.min(A[0], D[0]) > X1() + 60) return;
+    const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1);   // проступает из дали
+    if (fa <= 0.02) return;
     const shadowLen = 0.35 * G.cowH;
     const shape = (dx, alpha) => {
       ctx.globalAlpha = alpha;
@@ -1389,22 +1398,22 @@
       ctx.strokeStyle = '#dfe4ea'; ctx.lineWidth = Math.max(1.5, 3.2 * G.u); ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(B[0] + dx, B[1]); ctx.lineTo(C[0] + dx, C[1]); ctx.stroke();
     };
-    shape(blur * 0.8, 0.3);
-    shape(0, 1);
+    shape(blur * 0.8 / q, 0.3 * fa);
+    shape(0, fa);
     ctx.globalAlpha = 1;
   }
 
-  function drawObSprite(kind, x, y, rot, blur) {
-    const spr = obSprites[kind], sc = G.cowH / OBR;
+  function drawObSprite(kind, x, y, rot, blur, zs, al) {
+    const spr = obSprites[kind], sc = G.cowH * (zs || 1) / OBR, a = al === undefined ? 1 : al;
     const w = spr.width * sc, h = spr.height * sc, p = spr.pad * sc;
     if (rot) {
-      ctx.save(); ctx.translate(x, y - (h - 2 * p) / 2); ctx.rotate(rot);
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y - (h - 2 * p) / 2); ctx.rotate(rot);
       ctx.drawImage(spr, -w / 2, -h / 2, w, h); ctx.restore();
       return;
     }
     const x0 = x - w / 2, y0 = y - h + p;
-    for (let i = 3; i >= 1; i--) { ctx.globalAlpha = 0.13 * (4 - i); ctx.drawImage(spr, x0 + blur * i / 3, y0, w, h); }
-    ctx.globalAlpha = 1; ctx.drawImage(spr, x0, y0, w, h);
+    for (let i = 3; i >= 1; i--) { ctx.globalAlpha = 0.13 * (4 - i) * a; ctx.drawImage(spr, x0 + blur * i / 3, y0, w, h); }
+    ctx.globalAlpha = a; ctx.drawImage(spr, x0, y0, w, h);
   }
   function groundShadow(x, y, rx, ry, a) {
     ctx.save(); ctx.translate(x, y); ctx.scale(rx, ry);
@@ -1414,22 +1423,34 @@
   }
   function drawFeatures() {
     const blur = S.speed * G.cowH / 45;
-    for (const f of feats) if (f.type === 'ramp') drawRamp(f, blur);
+    const items = [];                                     // дальние рисуем первыми
     for (const f of feats) {
-      if (f.type !== 'ob' || f.fly) continue;
-      const x = G.vx + (f.X - S.camX), o = OBS[f.kind];
+      if (f.type === 'ramp') { items.push({ z: obZ(f.X0 - S.camX) * 1.06, f }); continue; }
+      if (f.fly) continue;
+      const [x, y, z] = obPos(f.X);
       if (x < X0() - G.cowH || x > X1() + G.cowH) continue;
-      groundShadow(x + 0.03 * G.cowH, G.refY, o.w * G.cowH * 0.62, 0.035 * G.cowH, 0.55);
-      drawObSprite(f.kind, x, G.refY, 0, blur);
+      items.push({ z, f, x, y });
     }
+    items.sort((a, b) => b.z - a.z);
+    for (const it of items) {
+      const f = it.f;
+      if (f.type === 'ramp') { drawRamp(f, blur); continue; }
+      const o = OBS[f.kind], z = it.z;
+      const a = clamp((G.zEdge * 1.12 - z) * 2.4, 0, 1);  // проступают из дали
+      if (a <= 0.02) continue;
+      ctx.globalAlpha = 1;
+      groundShadow(it.x + 0.03 * G.cowH / z, it.y, o.w * G.cowH * 0.62 / z, 0.035 * G.cowH / z, 0.55 * a);
+      drawObSprite(f.kind, it.x, it.y, 0, blur / z, 1 / z, a);
+    }
+    ctx.globalAlpha = 1;
   }
   function drawFlying() {
     for (const f of feats) {
       if (!f.fly) continue;
-      const x = G.vx + (f.X - S.camX);
+      const [x, y, z] = obPos(f.X);
       if (x < X0() - G.cowH || x > X1() + G.cowH) continue;
-      groundShadow(x, G.refY, OBS[f.kind].w * G.cowH * 0.5 / (1 + f.fly.h * 2), 0.03 * G.cowH, 0.4);
-      drawObSprite(f.kind, x, G.refY - f.fly.h * G.cowH, f.fly.rot || 0.001, 0);
+      groundShadow(x, y, OBS[f.kind].w * G.cowH * 0.5 / (z * (1 + f.fly.h * 2)), 0.03 * G.cowH / z, 0.4);
+      drawObSprite(f.kind, x, y - f.fly.h * G.cowH / z, f.fly.rot || 0.001, 0, 1 / z);
     }
   }
 
@@ -1440,7 +1461,8 @@
     for (const f of feats) {
       if (f.type !== 'ob' || f.fly || f.over) continue;
       const o = OBS[f.kind], t = (f.X - Xb) / V, lead = o.long || o.tall ? 0.5 : 0.3;
-      const edge = CAM.transformPoint(new DOMPoint(G.vx + (f.X - S.camX) - o.w * G.cowH / 2, G.refY));
+      const z = obZ(f.X - S.camX);
+      const edge = CAM.transformPoint(new DOMPoint(G.vx + (f.X - S.camX - o.w * G.cowH / 2) / z, yAt(z)));
       if (t > lead + 1.3 || t < 0) continue;
       const fadeIn = smooth(clamp((lead + 1.3 - t) / 0.35, 0, 1));        // появился заранее
       const fadeOut = smooth(clamp((t - lead + 0.2) / 0.14, 0, 1));       // гаснет сразу после момента прыжка
