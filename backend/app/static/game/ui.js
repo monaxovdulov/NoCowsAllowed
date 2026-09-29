@@ -1,4 +1,3 @@
-import { TRICKS } from './constants.js';
 import {
   autoEl,
   bestEl,
@@ -14,49 +13,17 @@ import {
   S,
   scoreEl,
 } from './state.js';
+import { on } from './events.js';
 import { boardX } from './layout.js';
 import { jump, trick } from './player.js';
-import { popup } from './effects.js';
 
 // ---------------------------------------------------------------- score
 /** Визуальный «бамп» счётчика очков при начислении. */
-export function bumpScore() {
+function bumpScore() {
   scoreEl.classList.remove('bump');
   void scoreEl.offsetWidth;
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
-}
-/** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
-export function endRun() {
-  if (S.score > S.best) {
-    S.best = S.score;
-    try {
-      localStorage.setItem('cow-skate-best', String(S.best));
-    } catch (e) {
-      /* ок */
-    }
-    document.dispatchEvent(
-      new CustomEvent('cowskate:run-end', {
-        detail: { score: S.score, best: S.best },
-      }),
-    );
-  }
-}
-/** Начисляет очки за трюки воздуха при приземлении. */
-export function award() {
-  const list = S.airTricks,
-    tricks = list.filter((k) => k !== 'double');
-  let pts = S.airBonus;
-  for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
-  S.airTricks = [];
-  S.airBonus = 0;
-  if (!pts || !playerMode()) return;
-  const mult = Math.max(1, tricks.length);
-  pts *= mult;
-  S.score += pts;
-  bumpScore();
-  if (S.score > S.best) endRun();
-  popup(mult > 1 ? `+${pts}  ×${mult}` : `+${pts}`, 'pts');
 }
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
@@ -89,7 +56,7 @@ export function hud() {
 
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
 /** @param {number} sc очки заезда */
-export function showResult(sc) {
+function showResult(sc) {
   resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
   resultEl.classList.remove('dim');
   S.resultUntil = S.t + 2.6;
@@ -100,7 +67,7 @@ export function showResult(sc) {
  * @param {string | null} text текст подсказки (null — скрыть)
  * @param {number} [dur] секунды показа (по умолчанию — до замены)
  */
-export function setCoach(text, dur) {
+function setCoach(text, dur) {
   if (!text) {
     coachEl.classList.add('dim');
     S.coachText = null;
@@ -142,6 +109,17 @@ export function coachStep() {
       setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
     }
   } else if (S.t > S.coachUntil) S.coachStage = 3;
+}
+
+// ---------------------------------------------------------------- подписки
+// DOM-реакции на события модели (композиция — в main.js).
+export function initUi() {
+  on('score', () => bumpScore());
+  on('crash', (d) => {
+    if (!playerMode()) return;
+    showResult(d.score);
+    setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
+  });
 }
 
 // ---------------------------------------------------------------- input

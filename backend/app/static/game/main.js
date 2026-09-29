@@ -35,20 +35,32 @@ import {
   xAt,
   zAt,
 } from './layout.js';
-import { grainTiles, initAssets, initClouds, initShadow } from './sprites.js';
 import {
-  autopilot,
-  bumpAt,
-  curPose,
-  launch,
-  physicsStep,
-  poseMatrix,
-  wheelsScreen,
-} from './player.js';
+  buildSizeDependent,
+  grainTiles,
+  initAssets,
+  initClouds,
+  initShadow,
+} from './sprites.js';
+import { autopilot, bumpAt, launch, physicsStep } from './player.js';
+import { curPose, poseMatrix, wheelsScreen } from './pose.js';
 import { checkObstacles, groundInfo, spawnFeatures } from './features.js';
-import { newLine, puff } from './effects.js';
+import { initEffects, newLine, puff } from './effects.js';
+import { initScore } from './score.js';
 import { render } from './render.js';
-import { coachStep } from './ui.js';
+import { coachStep, initUi } from './ui.js';
+
+// Подписки слоёв на события модели (карта, этап 3): порядок = порядок
+// исполнения при emit — эффекты первыми, дальше счёт, потом DOM.
+initEffects();
+initScore();
+initUi();
+
+// layout() только считает геометрию; буферы пересобираем здесь.
+function relayout() {
+  layout();
+  buildSizeDependent();
+}
 
 /** @param {number} dt шаг кадра, секунды */
 function update(dt) {
@@ -256,11 +268,11 @@ function frame(now) {
     if (emaFrame > 19 && perfScale > 0.55) {
       setPerfScale(Math.max(0.55, perfScale - 0.15));
       perfCool = 2.5;
-      layout();
+      relayout();
     } else if (emaWork < 8 && emaFrame < 17.5 && perfScale < 1) {
       setPerfScale(Math.min(1, perfScale + 0.12));
       perfCool = 3;
-      layout();
+      relayout();
     }
   }
   requestAnimationFrame(frame);
@@ -272,7 +284,7 @@ addEventListener('resize', () => {
   resizeQueued = true;
   requestAnimationFrame(() => {
     resizeQueued = false;
-    layout();
+    relayout();
   });
 });
 
@@ -285,7 +297,7 @@ Promise.all([
 ]).then(([base, board, ear, tag]) => {
   initAssets({ base, board, ear, tag });
   initClouds();
-  layout();
+  relayout();
   initShadow();
   if (grainEl && grainTiles.length) {
     grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;

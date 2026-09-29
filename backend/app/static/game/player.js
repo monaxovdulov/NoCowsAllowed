@@ -1,112 +1,22 @@
-import { META } from './assets.js';
 import {
   clamp,
-  DEG,
   easeInOut,
   lerp,
   nB,
   nC,
   nD,
-  nE,
   pick,
   rand,
   smooth,
   TAU,
 } from './utils.js';
 import { DOUBLE_V, GRAV, OBS, OLLIE_V, TRICKS } from './constants.js';
+import { emit } from './events.js';
 import { feats, G, playerMode, reduce, S } from './state.js';
-import { boardX, zAt } from './layout.js';
-import { imgs, woodImg } from './sprites.js';
-import { popup, puff, ring, sparks } from './effects.js';
-import { award, endRun, setCoach, showResult } from './ui.js';
-
-// ---------------------------------------------------------------- pose → matrix
-/** @type {import('./types').Vec2} */
-const PIV = [200, 540]; // центр доски в координатах фото — вокруг него наклон
-/** @type {import('./types').Vec2} */
-const CEN = [300, 330]; // центр коровы — вокруг него сальто и 360
-/**
- * @param {import('./types').Pose} p
- * @returns {DOMMatrix}
- */
-export function poseMatrix(p) {
-  const sqX = 1 + (1 - p.sq) * 0.55;
-  const m = new DOMMatrix()
-    .translate(
-      G.ox + PIV[0] * G.s + (p.x || 0),
-      G.oy + PIV[1] * G.s + p.y * G.cowH,
-    )
-    .rotate(p.tilt * DEG)
-    .scale(G.s * sqX, G.s * p.sq)
-    .translate(CEN[0] - PIV[0], CEN[1] - PIV[1]);
-  if (p.roll) m.rotateSelf(p.roll * DEG);
-  if (p.spin) {
-    let c = Math.cos(p.spin);
-    if (Math.abs(c) < 0.03) c = c < 0 ? -0.03 : 0.03;
-    m.scaleSelf(c, 1);
-  }
-  return m.translateSelf(-CEN[0], -CEN[1]);
-}
-/** @returns {import('./types').Pose} текущая поза коровы */
-export const curPose = () => ({
-  y: S.bob + vib() - S.h,
-  tilt: S.tilt,
-  sq: S.sq,
-  spin: S.spin,
-  roll: S.roll,
-});
-/**
- * @param {DOMMatrix} m
- * @param {number} ang
- * @param {number} drop
- * @returns {DOMMatrix}
- */
-function kickT(m, ang, drop) {
-  const [a, b] = META.board.axis,
-    cx = (a[0] + b[0]) / 2,
-    cy = (a[1] + b[1]) / 2;
-  const al = Math.atan2(b[1] - a[1], b[0] - a[0]) * DEG;
-  let k = Math.cos(ang);
-  if (Math.abs(k) < 0.04) k = k < 0 ? -0.04 : 0.04;
-  return m
-    .translate(0, drop)
-    .translate(cx, cy)
-    .rotate(al)
-    .scale(1, k)
-    .rotate(-al)
-    .translate(-cx, -cy);
-}
-/** @param {DOMMatrix} m @returns {DOMMatrix} */
-export function boardMatrix(m) {
-  const c = S.crash;
-  if (c)
-    return kickT(
-      poseMatrix({ x: c.bx * G.cowH, y: S.bob - c.bh, tilt: c.brot, sq: 1 }),
-      c.bkick,
-      0,
-    );
-  return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
-}
-/** @returns {number} вибрация подвески на ходу */
-export function vib() {
-  if (S.air || S.onRamp || S.crash) return 0;
-  const t = S.t,
-    a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
-  return (
-    a *
-    (Math.sin(t * 47.1) * 0.5 +
-      Math.sin(t * 73.3 + 1.1) * 0.3 +
-      nE(t * 38) * 0.6)
-  );
-}
-/** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
-export function wheelsScreen() {
-  const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
-  return META.contact.map(([x, y]) => {
-    const p = m.transformPoint(new DOMPoint(x, y));
-    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, G.horizon + 5)) };
-  });
-}
+import { boardX } from './layout.js';
+import { wheelsScreen } from './pose.js';
+import { imgs } from './sprites.js';
+import { puff, sparks } from './effects.js';
 
 // ---------------------------------------------------------------- jumps & tricks
 const ready = () => !!imgs && !!G.cowH;
@@ -129,21 +39,17 @@ export function jump() {
     S.sqV += 1.4;
     S.earV -= 3.2;
     S.tagV += 3.5;
-    const w = wheelsScreen();
-    puff(w[0].x, w[0].y, w[0].z, 10, 1.3);
-    puff(w[1].x, w[1].y, w[1].z, 6, 1.0);
+    emit('airborne', { from: 'jump' });
   } else if (S.jumps < 2) {
     S.jumps = 2;
     S.hV = Math.max(S.hV, 0) * 0.3 + DOUBLE_V;
     S.airTricks.push('double');
-    popup('ДВОЙНОЙ', 'trick');
+    emit('trick', { kind: 'double' });
     S.tiltV -= 1.8;
     S.earV -= 2.6;
     S.tagV += 3;
     S.sqV += 1;
-    const w = wheelsScreen();
-    ring((w[0].x + w[1].x) / 2, (w[0].y + w[1].y) / 2 + 0.03 * G.cowH);
-    puff((w[0].x + w[1].x) / 2, (w[0].y + w[1].y) / 2, 1, 8, 0.8);
+    emit('airborne', { from: 'double' });
   } else return false;
   S.airDur = S.airT + timeToLand();
   return true;
@@ -178,7 +84,7 @@ function finishTrick() {
   S.kick = 0;
   S.kickDrop = 0;
   S.airTricks.push(tr.kind);
-  popup(TRICKS[tr.kind].name, 'trick');
+  emit('trick', { kind: tr.kind });
   S.trick = null;
   if (S.trickQ) {
     const q = S.trickQ;
@@ -213,8 +119,7 @@ export function launch() {
   S.earV -= 3;
   S.tagV += 3;
   S.shake = Math.min(1.8, S.shake + 0.45);
-  const w = wheelsScreen();
-  puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
+  emit('airborne', { from: 'launch' });
   if (!playerMode()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
       S.airDur > 0.95
@@ -254,15 +159,7 @@ function land(g) {
   S.shake = Math.min(1.8, S.shake + 0.5 + 0.22 * impact);
   S.earV -= 3.4;
   S.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
-  if (!S.onRamp) {
-    const w = wheelsScreen(),
-      k = clamp(impact / 2.4, 0.6, 1.8);
-    for (const p of w) {
-      puff(p.x, p.y, p.z, Math.round(14 * k), 1.5 * k);
-      sparks(p.x, p.y, p.z, Math.round(6 * k));
-    }
-  }
-  award();
+  emit('land', { impact });
 }
 
 // ---------------------------------------------------------------- crash
@@ -302,18 +199,7 @@ export function crash(reason) {
   S.hV = Math.max(S.hV, 0) + 1.7;
   S.shake = 1.8;
   S.sqV -= 2;
-  popup(pick(['БАМ!', 'ОЙ!', 'МУУУ!']), 'crash');
-  for (const p of w) {
-    puff(p.x, p.y, p.z, 16, 1.8);
-    sparks(p.x, p.y, p.z, 8);
-  }
-  if (playerMode()) {
-    const sc = S.score;
-    endRun();
-    S.score = 0;
-    showResult(sc);
-    setCoach(sc < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
-  }
+  emit('crash', { reason, score: S.score, wheels: w });
 }
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {

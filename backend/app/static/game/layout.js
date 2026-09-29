@@ -1,6 +1,5 @@
 import { clamp } from './utils.js';
 import { cracks, cv, feats, G, S } from './state.js';
-import { buildSizeDependent } from './sprites.js';
 
 // ---------------------------------------------------------------- layout
 export let W = 1,
@@ -36,6 +35,9 @@ export const obPos = (X) => {
   return [G.vx + d / z, yAt(z), z];
 };
 
+// Только геометрия кадра и мировой масштаб (карта, этап 3): пересборку
+// размеро-зависимых буферов вызывающий делает сам — buildSizeDependent()
+// зовётся из main.js рядом с layout().
 export function layout() {
   const cssW = Math.max(1, innerWidth),
     cssH = Math.max(1, innerHeight);
@@ -92,7 +94,6 @@ export function layout() {
   }
   cracks.length = 0;
   if (!S.nextSpawnX) S.nextSpawnX = S.camX + (W * 1.05 - G.vx) + 4 * cowH;
-  buildSizeDependent();
 }
 
 /** @returns {number} левый край видимого мира */

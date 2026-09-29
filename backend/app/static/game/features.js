@@ -4,8 +4,7 @@ import { CAM, ctx, feats, G, playerMode, S } from './state.js';
 import { boardX, DPR, obPos, obZ, W, X0, X1, yAt } from './layout.js';
 import { glowImg, OBR, obSprites, shadowImg } from './sprites.js';
 import { crash } from './player.js';
-import { popup } from './effects.js';
-import { bumpScore, endRun } from './ui.js';
+import { addScore } from './score.js';
 
 // ---------------------------------------------------------------- road features
 const OBS_ENTRIES = /** @type {import('./types').ObstacleEntry[]} */ (
@@ -99,12 +98,7 @@ export function checkObstacles() {
     } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
       f.cleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
-      if (playerMode()) {
-        S.score += 50;
-        bumpScore();
-        popup('+50', 'pts');
-        if (S.score > S.best) endRun();
-      }
+      if (playerMode()) addScore(50);
     }
   }
 }

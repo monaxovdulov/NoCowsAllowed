@@ -444,14 +444,29 @@ export interface FeatureTypeSpec<TData = unknown> {
 // ---------------------------------------------------------------- события модели
 
 export interface GameEventMap {
+  // приземление на поверхность (impact = -hV в момент касания; 0 — возврат
+  // после крэша, не настоящее приземление)
   land: CustomEvent<{ impact: number }>;
-  airborne: CustomEvent<{ from: 'jump' | 'launch' }>;
+  // взлетели: jump — олли, double — второй прыжок в воздухе, launch — вылет с конструкции
+  airborne: CustomEvent<{ from: 'jump' | 'double' | 'launch' }>;
+  // трюк завершён (включая 'double' — всплывает «ДВОЙНОЙ»)
   trick: CustomEvent<{ kind: AirMove }>;
-  crash: CustomEvent<{ reason: CrashReason; score: number }>;
+  // падение: score — счёт на момент крэша, wheels — колёса в экранных
+  // координатах (сняты до установки mode='crash', чтобы вибрация совпала)
+  crash: CustomEvent<{
+    reason: CrashReason;
+    score: number;
+    wheels: WheelPoint[];
+  }>;
+  // очки начислены: points — уже с множителем, total — счёт после начисления
   score: CustomEvent<{ points: number; mult: number; total: number }>;
   'ride-enter': CustomEvent<{ type: string }>;
   'ride-exit': CustomEvent<{ type: string; result: RideStep }>;
 }
+
+// Тип полезной нагрузки события по его имени (для emit/on в events.js).
+export type EventDetail<K extends keyof GameEventMap> =
+  GameEventMap[K] extends CustomEvent<infer D> ? D : never;
 
 // ---------------------------------------------------------------- events
 

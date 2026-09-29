@@ -752,6 +752,107 @@ const pops = [];
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
 const playerMode = () => S.t - S.lastInput <= AUTO_DELAY;
 
+// ---- game/layout.js
+// ---------------------------------------------------------------- layout
+let W = 1,
+  H = 1,
+  DPR = 1,
+  perfScale = 1; // perfScale — динамическое разрешение под нагрузкой
+/** @param {number} v */
+function setPerfScale(v) {
+  perfScale = v;
+}
+/** @param {number} y @returns {number} глубина z по экранному y */
+const zAt = (y) => G.K / Math.max(1e-3, y - G.horizon);
+/** @param {number} z @returns {number} экранный y по глубине z */
+const yAt = (z) => G.horizon + G.K / z;
+/**
+ * @param {number} X мировой X
+ * @param {number} z
+ * @returns {number} экранный x
+ */
+const xAt = (X, z) => G.vx + (X - S.camX) / z;
+/** @returns {number} центр доски в мире (глубина 1) */
+const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);
+// препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
+/** @param {number} d расстояние до камеры @returns {number} глубина z */
+const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
+/**
+ * @param {number} X мировой X препятствия
+ * @returns {import('./types').Vec3} экранные x, y и глубина z
+ */
+const obPos = (X) => {
+  const d = X - S.camX,
+    z = obZ(d);
+  return [G.vx + d / z, yAt(z), z];
+};
+
+// Только геометрия кадра и мировой масштаб (карта, этап 3): пересборку
+// размеро-зависимых буферов вызывающий делает сам — buildSizeDependent()
+// зовётся из main.js рядом с layout().
+function layout() {
+  const cssW = Math.max(1, innerWidth),
+    cssH = Math.max(1, innerHeight);
+  let dpr = Math.min(window.devicePixelRatio || 1, 2) * perfScale;
+  const cap = 2.6e6;
+  if (cssW * cssH * dpr * dpr > cap) dpr = Math.sqrt(cap / (cssW * cssH));
+  DPR = Math.max(0.5, dpr);
+  const oldCowH = G.cowH;
+  W = Math.round(cssW * DPR);
+  H = Math.round(cssH * DPR);
+  cv.width = W;
+  cv.height = H;
+
+  // корова (в пикселях фото: макушка y=45, колёса y=591, ширина ~545)
+  // на узких экранах корова меньше, левее и ниже — иначе она съедает всю дорогу впереди
+  const narrow = W < H * 0.8;
+  const s = Math.min((0.58 * H) / 546, ((narrow ? 0.4 : 0.86) * W) / 545);
+  const cowH = 546 * s;
+  const bottom = Math.min(
+    H * (narrow ? 0.88 : 0.8),
+    H * (narrow ? 0.64 : 0.54) + cowH * 0.5,
+  );
+  const top = bottom - cowH;
+  const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.27 : 0.44); // впереди коровы — место, чтобы видеть препятствия
+  Object.assign(G, {
+    s,
+    cowH,
+    u: cowH / 670,
+    ox: cx - 312 * s,
+    oy: top - 45 * s,
+  });
+  G.horizon = G.oy + 200 * s; // линия горизонта как на фото
+  G.edgeY = G.oy + 329 * s; // дальний край дороги
+  G.refY = G.oy + 537 * s; // линия контакта доски = глубина 1
+  G.K = G.refY - G.horizon;
+  G.vx = W * 0.5;
+  G.zEdge = G.K / (G.edgeY - G.horizon);
+  G.zBottom = G.K / (H * 1.2 - G.horizon);
+  G.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
+  G.kF = 60 / cowH; // … поля
+  G.obD = G.ox + 200 * s - G.vx; // смещение доски от камеры — здесь z=1
+  G.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
+  if (oldCowH) {
+    // мир в пикселях — пересчитываем всё под новый масштаб
+    const k = cowH / oldCowH;
+    S.camX *= k;
+    S.nextSpawnX *= k;
+    for (const f of feats) {
+      if (f.type === 'ramp') {
+        f.X0 *= k;
+        f.X1 *= k;
+      } else f.X *= k;
+    }
+  }
+  cracks.length = 0;
+  if (!S.nextSpawnX) S.nextSpawnX = S.camX + (W * 1.05 - G.vx) + 4 * cowH;
+}
+
+/** @returns {number} левый край видимого мира */
+const X0 = () => -W * 0.12;
+/** @returns {number} правый край видимого мира */
+const X1 = () => W * 1.12;
+
 // ---- game/sprites.js
 // ---------------------------------------------------------------- textures
 /** @type {import('./types').TextureSize} */
@@ -1626,104 +1727,122 @@ function initShadow() {
   shadowImg = makeShadow();
 }
 
-// ---- game/layout.js
-// ---------------------------------------------------------------- layout
-let W = 1,
-  H = 1,
-  DPR = 1,
-  perfScale = 1; // perfScale — динамическое разрешение под нагрузкой
-/** @param {number} v */
-function setPerfScale(v) {
-  perfScale = v;
+// ---- game/events.js
+// ---------------------------------------------------------------- events
+// Шина событий модели (карта рефакторинга, этап 3, D6): платформенный
+// EventTarget доставляет событие синхронно в порядке подписки, поэтому
+// emit() эквивалентен прямому вызову подписчиков на месте — порядок
+// побочных эффектов и последовательность Math.random не меняются.
+
+/** @type {EventTarget} */
+const bus = new EventTarget();
+
+/**
+ * @template {keyof import('./types').GameEventMap} K
+ * @param {K} type имя события
+ * @param {import('./types').EventDetail<K>} detail полезная нагрузка
+ */
+function emit(type, detail) {
+  bus.dispatchEvent(new CustomEvent(type, { detail }));
 }
-/** @param {number} y @returns {number} глубина z по экранному y */
-const zAt = (y) => G.K / Math.max(1e-3, y - G.horizon);
-/** @param {number} z @returns {number} экранный y по глубине z */
-const yAt = (z) => G.horizon + G.K / z;
-/**
- * @param {number} X мировой X
- * @param {number} z
- * @returns {number} экранный x
- */
-const xAt = (X, z) => G.vx + (X - S.camX) / z;
-/** @returns {number} центр доски в мире (глубина 1) */
-const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);
-// препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
-/** @param {number} d расстояние до камеры @returns {number} глубина z */
-const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
-/**
- * @param {number} X мировой X препятствия
- * @returns {import('./types').Vec3} экранные x, y и глубина z
- */
-const obPos = (X) => {
-  const d = X - S.camX,
-    z = obZ(d);
-  return [G.vx + d / z, yAt(z), z];
-};
 
-function layout() {
-  const cssW = Math.max(1, innerWidth),
-    cssH = Math.max(1, innerHeight);
-  let dpr = Math.min(window.devicePixelRatio || 1, 2) * perfScale;
-  const cap = 2.6e6;
-  if (cssW * cssH * dpr * dpr > cap) dpr = Math.sqrt(cap / (cssW * cssH));
-  DPR = Math.max(0.5, dpr);
-  const oldCowH = G.cowH;
-  W = Math.round(cssW * DPR);
-  H = Math.round(cssH * DPR);
-  cv.width = W;
-  cv.height = H;
+/**
+ * @template {keyof import('./types').GameEventMap} K
+ * @param {K} type имя события
+ * @param {(detail: import('./types').EventDetail<K>) => void} fn подписчик
+ */
+function on(type, fn) {
+  bus.addEventListener(type, (e) => fn(/** @type {CustomEvent} */ (e).detail));
+}
 
-  // корова (в пикселях фото: макушка y=45, колёса y=591, ширина ~545)
-  // на узких экранах корова меньше, левее и ниже — иначе она съедает всю дорогу впереди
-  const narrow = W < H * 0.8;
-  const s = Math.min((0.58 * H) / 546, ((narrow ? 0.4 : 0.86) * W) / 545);
-  const cowH = 546 * s;
-  const bottom = Math.min(
-    H * (narrow ? 0.88 : 0.8),
-    H * (narrow ? 0.64 : 0.54) + cowH * 0.5,
-  );
-  const top = bottom - cowH;
-  const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.27 : 0.44); // впереди коровы — место, чтобы видеть препятствия
-  Object.assign(G, {
-    s,
-    cowH,
-    u: cowH / 670,
-    ox: cx - 312 * s,
-    oy: top - 45 * s,
-  });
-  G.horizon = G.oy + 200 * s; // линия горизонта как на фото
-  G.edgeY = G.oy + 329 * s; // дальний край дороги
-  G.refY = G.oy + 537 * s; // линия контакта доски = глубина 1
-  G.K = G.refY - G.horizon;
-  G.vx = W * 0.5;
-  G.zEdge = G.K / (G.edgeY - G.horizon);
-  G.zBottom = G.K / (H * 1.2 - G.horizon);
-  G.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
-  G.kF = 60 / cowH; // … поля
-  G.obD = G.ox + 200 * s - G.vx; // смещение доски от камеры — здесь z=1
-  G.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
-  if (oldCowH) {
-    // мир в пикселях — пересчитываем всё под новый масштаб
-    const k = cowH / oldCowH;
-    S.camX *= k;
-    S.nextSpawnX *= k;
-    for (const f of feats) {
-      if (f.type === 'ramp') {
-        f.X0 *= k;
-        f.X1 *= k;
-      } else f.X *= k;
-    }
+// ---- game/pose.js
+// ---------------------------------------------------------------- pose → matrix
+/** @type {import('./types').Vec2} */
+const PIV = [200, 540]; // центр доски в координатах фото — вокруг него наклон
+/** @type {import('./types').Vec2} */
+const CEN = [300, 330]; // центр коровы — вокруг него сальто и 360
+/**
+ * @param {import('./types').Pose} p
+ * @returns {DOMMatrix}
+ */
+function poseMatrix(p) {
+  const sqX = 1 + (1 - p.sq) * 0.55;
+  const m = new DOMMatrix()
+    .translate(
+      G.ox + PIV[0] * G.s + (p.x || 0),
+      G.oy + PIV[1] * G.s + p.y * G.cowH,
+    )
+    .rotate(p.tilt * DEG)
+    .scale(G.s * sqX, G.s * p.sq)
+    .translate(CEN[0] - PIV[0], CEN[1] - PIV[1]);
+  if (p.roll) m.rotateSelf(p.roll * DEG);
+  if (p.spin) {
+    let c = Math.cos(p.spin);
+    if (Math.abs(c) < 0.03) c = c < 0 ? -0.03 : 0.03;
+    m.scaleSelf(c, 1);
   }
-  cracks.length = 0;
-  if (!S.nextSpawnX) S.nextSpawnX = S.camX + (W * 1.05 - G.vx) + 4 * cowH;
-  buildSizeDependent();
+  return m.translateSelf(-CEN[0], -CEN[1]);
 }
-
-/** @returns {number} левый край видимого мира */
-const X0 = () => -W * 0.12;
-/** @returns {number} правый край видимого мира */
-const X1 = () => W * 1.12;
+/** @returns {import('./types').Pose} текущая поза коровы */
+const curPose = () => ({
+  y: S.bob + vib() - S.h,
+  tilt: S.tilt,
+  sq: S.sq,
+  spin: S.spin,
+  roll: S.roll,
+});
+/**
+ * @param {DOMMatrix} m
+ * @param {number} ang
+ * @param {number} drop
+ * @returns {DOMMatrix}
+ */
+function kickT(m, ang, drop) {
+  const [a, b] = META.board.axis,
+    cx = (a[0] + b[0]) / 2,
+    cy = (a[1] + b[1]) / 2;
+  const al = Math.atan2(b[1] - a[1], b[0] - a[0]) * DEG;
+  let k = Math.cos(ang);
+  if (Math.abs(k) < 0.04) k = k < 0 ? -0.04 : 0.04;
+  return m
+    .translate(0, drop)
+    .translate(cx, cy)
+    .rotate(al)
+    .scale(1, k)
+    .rotate(-al)
+    .translate(-cx, -cy);
+}
+/** @param {DOMMatrix} m @returns {DOMMatrix} */
+function boardMatrix(m) {
+  const c = S.crash;
+  if (c)
+    return kickT(
+      poseMatrix({ x: c.bx * G.cowH, y: S.bob - c.bh, tilt: c.brot, sq: 1 }),
+      c.bkick,
+      0,
+    );
+  return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
+}
+/** @returns {number} вибрация подвески на ходу */
+function vib() {
+  if (S.air || S.onRamp || S.crash) return 0;
+  const t = S.t,
+    a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
+  return (
+    a *
+    (Math.sin(t * 47.1) * 0.5 +
+      Math.sin(t * 73.3 + 1.1) * 0.3 +
+      nE(t * 38) * 0.6)
+  );
+}
+/** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
+function wheelsScreen() {
+  const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
+  return META.contact.map(([x, y]) => {
+    const p = m.transformPoint(new DOMPoint(x, y));
+    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, G.horizon + 5)) };
+  });
+}
 
 // ---- game/effects.js
 /**
@@ -1919,6 +2038,49 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
+// ---------------------------------------------------------------- подписки
+// Реакции на события модели (композиция — в main.js). Порядок регистрации
+// задаёт порядок исполнения: эффекты идут первыми, как раньше шли
+// прямые вызовы из player.js.
+function initEffects() {
+  on('airborne', (d) => {
+    const w = wheelsScreen();
+    if (d.from === 'jump') {
+      puff(w[0].x, w[0].y, w[0].z, 10, 1.3);
+      puff(w[1].x, w[1].y, w[1].z, 6, 1.0);
+    } else if (d.from === 'double') {
+      const x = (w[0].x + w[1].x) / 2,
+        y = (w[0].y + w[1].y) / 2;
+      ring(x, y + 0.03 * G.cowH);
+      puff(x, y, 1, 8, 0.8);
+    } else {
+      puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
+    }
+  });
+  on('trick', (d) => {
+    popup(d.kind === 'double' ? 'ДВОЙНОЙ' : TRICKS[d.kind].name, 'trick');
+  });
+  on('land', (d) => {
+    if (S.onRamp) return;
+    const w = wheelsScreen(),
+      k = clamp(d.impact / 2.4, 0.6, 1.8);
+    for (const p of w) {
+      puff(p.x, p.y, p.z, Math.round(14 * k), 1.5 * k);
+      sparks(p.x, p.y, p.z, Math.round(6 * k));
+    }
+  });
+  on('crash', (d) => {
+    popup(pick(['БАМ!', 'ОЙ!', 'МУУУ!']), 'crash');
+    for (const p of d.wheels) {
+      puff(p.x, p.y, p.z, 16, 1.8);
+      sparks(p.x, p.y, p.z, 8);
+    }
+  });
+  on('score', (d) => {
+    popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
+  });
+}
+
 function drawPops() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.textAlign = 'center';
@@ -1952,316 +2114,7 @@ function drawPops() {
   ctx.globalAlpha = 1;
 }
 
-// ---- game/ui.js
-// ---------------------------------------------------------------- score
-/** Визуальный «бамп» счётчика очков при начислении. */
-function bumpScore() {
-  scoreEl.classList.remove('bump');
-  void scoreEl.offsetWidth;
-  scoreEl.classList.add('bump');
-  setTimeout(() => scoreEl.classList.remove('bump'), 200);
-}
-/** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
-function endRun() {
-  if (S.score > S.best) {
-    S.best = S.score;
-    try {
-      localStorage.setItem('cow-skate-best', String(S.best));
-    } catch (e) {
-      /* ок */
-    }
-    document.dispatchEvent(
-      new CustomEvent('cowskate:run-end', {
-        detail: { score: S.score, best: S.best },
-      }),
-    );
-  }
-}
-/** Начисляет очки за трюки воздуха при приземлении. */
-function award() {
-  const list = S.airTricks,
-    tricks = list.filter((k) => k !== 'double');
-  let pts = S.airBonus;
-  for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
-  S.airTricks = [];
-  S.airBonus = 0;
-  if (!pts || !playerMode()) return;
-  const mult = Math.max(1, tricks.length);
-  pts *= mult;
-  S.score += pts;
-  bumpScore();
-  if (S.score > S.best) endRun();
-  popup(mult > 1 ? `+${pts}  ×${mult}` : `+${pts}`, 'pts');
-}
-const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
-/** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
-function hud() {
-  if (S.score !== shown.score) {
-    scoreEl.textContent = S.score.toLocaleString('ru-RU');
-    shown.score = S.score;
-  }
-  if (S.best !== shown.best) {
-    bestEl.textContent = S.best.toLocaleString('ru-RU');
-    shown.best = S.best;
-  }
-  const auto = !playerMode();
-  if (auto !== shown.auto) {
-    autoEl.hidden = !auto;
-    hudEl.classList.toggle('dim', auto);
-    shown.auto = auto;
-  }
-  const cta = auto && !S.touched0; // призыв виден только в демо до первого касания
-  if (cta !== shown.cta) {
-    ctaEl.classList.toggle('dim', !cta);
-    shown.cta = cta;
-  }
-  const res = S.t < S.resultUntil;
-  if (res !== shown.res) {
-    resultEl.classList.toggle('dim', !res);
-    shown.res = res;
-  }
-}
-
-// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
-/** @param {number} sc очки заезда */
-function showResult(sc) {
-  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
-  resultEl.classList.remove('dim');
-  S.resultUntil = S.t + 2.6;
-}
-
-// ---------------------------------------------------------------- coach (первый заезд)
-/**
- * @param {string | null} text текст подсказки (null — скрыть)
- * @param {number} [dur] секунды показа (по умолчанию — до замены)
- */
-function setCoach(text, dur) {
-  if (!text) {
-    coachEl.classList.add('dim');
-    S.coachText = null;
-    S.coachUntil = 0;
-    return;
-  }
-  if (S.coachText !== text) {
-    S.coachText = text;
-    coachEl.textContent = text;
-  }
-  coachEl.classList.remove('dim');
-  S.coachUntil = dur ? S.t + dur : Infinity;
-}
-// подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
-function coachStep() {
-  if (S.coachText && S.coachUntil !== Infinity && S.t > S.coachUntil)
-    setCoach(null);
-  if (!playerMode()) {
-    if (S.coachText) setCoach(null);
-    return;
-  } // в демо подсказок нет
-  if (S.crash || S.coachStage > 2) return;
-  if (S.coachStage === 0) {
-    if (S.air) {
-      S.coachStage = 1;
-      setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
-    } else {
-      const Xb = boardX(),
-        V = Math.max(1, S.speed * G.cowH);
-      const nx = /** @type {import('./types').Obstacle | undefined} */ (
-        feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb)
-      );
-      if (nx && (nx.X - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
-      else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
-    }
-  } else if (S.coachStage === 1) {
-    if (!S.air || S.jumps >= 2) {
-      S.coachStage = 2;
-      setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
-    }
-  } else if (S.t > S.coachUntil) S.coachStage = 3;
-}
-
-// ---------------------------------------------------------------- input
-let holdTimer = 0,
-  holding = false;
-function touched() {
-  if (!playerMode()) {
-    S.score = 0;
-    S.playT0 = S.t;
-  } // новый заезд — с мягкого разгона
-  S.touched0 = true;
-  S.lastInput = S.t;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
-  hintEl.classList.add('dim');
-}
-/** @param {import('./types').Action} a действие кнопки/клавиши */
-function act(a) {
-  touched();
-  if (a === 'jump') jump();
-  else trick(a);
-}
-cv.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  act('jump');
-  clearTimeout(holdTimer);
-  holding = false;
-  holdTimer = setTimeout(() => {
-    holding = true;
-    S.throttle = 1;
-  }, 280);
-});
-const release = () => {
-  clearTimeout(holdTimer);
-  if (holding) {
-    holding = false;
-    S.throttle = 0;
-  }
-};
-addEventListener('pointerup', release);
-addEventListener('pointercancel', release);
-addEventListener('blur', () => {
-  release();
-  S.throttle = 0;
-});
-const padBtns = /** @type {NodeListOf<HTMLElement>} */ (
-  document.querySelectorAll('.pad [data-act]')
-);
-for (const b of padBtns) {
-  b.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    act(/** @type {import('./types').Action} */ (b.dataset.act));
-    b.classList.add('on');
-    setTimeout(() => b.classList.remove('on'), 160);
-  });
-  b.addEventListener('click', (e) => {
-    if (e.detail === 0)
-      act(/** @type {import('./types').Action} */ (b.dataset.act));
-  }); // Enter/пробел на кнопке
-}
-addEventListener('keydown', (e) => {
-  const k = e.code;
-  const t = /** @type {HTMLElement | null} */ (e.target);
-  if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
-    return;
-  const keyAct = {
-    Space: 'jump',
-    ArrowUp: 'jump',
-    KeyW: 'jump',
-    KeyQ: 'spin',
-    Digit1: 'spin',
-    KeyE: 'flip',
-    Digit2: 'flip',
-    KeyR: 'kick',
-    Digit3: 'kick',
-  }[k];
-  if (keyAct) {
-    e.preventDefault();
-    if (!e.repeat) act(keyAct);
-  } else if (k === 'ArrowRight' || k === 'KeyD') {
-    e.preventDefault();
-    S.throttle = 1;
-    touched();
-  } else if (k === 'ArrowLeft' || k === 'KeyA') {
-    e.preventDefault();
-    S.throttle = -1;
-    touched();
-  }
-});
-addEventListener('keyup', (e) => {
-  const k = e.code;
-  if ((k === 'ArrowRight' || k === 'KeyD') && S.throttle > 0) S.throttle = 0;
-  if ((k === 'ArrowLeft' || k === 'KeyA') && S.throttle < 0) S.throttle = 0;
-});
-
 // ---- game/player.js
-// ---------------------------------------------------------------- pose → matrix
-/** @type {import('./types').Vec2} */
-const PIV = [200, 540]; // центр доски в координатах фото — вокруг него наклон
-/** @type {import('./types').Vec2} */
-const CEN = [300, 330]; // центр коровы — вокруг него сальто и 360
-/**
- * @param {import('./types').Pose} p
- * @returns {DOMMatrix}
- */
-function poseMatrix(p) {
-  const sqX = 1 + (1 - p.sq) * 0.55;
-  const m = new DOMMatrix()
-    .translate(
-      G.ox + PIV[0] * G.s + (p.x || 0),
-      G.oy + PIV[1] * G.s + p.y * G.cowH,
-    )
-    .rotate(p.tilt * DEG)
-    .scale(G.s * sqX, G.s * p.sq)
-    .translate(CEN[0] - PIV[0], CEN[1] - PIV[1]);
-  if (p.roll) m.rotateSelf(p.roll * DEG);
-  if (p.spin) {
-    let c = Math.cos(p.spin);
-    if (Math.abs(c) < 0.03) c = c < 0 ? -0.03 : 0.03;
-    m.scaleSelf(c, 1);
-  }
-  return m.translateSelf(-CEN[0], -CEN[1]);
-}
-/** @returns {import('./types').Pose} текущая поза коровы */
-const curPose = () => ({
-  y: S.bob + vib() - S.h,
-  tilt: S.tilt,
-  sq: S.sq,
-  spin: S.spin,
-  roll: S.roll,
-});
-/**
- * @param {DOMMatrix} m
- * @param {number} ang
- * @param {number} drop
- * @returns {DOMMatrix}
- */
-function kickT(m, ang, drop) {
-  const [a, b] = META.board.axis,
-    cx = (a[0] + b[0]) / 2,
-    cy = (a[1] + b[1]) / 2;
-  const al = Math.atan2(b[1] - a[1], b[0] - a[0]) * DEG;
-  let k = Math.cos(ang);
-  if (Math.abs(k) < 0.04) k = k < 0 ? -0.04 : 0.04;
-  return m
-    .translate(0, drop)
-    .translate(cx, cy)
-    .rotate(al)
-    .scale(1, k)
-    .rotate(-al)
-    .translate(-cx, -cy);
-}
-/** @param {DOMMatrix} m @returns {DOMMatrix} */
-function boardMatrix(m) {
-  const c = S.crash;
-  if (c)
-    return kickT(
-      poseMatrix({ x: c.bx * G.cowH, y: S.bob - c.bh, tilt: c.brot, sq: 1 }),
-      c.bkick,
-      0,
-    );
-  return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
-}
-/** @returns {number} вибрация подвески на ходу */
-function vib() {
-  if (S.air || S.onRamp || S.crash) return 0;
-  const t = S.t,
-    a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
-  return (
-    a *
-    (Math.sin(t * 47.1) * 0.5 +
-      Math.sin(t * 73.3 + 1.1) * 0.3 +
-      nE(t * 38) * 0.6)
-  );
-}
-/** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
-function wheelsScreen() {
-  const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
-  return META.contact.map(([x, y]) => {
-    const p = m.transformPoint(new DOMPoint(x, y));
-    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, G.horizon + 5)) };
-  });
-}
-
 // ---------------------------------------------------------------- jumps & tricks
 const ready = () => !!imgs && !!G.cowH;
 /** @returns {number} секунды до касания земли при текущей вертикальной скорости */
@@ -2283,21 +2136,17 @@ function jump() {
     S.sqV += 1.4;
     S.earV -= 3.2;
     S.tagV += 3.5;
-    const w = wheelsScreen();
-    puff(w[0].x, w[0].y, w[0].z, 10, 1.3);
-    puff(w[1].x, w[1].y, w[1].z, 6, 1.0);
+    emit('airborne', { from: 'jump' });
   } else if (S.jumps < 2) {
     S.jumps = 2;
     S.hV = Math.max(S.hV, 0) * 0.3 + DOUBLE_V;
     S.airTricks.push('double');
-    popup('ДВОЙНОЙ', 'trick');
+    emit('trick', { kind: 'double' });
     S.tiltV -= 1.8;
     S.earV -= 2.6;
     S.tagV += 3;
     S.sqV += 1;
-    const w = wheelsScreen();
-    ring((w[0].x + w[1].x) / 2, (w[0].y + w[1].y) / 2 + 0.03 * G.cowH);
-    puff((w[0].x + w[1].x) / 2, (w[0].y + w[1].y) / 2, 1, 8, 0.8);
+    emit('airborne', { from: 'double' });
   } else return false;
   S.airDur = S.airT + timeToLand();
   return true;
@@ -2332,7 +2181,7 @@ function finishTrick() {
   S.kick = 0;
   S.kickDrop = 0;
   S.airTricks.push(tr.kind);
-  popup(TRICKS[tr.kind].name, 'trick');
+  emit('trick', { kind: tr.kind });
   S.trick = null;
   if (S.trickQ) {
     const q = S.trickQ;
@@ -2367,8 +2216,7 @@ function launch() {
   S.earV -= 3;
   S.tagV += 3;
   S.shake = Math.min(1.8, S.shake + 0.45);
-  const w = wheelsScreen();
-  puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
+  emit('airborne', { from: 'launch' });
   if (!playerMode()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
       S.airDur > 0.95
@@ -2408,15 +2256,7 @@ function land(g) {
   S.shake = Math.min(1.8, S.shake + 0.5 + 0.22 * impact);
   S.earV -= 3.4;
   S.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
-  if (!S.onRamp) {
-    const w = wheelsScreen(),
-      k = clamp(impact / 2.4, 0.6, 1.8);
-    for (const p of w) {
-      puff(p.x, p.y, p.z, Math.round(14 * k), 1.5 * k);
-      sparks(p.x, p.y, p.z, Math.round(6 * k));
-    }
-  }
-  award();
+  emit('land', { impact });
 }
 
 // ---------------------------------------------------------------- crash
@@ -2456,18 +2296,7 @@ function crash(reason) {
   S.hV = Math.max(S.hV, 0) + 1.7;
   S.shake = 1.8;
   S.sqV -= 2;
-  popup(pick(['БАМ!', 'ОЙ!', 'МУУУ!']), 'crash');
-  for (const p of w) {
-    puff(p.x, p.y, p.z, 16, 1.8);
-    sparks(p.x, p.y, p.z, 8);
-  }
-  if (playerMode()) {
-    const sc = S.score;
-    endRun();
-    S.score = 0;
-    showResult(sc);
-    setCoach(sc < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
-  }
+  emit('crash', { reason, score: S.score, wheels: w });
 }
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
@@ -2660,6 +2489,61 @@ function bumpAt(i, strength) {
   if (Math.random() < 0.45) sparks(w.x, w.y, w.z, 4);
 }
 
+// ---- game/score.js
+// ---------------------------------------------------------------- score
+// Модель счёта и рекорда (карта, этап 3): DOM — в ui.js, всплывашки —
+// в effects.js; оба слоя реагируют на событие 'score'.
+
+/**
+ * @param {number} pts очки (уже с учётом множителя комбо)
+ * @param {number} [mult] множитель комбо — для показа «×N»
+ */
+function addScore(pts, mult = 1) {
+  S.score += pts;
+  emit('score', { points: pts, mult, total: S.score });
+  if (S.score > S.best) endRun();
+}
+
+/** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
+function endRun() {
+  if (S.score > S.best) {
+    S.best = S.score;
+    try {
+      localStorage.setItem('cow-skate-best', String(S.best));
+    } catch (e) {
+      /* ок */
+    }
+    document.dispatchEvent(
+      new CustomEvent('cowskate:run-end', {
+        detail: { score: S.score, best: S.best },
+      }),
+    );
+  }
+}
+
+/** Начисляет очки за трюки воздуха при приземлении. */
+function award() {
+  const list = S.airTricks,
+    tricks = list.filter((k) => k !== 'double');
+  let pts = S.airBonus;
+  for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
+  S.airTricks = [];
+  S.airBonus = 0;
+  if (!pts || !playerMode()) return;
+  const mult = Math.max(1, tricks.length);
+  addScore(pts * mult, mult);
+}
+
+/** Подписывает счёт на события модели (композиция — в main.js). */
+function initScore() {
+  on('land', award);
+  on('crash', () => {
+    if (!playerMode()) return;
+    endRun();
+    S.score = 0;
+  });
+}
+
 // ---- game/features.js
 // ---------------------------------------------------------------- road features
 const OBS_ENTRIES = /** @type {import('./types').ObstacleEntry[]} */ (
@@ -2753,12 +2637,7 @@ function checkObstacles() {
     } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
       f.cleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
-      if (playerMode()) {
-        S.score += 50;
-        bumpScore();
-        popup('+50', 'pts');
-        if (S.score > S.best) endRun();
-      }
+      if (playerMode()) addScore(50);
     }
   }
 }
@@ -3085,6 +2964,206 @@ function drawWarnings() {
   }
   ctx.globalAlpha = 1;
 }
+
+// ---- game/ui.js
+// ---------------------------------------------------------------- score
+/** Визуальный «бамп» счётчика очков при начислении. */
+function bumpScore() {
+  scoreEl.classList.remove('bump');
+  void scoreEl.offsetWidth;
+  scoreEl.classList.add('bump');
+  setTimeout(() => scoreEl.classList.remove('bump'), 200);
+}
+const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
+/** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
+function hud() {
+  if (S.score !== shown.score) {
+    scoreEl.textContent = S.score.toLocaleString('ru-RU');
+    shown.score = S.score;
+  }
+  if (S.best !== shown.best) {
+    bestEl.textContent = S.best.toLocaleString('ru-RU');
+    shown.best = S.best;
+  }
+  const auto = !playerMode();
+  if (auto !== shown.auto) {
+    autoEl.hidden = !auto;
+    hudEl.classList.toggle('dim', auto);
+    shown.auto = auto;
+  }
+  const cta = auto && !S.touched0; // призыв виден только в демо до первого касания
+  if (cta !== shown.cta) {
+    ctaEl.classList.toggle('dim', !cta);
+    shown.cta = cta;
+  }
+  const res = S.t < S.resultUntil;
+  if (res !== shown.res) {
+    resultEl.classList.toggle('dim', !res);
+    shown.res = res;
+  }
+}
+
+// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
+/** @param {number} sc очки заезда */
+function showResult(sc) {
+  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
+  resultEl.classList.remove('dim');
+  S.resultUntil = S.t + 2.6;
+}
+
+// ---------------------------------------------------------------- coach (первый заезд)
+/**
+ * @param {string | null} text текст подсказки (null — скрыть)
+ * @param {number} [dur] секунды показа (по умолчанию — до замены)
+ */
+function setCoach(text, dur) {
+  if (!text) {
+    coachEl.classList.add('dim');
+    S.coachText = null;
+    S.coachUntil = 0;
+    return;
+  }
+  if (S.coachText !== text) {
+    S.coachText = text;
+    coachEl.textContent = text;
+  }
+  coachEl.classList.remove('dim');
+  S.coachUntil = dur ? S.t + dur : Infinity;
+}
+// подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
+function coachStep() {
+  if (S.coachText && S.coachUntil !== Infinity && S.t > S.coachUntil)
+    setCoach(null);
+  if (!playerMode()) {
+    if (S.coachText) setCoach(null);
+    return;
+  } // в демо подсказок нет
+  if (S.crash || S.coachStage > 2) return;
+  if (S.coachStage === 0) {
+    if (S.air) {
+      S.coachStage = 1;
+      setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
+    } else {
+      const Xb = boardX(),
+        V = Math.max(1, S.speed * G.cowH);
+      const nx = /** @type {import('./types').Obstacle | undefined} */ (
+        feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb)
+      );
+      if (nx && (nx.X - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
+      else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
+    }
+  } else if (S.coachStage === 1) {
+    if (!S.air || S.jumps >= 2) {
+      S.coachStage = 2;
+      setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
+    }
+  } else if (S.t > S.coachUntil) S.coachStage = 3;
+}
+
+// ---------------------------------------------------------------- подписки
+// DOM-реакции на события модели (композиция — в main.js).
+function initUi() {
+  on('score', () => bumpScore());
+  on('crash', (d) => {
+    if (!playerMode()) return;
+    showResult(d.score);
+    setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
+  });
+}
+
+// ---------------------------------------------------------------- input
+let holdTimer = 0,
+  holding = false;
+function touched() {
+  if (!playerMode()) {
+    S.score = 0;
+    S.playT0 = S.t;
+  } // новый заезд — с мягкого разгона
+  S.touched0 = true;
+  S.lastInput = S.t;
+  S.autoSeq = [];
+  S.autoDouble = 0;
+  S.autoAfter = null;
+  hintEl.classList.add('dim');
+}
+/** @param {import('./types').Action} a действие кнопки/клавиши */
+function act(a) {
+  touched();
+  if (a === 'jump') jump();
+  else trick(a);
+}
+cv.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  act('jump');
+  clearTimeout(holdTimer);
+  holding = false;
+  holdTimer = setTimeout(() => {
+    holding = true;
+    S.throttle = 1;
+  }, 280);
+});
+const release = () => {
+  clearTimeout(holdTimer);
+  if (holding) {
+    holding = false;
+    S.throttle = 0;
+  }
+};
+addEventListener('pointerup', release);
+addEventListener('pointercancel', release);
+addEventListener('blur', () => {
+  release();
+  S.throttle = 0;
+});
+const padBtns = /** @type {NodeListOf<HTMLElement>} */ (
+  document.querySelectorAll('.pad [data-act]')
+);
+for (const b of padBtns) {
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    act(/** @type {import('./types').Action} */ (b.dataset.act));
+    b.classList.add('on');
+    setTimeout(() => b.classList.remove('on'), 160);
+  });
+  b.addEventListener('click', (e) => {
+    if (e.detail === 0)
+      act(/** @type {import('./types').Action} */ (b.dataset.act));
+  }); // Enter/пробел на кнопке
+}
+addEventListener('keydown', (e) => {
+  const k = e.code;
+  const t = /** @type {HTMLElement | null} */ (e.target);
+  if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
+    return;
+  const keyAct = {
+    Space: 'jump',
+    ArrowUp: 'jump',
+    KeyW: 'jump',
+    KeyQ: 'spin',
+    Digit1: 'spin',
+    KeyE: 'flip',
+    Digit2: 'flip',
+    KeyR: 'kick',
+    Digit3: 'kick',
+  }[k];
+  if (keyAct) {
+    e.preventDefault();
+    if (!e.repeat) act(keyAct);
+  } else if (k === 'ArrowRight' || k === 'KeyD') {
+    e.preventDefault();
+    S.throttle = 1;
+    touched();
+  } else if (k === 'ArrowLeft' || k === 'KeyA') {
+    e.preventDefault();
+    S.throttle = -1;
+    touched();
+  }
+});
+addEventListener('keyup', (e) => {
+  const k = e.code;
+  if ((k === 'ArrowRight' || k === 'KeyD') && S.throttle > 0) S.throttle = 0;
+  if ((k === 'ArrowLeft' || k === 'KeyA') && S.throttle < 0) S.throttle = 0;
+});
 
 // ---- game/render.js
 function setT(m) {
@@ -3520,6 +3599,18 @@ function render() {
 }
 
 // ---- game/main.js
+// Подписки слоёв на события модели (карта, этап 3): порядок = порядок
+// исполнения при emit — эффекты первыми, дальше счёт, потом DOM.
+initEffects();
+initScore();
+initUi();
+
+// layout() только считает геометрию; буферы пересобираем здесь.
+function relayout() {
+  layout();
+  buildSizeDependent();
+}
+
 /** @param {number} dt шаг кадра, секунды */
 function update(dt) {
   S.t += dt;
@@ -3726,11 +3817,11 @@ function frame(now) {
     if (emaFrame > 19 && perfScale > 0.55) {
       setPerfScale(Math.max(0.55, perfScale - 0.15));
       perfCool = 2.5;
-      layout();
+      relayout();
     } else if (emaWork < 8 && emaFrame < 17.5 && perfScale < 1) {
       setPerfScale(Math.min(1, perfScale + 0.12));
       perfCool = 3;
-      layout();
+      relayout();
     }
   }
   requestAnimationFrame(frame);
@@ -3742,7 +3833,7 @@ addEventListener('resize', () => {
   resizeQueued = true;
   requestAnimationFrame(() => {
     resizeQueued = false;
-    layout();
+    relayout();
   });
 });
 
@@ -3755,7 +3846,7 @@ Promise.all([
 ]).then(([base, board, ear, tag]) => {
   initAssets({ base, board, ear, tag });
   initClouds();
-  layout();
+  relayout();
   initShadow();
   if (grainEl && grainTiles.length) {
     grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;

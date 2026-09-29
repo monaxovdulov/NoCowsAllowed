@@ -36,7 +36,7 @@ import {
   streaks,
   vigCv,
 } from './sprites.js';
-import { boardMatrix, curPose, poseMatrix, vib } from './player.js';
+import { boardMatrix, curPose, poseMatrix, vib } from './pose.js';
 import {
   drawFeatures,
   drawFlying,

@@ -1,8 +1,10 @@
-import { clamp, easeOutBack, lerp, rand, TAU } from './utils.js';
+import { clamp, easeOutBack, lerp, pick, rand, TAU } from './utils.js';
+import { TRICKS } from './constants.js';
+import { on } from './events.js';
 import { CAM, cracks, ctx, G, lines, parts, pops, reduce, S } from './state.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
-import { dustImg, lineImg } from './sprites.js';
-import { poseMatrix } from './player.js';
+import { poseMatrix, wheelsScreen } from './pose.js';
+import { dustImg, lineImg, woodImg } from './sprites.js';
 
 /**
  * @param {boolean} init полоса по всему экрану (true) или справа за краем
@@ -195,6 +197,49 @@ export function drawParticles() {
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- подписки
+// Реакции на события модели (композиция — в main.js). Порядок регистрации
+// задаёт порядок исполнения: эффекты идут первыми, как раньше шли
+// прямые вызовы из player.js.
+export function initEffects() {
+  on('airborne', (d) => {
+    const w = wheelsScreen();
+    if (d.from === 'jump') {
+      puff(w[0].x, w[0].y, w[0].z, 10, 1.3);
+      puff(w[1].x, w[1].y, w[1].z, 6, 1.0);
+    } else if (d.from === 'double') {
+      const x = (w[0].x + w[1].x) / 2,
+        y = (w[0].y + w[1].y) / 2;
+      ring(x, y + 0.03 * G.cowH);
+      puff(x, y, 1, 8, 0.8);
+    } else {
+      puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
+    }
+  });
+  on('trick', (d) => {
+    popup(d.kind === 'double' ? 'ДВОЙНОЙ' : TRICKS[d.kind].name, 'trick');
+  });
+  on('land', (d) => {
+    if (S.onRamp) return;
+    const w = wheelsScreen(),
+      k = clamp(d.impact / 2.4, 0.6, 1.8);
+    for (const p of w) {
+      puff(p.x, p.y, p.z, Math.round(14 * k), 1.5 * k);
+      sparks(p.x, p.y, p.z, Math.round(6 * k));
+    }
+  });
+  on('crash', (d) => {
+    popup(pick(['БАМ!', 'ОЙ!', 'МУУУ!']), 'crash');
+    for (const p of d.wheels) {
+      puff(p.x, p.y, p.z, 16, 1.8);
+      sparks(p.x, p.y, p.z, 8);
+    }
+  });
+  on('score', (d) => {
+    popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
+  });
 }
 
 export function drawPops() {

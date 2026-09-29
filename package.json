@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint . && prettier --check . --ignore-unknown",
+    "lint": "node tools/check-import-graph.mjs && eslint . && prettier --check . --ignore-unknown",
     "fix": "eslint . --fix && prettier --write . --ignore-unknown",
     "typecheck": "tsc --noEmit",
     "snapshot": "node tools/game-snapshot.mjs"
