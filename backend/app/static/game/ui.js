@@ -89,9 +89,9 @@ export function coachStep() {
     if (S.coachText) setCoach(null);
     return;
   } // в демо подсказок нет
-  if (S.crash || S.coachStage > 2) return;
+  if (S.mode === 'crash' || S.coachStage > 2) return;
   if (S.coachStage === 0) {
-    if (S.air) {
+    if (S.mode === 'air') {
       S.coachStage = 1;
       setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
     } else {
@@ -104,7 +104,7 @@ export function coachStep() {
       else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
   } else if (S.coachStage === 1) {
-    if (!S.air || S.jumps >= 2) {
+    if (S.mode !== 'air' || S.jumps >= 2) {
       S.coachStage = 2;
       setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
     }

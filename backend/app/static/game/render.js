@@ -11,6 +11,7 @@ import {
   G,
   grainEl,
   PM,
+  onFeature,
   reduce,
   S,
 } from './state.js';
@@ -274,10 +275,10 @@ function drawPosts() {
 }
 
 function drawShadow() {
-  const g = S.crash ? 0 : groundInfo(boardX()).h;
+  const g = S.mode === 'crash' ? 0 : groundInfo(boardX()).h;
   const m = poseMatrix({
     y: S.bob + vib() - g,
-    tilt: S.onRamp ? S.tilt : S.tilt * 0.5,
+    tilt: onFeature() ? S.tilt : S.tilt * 0.5,
     sq: 1,
   });
   const a = m.transformPoint(new DOMPoint(80, 488)),
@@ -317,7 +318,7 @@ function drawCow() {
   const pose = curPose(),
     m = poseMatrix(pose);
   const sp = clamp(S.spdN, 0.5, 2);
-  const busy = S.trick || S.crash || Math.abs(S.roll) > 0.01;
+  const busy = S.trick || S.mode === 'crash' || Math.abs(S.roll) > 0.01;
   // полосы смаза
   if (streaks.length && streakCv) {
     setT(m);

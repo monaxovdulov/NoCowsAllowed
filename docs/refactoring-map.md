@@ -195,6 +195,8 @@ chromium-headless-shell`, если нет).
 
 ### Этап 3. События и развязка циклов (D2, D6)
 
+**Выполнено** (коммит `e3e08f8`).
+
 - `pose.js` ← из `player.js`: `poseMatrix`, `curPose`, `kickT`,
   `boardMatrix`, `vib`, `wheelsScreen`.
 - `score.js` ← из `ui.js`: `award`, `endRun`, `bumpScore`-логика;

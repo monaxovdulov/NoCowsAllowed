@@ -158,7 +158,9 @@ export interface GameState {
   tiltV: number;
   h: number;
   hV: number;
-  air: boolean;
+  // автомат режимов (карта, этап 4, D5): переходы — только через
+  // enterGround/enterAir/enterCrash/enterRide в player.js
+  mode: PlayerMode;
   airT: number;
   airDur: number;
   jumps: 0 | 1 | 2;

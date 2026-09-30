@@ -12,7 +12,7 @@ import {
 } from './utils.js';
 import { DOUBLE_V, GRAV, OBS, OLLIE_V, TRICKS } from './constants.js';
 import { emit } from './events.js';
-import { feats, G, playerMode, reduce, S } from './state.js';
+import { feats, G, onFlat, playerMode, reduce, S } from './state.js';
 import { boardX } from './layout.js';
 import { wheelsScreen } from './pose.js';
 import { imgs } from './sprites.js';
@@ -24,12 +24,72 @@ const ready = () => !!imgs && !!G.cowH;
 function timeToLand() {
   return (S.hV + Math.sqrt(Math.max(0, S.hV * S.hV + 2 * GRAV * S.h))) / GRAV;
 }
+
+// Переходы автомата режимов (карта, этап 4, D5): S.mode меняется только
+// здесь, каждый переход публикует своё событие на шине.
+
+/** @param {'jump' | 'launch'} from чем вызван взлёт */
+function enterAir(from) {
+  S.mode = 'air';
+  emit('airborne', { from });
+}
+/**
+ * @param {number} g высота поверхности под доской (росты коровы)
+ * @param {number} impact скорость касания; 0 — возврат после крэша
+ */
+function enterGround(g, impact) {
+  S.mode = 'ground';
+  S.h = g;
+  S.onRamp = g > 0.001;
+  emit('land', { impact });
+}
+/**
+ * @param {import('./types').CrashReason} reason причина падения
+ */
+export function enterCrash(reason) {
+  if (S.mode === 'crash') return;
+  // колёса снимаем до смены режима — поза с вибрацией, как на кадре крэша
+  const w = wheelsScreen();
+  S.mode = 'crash';
+  S.crash = {
+    reason,
+    t: 0,
+    dur: 1.4,
+    r0: S.roll,
+    r1: Math.ceil((S.roll + Math.PI) / TAU) * TAU,
+    bx: 0,
+    bh: S.h,
+    bvx: rand(1.2, 1.9),
+    bvh: rand(1.6, 2.4),
+    brot: S.tilt,
+    bvr: rand(7, 11),
+    bkick: S.kick,
+    bvk: rand(10, 16),
+    snap: null,
+  };
+  S.trick = null;
+  S.trickQ = null;
+  S.spin = 0;
+  S.kick = 0;
+  S.kickDrop = 0;
+  S.onRamp = false;
+  S.jumps = 0;
+  S.airTricks = [];
+  S.airBonus = 0;
+  S.autoSeq = [];
+  S.autoDouble = 0;
+  S.autoAfter = null;
+  S.hV = Math.max(S.hV, 0) + 1.7;
+  S.shake = 1.8;
+  S.sqV -= 2;
+  emit('crash', { reason, score: S.score, wheels: w });
+}
+
 /** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 export function jump() {
-  if (!ready() || S.crash) return false;
-  if (!S.air) {
+  if (!ready() || S.mode === 'crash') return false;
+  if (S.mode === 'ground') {
     S.hV = OLLIE_V + (S.onRamp ? S.slope * S.speed * 0.5 : 0);
-    S.air = true;
     S.airT = 0;
     S.jumps = 1;
     S.onRamp = false;
@@ -39,8 +99,8 @@ export function jump() {
     S.sqV += 1.4;
     S.earV -= 3.2;
     S.tagV += 3.5;
-    emit('airborne', { from: 'jump' });
-  } else if (S.jumps < 2) {
+    enterAir('jump');
+  } else if (S.mode === 'air' && S.jumps < 2) {
     S.jumps = 2;
     S.hV = Math.max(S.hV, 0) * 0.3 + DOUBLE_V;
     S.airTricks.push('double');
@@ -68,8 +128,8 @@ function startTrick(kind) {
 }
 /** @param {import('./types').TrickKind} kind */
 export function trick(kind) {
-  if (!ready() || S.crash) return;
-  if (!S.air && !jump()) return;
+  if (!ready() || S.mode === 'crash') return;
+  if (S.mode !== 'air' && !jump()) return;
   if (S.trick) {
     S.trickQ = kind;
     return;
@@ -106,9 +166,8 @@ function stepTrick(dt) {
   }
   if (p >= 1) finishTrick();
 }
-/** слетели с трамплина */
+/** слетели с конструкции — вылет в воздух */
 export function launch() {
-  S.air = true;
   S.airT = 0;
   S.jumps = 1;
   S.hV = Math.min(3.9, 2.2 + 1.25 * S.spdN);
@@ -119,7 +178,7 @@ export function launch() {
   S.earV -= 3;
   S.tagV += 3;
   S.shake = Math.min(1.8, S.shake + 0.45);
-  emit('airborne', { from: 'launch' });
+  enterAir('launch');
   if (!playerMode()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
       S.airDur > 0.95
@@ -141,66 +200,25 @@ function land(g) {
     if (S.trick.t / S.trick.dur > 0.8) finishTrick();
     else {
       S.h = g;
-      crash('bail');
+      enterCrash('bail');
       return;
     }
   }
   S.trickQ = null;
   const impact = -S.hV;
-  S.air = false;
-  S.h = g;
   S.hV = 0;
   S.jumps = 0;
   S.airT = 0;
-  S.onRamp = g > 0.001;
   S.sqV -= impact * 1.3;
   S.bobV += impact * 0.1;
   S.tiltV += 0.5;
   S.shake = Math.min(1.8, S.shake + 0.5 + 0.22 * impact);
   S.earV -= 3.4;
   S.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
-  emit('land', { impact });
+  enterGround(g, impact);
 }
 
 // ---------------------------------------------------------------- crash
-/** @param {import('./types').CrashReason} reason причина падения */
-export function crash(reason) {
-  if (S.crash) return;
-  const w = wheelsScreen();
-  S.crash = {
-    reason,
-    t: 0,
-    dur: 1.4,
-    r0: S.roll,
-    r1: Math.ceil((S.roll + Math.PI) / TAU) * TAU,
-    bx: 0,
-    bh: S.h,
-    bvx: rand(1.2, 1.9),
-    bvh: rand(1.6, 2.4),
-    brot: S.tilt,
-    bvr: rand(7, 11),
-    bkick: S.kick,
-    bvk: rand(10, 16),
-    snap: null,
-  };
-  S.trick = null;
-  S.trickQ = null;
-  S.spin = 0;
-  S.kick = 0;
-  S.kickDrop = 0;
-  S.air = false;
-  S.onRamp = false;
-  S.jumps = 0;
-  S.airTricks = [];
-  S.airBonus = 0;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
-  S.hV = Math.max(S.hV, 0) + 1.7;
-  S.shake = 1.8;
-  S.sqV -= 2;
-  emit('crash', { reason, score: S.score, wheels: w });
-}
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
   const c = S.crash;
@@ -246,17 +264,16 @@ function crashStep(dt) {
   if (c.t >= c.dur) {
     S.crash = null;
     S.roll = 0;
-    S.h = 0;
-    S.hV = 0;
     S.invuln = 1.1;
     S.sqV -= 1;
+    enterGround(0, 0);
   }
 }
 
 // ---------------------------------------------------------------- autopilot
 export function autopilot() {
-  if (playerMode() || S.crash) return;
-  if (S.air) {
+  if (playerMode() || S.mode === 'crash') return;
+  if (S.mode === 'air') {
     if (S.autoDouble && S.airT >= S.autoDouble && S.jumps < 2) {
       S.autoDouble = 0;
       jump();
@@ -322,8 +339,8 @@ export function physicsStep(dt, g) {
   S.bob += S.bobV * dt;
   // наклон: на земле — покачивание, на трамплине — по склону, в воздухе — нос вверх, потом выравнивание
   let tt;
-  if (S.crash) tt = 0;
-  else if (S.air) {
+  if (S.mode === 'crash') tt = 0;
+  else if (S.mode === 'air') {
     const ph = S.airT / Math.max(0.3, S.airDur);
     tt =
       ph < 0.32
@@ -335,7 +352,7 @@ export function physicsStep(dt, g) {
       0.007 * Math.sin(S.t * 1.7) +
       0.006 * nB(S.t * 0.8) +
       0.004 * S.boost * Math.sin(S.t * 5.3);
-  const kT = S.air ? 190 : 300;
+  const kT = S.mode === 'air' ? 190 : 300;
   S.tiltV += (-kT * (S.tilt - tt) - 13 * S.tiltV) * dt;
   S.tilt += S.tiltV * dt;
   // приседание
@@ -350,7 +367,7 @@ export function physicsStep(dt, g) {
     0.03 *
     (0.55 + 0.45 * S.spdN) *
     (reduce ? 0.5 : 1);
-  const earT = 0.04 + 0.06 * S.boost + (S.air ? 0.08 : 0) + flutter;
+  const earT = 0.04 + 0.06 * S.boost + (S.mode === 'air' ? 0.08 : 0) + flutter;
   S.earV += (-150 * (S.ear - earT) - 7 * S.earV) * dt;
   S.ear = clamp(S.ear + S.earV * dt, -0.3, 0.34);
   // бирка-маятник, которую отдувает назад
@@ -363,11 +380,11 @@ export function physicsStep(dt, g) {
     (-72 * Math.sin(S.tag) + wind * Math.cos(S.tag) * 0.9 - 2.4 * S.tagV) * dt;
   S.tag = clamp(S.tag + S.tagV * dt, -1.2, 1.3);
 
-  if (S.crash) {
+  if (S.mode === 'crash') {
     crashStep(dt);
     return;
   }
-  if (S.air) {
+  if (S.mode === 'air') {
     S.airT += dt;
     S.hV -= GRAV * dt;
     S.h += S.hV * dt;
@@ -381,7 +398,7 @@ export function physicsStep(dt, g) {
  * @param {number} strength сила удара
  */
 export function bumpAt(i, strength) {
-  if (S.air || S.onRamp || S.crash) return;
+  if (!onFlat()) return;
   S.bobV -= 0.11 * strength;
   S.tiltV += (i === 1 ? -1.3 : 0.9) * strength;
   S.shake = Math.min(1.6, S.shake + 0.35 * strength);

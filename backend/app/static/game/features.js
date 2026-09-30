@@ -3,7 +3,7 @@ import { OBS } from './constants.js';
 import { CAM, ctx, feats, G, playerMode, S } from './state.js';
 import { boardX, DPR, obPos, obZ, W, X0, X1, yAt } from './layout.js';
 import { glowImg, OBR, obSprites, shadowImg } from './sprites.js';
-import { crash } from './player.js';
+import { enterCrash } from './player.js';
 import { addScore } from './score.js';
 
 // ---------------------------------------------------------------- road features
@@ -87,13 +87,13 @@ export function checkObstacles() {
       half = (o.w * G.cowH) / 2;
     const over = Xb + hb > f.X - half && Xb - hb < f.X + half;
     if (over) {
-      if (S.crash || S.invuln > 0) {
+      if (S.mode === 'crash' || S.invuln > 0) {
         if (S.h < o.h) knock(f, 0.7);
         continue;
       }
       if (S.h < o.h * 0.85) {
         knock(f, 1);
-        crash('hit');
+        enterCrash('hit');
       } else f.over = true;
     } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
       f.cleared = true;

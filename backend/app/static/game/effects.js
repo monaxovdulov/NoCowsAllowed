@@ -1,7 +1,18 @@
 import { clamp, easeOutBack, lerp, pick, rand, TAU } from './utils.js';
 import { TRICKS } from './constants.js';
 import { on } from './events.js';
-import { CAM, cracks, ctx, G, lines, parts, pops, reduce, S } from './state.js';
+import {
+  CAM,
+  cracks,
+  ctx,
+  G,
+  lines,
+  onFeature,
+  parts,
+  pops,
+  reduce,
+  S,
+} from './state.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
 import { poseMatrix, wheelsScreen } from './pose.js';
 import { dustImg, lineImg, woodImg } from './sprites.js';
@@ -222,7 +233,7 @@ export function initEffects() {
     popup(d.kind === 'double' ? 'ДВОЙНОЙ' : TRICKS[d.kind].name, 'trick');
   });
   on('land', (d) => {
-    if (S.onRamp) return;
+    if (onFeature() || d.impact <= 0) return;
     const w = wheelsScreen(),
       k = clamp(d.impact / 2.4, 0.6, 1.8);
     for (const p of w) {

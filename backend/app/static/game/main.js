@@ -19,6 +19,7 @@ import {
   grainEl,
   hintEl,
   lines,
+  onFlat,
   parts,
   pops,
   reduce,
@@ -68,18 +69,19 @@ function update(dt) {
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
   const rampT = S.playT0 ? smooth(clamp((S.t - S.playT0) / 14, 0, 1)) : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  const target = S.crash
-    ? 1.3
-    : S.throttle > 0
-      ? MAXSPD
-      : S.throttle < 0
-        ? MINSPD
-        : reduce
-          ? 3.2
-          : cruise;
+  const target =
+    S.mode === 'crash'
+      ? 1.3
+      : S.throttle > 0
+        ? MAXSPD
+        : S.throttle < 0
+          ? MINSPD
+          : reduce
+            ? 3.2
+            : cruise;
   S.speed +=
     (target - S.speed) *
-    (1 - Math.exp(-dt * (S.crash ? 3 : S.throttle > 0 ? 1.3 : 0.9)));
+    (1 - Math.exp(-dt * (S.mode === 'crash' ? 3 : S.throttle > 0 ? 1.3 : 0.9)));
   S.boost = clamp((S.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
   S.spdN = S.speed / CRUISE;
   const V = S.speed * G.cowH;
@@ -88,7 +90,7 @@ function update(dt) {
 
   spawnFeatures();
   const gi = groundInfo(boardX());
-  if (!S.crash && !S.air) {
+  if (S.mode === 'ground') {
     if (gi.h > 0.001) {
       S.h = gi.h;
       S.onRamp = true;
@@ -163,7 +165,7 @@ function update(dt) {
   }
 
   // пыль из-под колёс
-  if (!S.air && !S.onRamp && !S.crash) {
+  if (onFlat()) {
     const rate = 16 * S.spdN;
     const w = wheelsScreen();
     for (let i = 0; i < 2; i++)
@@ -213,8 +215,9 @@ function update(dt) {
 
   // камера: тряска, зум от скорости, подъём за коровой в большом прыжке
   S.shake = Math.max(0, S.shake - dt * 2.4);
-  const apex = S.air && S.hV > 0 ? S.h + (S.hV * S.hV) / (2 * GRAV) : S.h;
-  const hT = S.air ? lerp(S.h, apex, 0.6) : S.h;
+  const apex =
+    S.mode === 'air' && S.hV > 0 ? S.h + (S.hV * S.hV) / (2 * GRAV) : S.h;
+  const hT = S.mode === 'air' ? lerp(S.h, apex, 0.6) : S.h;
   S.lift +=
     (Math.max(0, hT - 0.18) * G.cowH - S.lift) * (1 - Math.exp(-dt * 6));
   S.zoomOut +=

@@ -122,7 +122,7 @@ export const S = {
   tiltV: 0,
   h: 0,
   hV: 0,
-  air: false,
+  mode: 'ground',
   airT: 0,
   airDur: 0.6,
   jumps: 0,
@@ -186,3 +186,7 @@ export const feats = [];
 export const pops = [];
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
 export const playerMode = () => S.t - S.lastInput <= AUTO_DELAY;
+/** @returns {boolean} катимся по ровному асфальту (не по конструкции) */
+export const onFlat = () => S.mode === 'ground' && !S.onRamp;
+/** @returns {boolean} катимся по поверхности конструкции */
+export const onFeature = () => S.mode === 'ground' && S.onRamp;

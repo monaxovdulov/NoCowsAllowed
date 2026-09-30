@@ -1,6 +1,6 @@
 import { META } from './assets.js';
 import { DEG, nE } from './utils.js';
-import { G, reduce, S } from './state.js';
+import { G, onFlat, reduce, S } from './state.js';
 import { zAt } from './layout.js';
 
 // ---------------------------------------------------------------- pose → matrix
@@ -72,7 +72,7 @@ export function boardMatrix(m) {
 }
 /** @returns {number} вибрация подвески на ходу */
 export function vib() {
-  if (S.air || S.onRamp || S.crash) return 0;
+  if (!onFlat()) return 0;
   const t = S.t,
     a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
   return (
