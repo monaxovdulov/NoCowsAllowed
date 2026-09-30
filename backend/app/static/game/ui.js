@@ -15,6 +15,7 @@ import {
 } from './state.js';
 import { on } from './events.js';
 import { boardX } from './layout.js';
+import { FEATURE_TYPES } from './track/index.js';
 import { jump, trick } from './player.js';
 
 // ---------------------------------------------------------------- score
@@ -97,13 +98,20 @@ export function coachStep() {
     } else {
       const Xb = boardX(),
         V = Math.max(1, S.speed * G.cowH);
-      const nx = /** @type {import('./types').ObstacleFeature | undefined} */ (
-        feats.find(
-          (f) => f.type === 'ob' && !f.data.fly && (f.x0 + f.x1) / 2 > Xb,
-        )
-      );
-      if (nx && ((nx.x0 + nx.x1) / 2 - Xb) / V < 1.5)
-        setCoach('ПРЫГАЙ!', Infinity);
+      // ближайшая прыгаемая конструкция — по подсказке её спеки
+      let jumpAt = Infinity;
+      for (const f of feats) {
+        const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
+        if (
+          hnt &&
+          (hnt.action === 'jump' || hnt.action === 'double') &&
+          hnt.at > Xb
+        ) {
+          jumpAt = hnt.at;
+          break;
+        }
+      }
+      if ((jumpAt - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
       else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
   } else if (S.coachStage === 1) {

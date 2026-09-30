@@ -19,7 +19,9 @@ TARGET = ROOT / "cow-skate-standalone.html"
 
 ENTRY_TAG = '<script type="module" src="game/main.js"></script>'
 TELEGRAM_RE = re.compile(r"<!-- telegram:begin -->\n.*?<!-- telegram:end -->\n", re.S)
-IMPORT_RE = re.compile(r"^import\s*\{[^}]*\}\s*from\s*'(\./[\w-]+\.js)';\n", re.M)
+IMPORT_RE = re.compile(
+    r"^import\s*\{[^}]*\}\s*from\s*'((?:\.{1,2}/)[\w./-]+\.js)';\n", re.M
+)
 EXPORT_RE = re.compile(r"^export (?=(?:const|let|function|async function) )", re.M)
 NOTICE = "<!-- Сгенерировано tools/build-standalone.py из backend/app/static — не править руками. -->\n"
 

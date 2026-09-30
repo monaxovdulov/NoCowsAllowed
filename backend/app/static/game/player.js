@@ -10,9 +10,10 @@ import {
   smooth,
   TAU,
 } from './utils.js';
-import { DOUBLE_V, GRAV, OBS, OLLIE_V, TRICKS } from './constants.js';
+import { DOUBLE_V, GRAV, OLLIE_V, TRICKS } from './constants.js';
 import { emit } from './events.js';
 import { feats, G, onFlat, playerMode, reduce, S } from './state.js';
+import { FEATURE_TYPES } from './track/index.js';
 import { boardX } from './layout.js';
 import { curPose, wheelsScreen } from './pose.js';
 import { imgs } from './sprites.js';
@@ -316,31 +317,36 @@ export function autopilot() {
       startTrick(S.autoSeq.shift());
     return;
   }
-  if (S.onRamp) return;
+  // ground: решения по конструкциям; ride/crash — вне зоны автопилота
+  if (S.mode !== 'ground') return;
   const Xb = boardX(),
-    V = S.speed * G.cowH,
-    hb = 0.2 * G.cowH;
-  const next = feats.find(
-    (f) =>
-      (f.type === 'ob' && !f.data.fly && f.x1 > Xb - hb) ||
-      (f.type === 'ramp' && f.x1 > Xb),
-  );
-  if (next && next.type === 'ob') {
-    const o = OBS[next.data.kind],
-      dbl = o.long || o.tall,
-      t = ((next.x0 + next.x1) / 2 - Xb) / V;
-    if (t <= (dbl ? 0.5 : 0.3) && t > -0.05) {
-      jump();
-      if (dbl) {
+    V = S.speed * G.cowH;
+  S.throttle = 0; // в демо газом владеет автопилот
+  // ближайшая конструкция с подсказкой: спека знает свою актуальность
+  /** @type {import('./types').AutopilotHint | null} */
+  let hint = null;
+  for (const f of feats) {
+    const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
+    if (hnt) {
+      hint = hnt;
+      break;
+    }
+  }
+  if (hint && hint.action !== 'none') {
+    const t = (hint.at - Xb) / V;
+    if (t <= hint.leadS && t > -0.05) {
+      if (hint.action === 'double') {
+        jump();
         S.autoDouble = 0.25;
         if (Math.random() < 0.5) S.autoAfter = pick(['spin', 'kick']);
-      } else if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
+      } else if (hint.action === 'jump') {
+        jump();
+        if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
+      } else S.throttle = 1; // hold — зажать разгон
       return;
     }
   }
-  const room =
-    !next ||
-    ((next.type === 'ob' ? (next.x0 + next.x1) / 2 : next.x0) - Xb) / V > 1.6;
+  const room = !hint || (hint.at - Xb) / V > 1.6;
   if (room && S.t > S.nextFlourish) {
     S.nextFlourish = S.t + rand(3, 5.5);
     const r = Math.random();

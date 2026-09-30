@@ -370,7 +370,9 @@ export interface SpawnContext {
 
 export interface SpawnPlan<TData> {
   data: TData;
+  // длина конструкции в ростах коровы: x1 = x0 + lengthCowH * cowH
   lengthCowH: number;
+  // зазор до следующей конструкции в ростах коровы (от x1)
   gapAfterCowH: number;
 }
 
@@ -392,8 +394,10 @@ export interface RideSpec<TData> {
 }
 
 // Что делает автопилот демо-режима перед конструкцией: за leadS секунд
-// до x0 — действие (hold — зажать разгон, например перед петлёй).
+// до at (мировой X точки срабатывания) — действие (hold — зажать разгон,
+// например перед петлёй). null = конструкция для автопилота уже позади.
 export interface AutopilotHint {
+  at: number;
   leadS: number;
   action: 'jump' | 'double' | 'hold' | 'none';
 }
@@ -402,26 +406,35 @@ export interface MarkerSpec {
   label: string;
   leadS: number;
   heightCowH: number;
+  // миниатюра для значка у правого края (кольцо-таймер)
+  icon?: CanvasImageSource;
 }
 
 // Стратегия вида конструкции: FEATURE_TYPES[type] = FeatureTypeSpec.
 // Добавить конструкцию = новая запись в таблице + рисовальщик.
-export interface FeatureTypeSpec<TData = unknown> {
-  type: string;
+export interface FeatureTypeSpec<
+  TData = unknown,
+  TType extends string = string,
+> {
+  type: TType;
   weight: number;
   minGapBeforeCowH: number;
   plan(ctx: SpawnContext): SpawnPlan<TData>;
-  ground?(feat: TrackFeature<string, TData>, X: number): GroundInfo | null;
+  ground?(feat: TrackFeature<TType, TData>, X: number): GroundInfo | null;
   collide?(
-    feat: TrackFeature<string, TData>,
+    feat: TrackFeature<TType, TData>,
     X: number,
     h: number,
   ): CollideResult;
   ride?: RideSpec<TData>;
-  marker?(feat: TrackFeature<string, TData>): MarkerSpec | null;
-  autopilot?(feat: TrackFeature<string, TData>): AutopilotHint;
-  depth(feat: TrackFeature<string, TData>): number;
-  draw(feat: TrackFeature<string, TData>, blurPx: number): void;
+  // кадровый апдейт фичи (например, сбитый обломок в полёте)
+  step?(feat: TrackFeature<TType, TData>, dt: number): void;
+  marker?(feat: TrackFeature<TType, TData>): MarkerSpec | null;
+  autopilot?(feat: TrackFeature<TType, TData>): AutopilotHint | null;
+  depth?(feat: TrackFeature<TType, TData>): number;
+  draw?(feat: TrackFeature<TType, TData>, blurPx: number): void;
+  // отрисовка отдельным проходом поверх коровы (обломок в полёте)
+  drawFlying?(feat: TrackFeature<TType, TData>): void;
 }
 
 // ---------------------------------------------------------------- события модели
