@@ -322,15 +322,13 @@ export function autopilot() {
     hb = 0.2 * G.cowH;
   const next = feats.find(
     (f) =>
-      (f.type === 'ob' &&
-        !f.fly &&
-        f.X + (OBS[f.kind].w * G.cowH) / 2 > Xb - hb) ||
-      (f.type === 'ramp' && f.X1 > Xb),
+      (f.type === 'ob' && !f.data.fly && f.x1 > Xb - hb) ||
+      (f.type === 'ramp' && f.x1 > Xb),
   );
   if (next && next.type === 'ob') {
-    const o = OBS[next.kind],
+    const o = OBS[next.data.kind],
       dbl = o.long || o.tall,
-      t = (next.X - Xb) / V;
+      t = ((next.x0 + next.x1) / 2 - Xb) / V;
     if (t <= (dbl ? 0.5 : 0.3) && t > -0.05) {
       jump();
       if (dbl) {
@@ -341,7 +339,8 @@ export function autopilot() {
     }
   }
   const room =
-    !next || ((next.type === 'ob' ? next.X : next.X0) - Xb) / V > 1.6;
+    !next ||
+    ((next.type === 'ob' ? (next.x0 + next.x1) / 2 : next.x0) - Xb) / V > 1.6;
   if (room && S.t > S.nextFlourish) {
     S.nextFlourish = S.t + rand(3, 5.5);
     const r = Math.random();

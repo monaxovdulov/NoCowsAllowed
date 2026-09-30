@@ -175,7 +175,7 @@ export const parts = [];
 export const lines = [];
 /** @type {import('./types').Crack[]} */
 export const cracks = [];
-/** @type {import('./types').Feature[]} */
+/** @type {import('./types').AnyFeature[]} */
 export const feats = [];
 /** @type {import('./types').Pop[]} */
 export const pops = [];

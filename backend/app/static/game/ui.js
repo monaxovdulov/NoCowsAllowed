@@ -97,10 +97,13 @@ export function coachStep() {
     } else {
       const Xb = boardX(),
         V = Math.max(1, S.speed * G.cowH);
-      const nx = /** @type {import('./types').Obstacle | undefined} */ (
-        feats.find((f) => f.type === 'ob' && !f.fly && f.X > Xb)
+      const nx = /** @type {import('./types').ObstacleFeature | undefined} */ (
+        feats.find(
+          (f) => f.type === 'ob' && !f.data.fly && (f.x0 + f.x1) / 2 > Xb,
+        )
       );
-      if (nx && (nx.X - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
+      if (nx && ((nx.x0 + nx.x1) / 2 - Xb) / V < 1.5)
+        setCoach('ПРЫГАЙ!', Infinity);
       else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
   } else if (S.coachStage === 1) {

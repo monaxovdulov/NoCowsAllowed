@@ -205,13 +205,6 @@ export interface GameState {
 
 // ---------------------------------------------------------------- road features
 
-export interface Ramp {
-  type: 'ramp';
-  X0: number;
-  X1: number;
-  hr: number;
-}
-
 export interface FlyState {
   h: number;
   vh: number;
@@ -219,17 +212,6 @@ export interface FlyState {
   rot: number;
   vr: number;
 }
-
-export interface Obstacle {
-  type: 'ob';
-  kind: ObstacleKind;
-  X: number;
-  over: boolean;
-  cleared: boolean;
-  fly: FlyState | null;
-}
-
-export type Feature = Ramp | Obstacle;
 
 export interface GroundInfo {
   h: number;
@@ -318,11 +300,6 @@ export interface Streak {
 export type ObstacleSprite = HTMLCanvasElement & { pad: number };
 export type ObstacleSprites = Partial<Record<ObstacleKind, ObstacleSprite>>;
 
-// ================================================================
-// ЦЕЛЕВОЙ КОНТРАКТ (этапы 3–5 docs/refactoring-map.md). В коде пока
-// не используется; уточнять при реализации синхронно с картой.
-// ================================================================
-
 // ---------------------------------------------------------------- режимы игрока
 
 // ground — колёса на поверхности (асфальт, рампа, стол); air — полёт;
@@ -335,7 +312,7 @@ export type PlayerMode = 'ground' | 'air' | 'ride' | 'crash';
 // Единая «оболочка» для всех фич трассы: горячие циклы (спавн, отсечение,
 // сортировка по глубине, масштабирование при resize) читают только общие
 // поля — одна форма объекта. Параметры вида — в data, их читает только
-// стратегия своего типа. После этапа 5 заменяет Feature/Ramp/Obstacle.
+// стратегия своего типа.
 // Правило единиц: x0/x1 — мировые пиксели (масштабируются в layout()),
 // всё в data — в «ростах коровы» (cowH) и не масштабируется.
 export interface TrackFeature<TType extends string = string, TData = unknown> {
@@ -356,6 +333,10 @@ export interface ObstacleData {
   cleared: boolean;
   fly: FlyState | null;
 }
+
+export type RampFeature = TrackFeature<'ramp', RampData>;
+export type ObstacleFeature = TrackFeature<'ob', ObstacleData>;
+export type AnyFeature = RampFeature | ObstacleFeature;
 
 export interface LoopData {
   r: number;

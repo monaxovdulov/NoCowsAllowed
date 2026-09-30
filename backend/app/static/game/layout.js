@@ -86,10 +86,8 @@ export function layout() {
     S.camX *= k;
     S.nextSpawnX *= k;
     for (const f of feats) {
-      if (f.type === 'ramp') {
-        f.X0 *= k;
-        f.X1 *= k;
-      } else f.X *= k;
+      f.x0 *= k;
+      f.x1 *= k;
     }
   }
   cracks.length = 0;

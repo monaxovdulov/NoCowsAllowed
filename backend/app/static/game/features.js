@@ -14,6 +14,23 @@ const OBS_ENTRIES = /** @type {import('./types').ObstacleEntry[]} */ (
   Object.entries(OBS)
 );
 const OBS_TOTAL = OBS_ENTRIES.reduce((a, [, o]) => a + o.wt, 0);
+let featSeq = 0;
+/** Центр фичи по мировой оси. @param {import('./types').TrackFeature} f */
+const featMid = (f) => (f.x0 + f.x1) / 2;
+/**
+ * Фабрика фич трассы: общая оболочка {id, type, x0, x1, data} (карта,
+ * этап 5, D3). id монотонный — для отладки и ключей.
+ * @template {string} T
+ * @template D
+ * @param {T} type
+ * @param {number} x0 мировой X левого края, px
+ * @param {number} x1 мировой X правого края, px
+ * @param {D} data параметры вида (в ростах коровы)
+ * @returns {import('./types').TrackFeature<T, D>}
+ */
+export function createFeature(type, x0, x1, data) {
+  return { id: ++featSeq, type, x0, x1, data };
+}
 export function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
   const ahead =
@@ -21,10 +38,9 @@ export function spawnFeatures() {
   while (S.nextSpawnX < ahead) {
     const X = S.nextSpawnX;
     if (Math.random() < 0.24) {
-      /** @type {import('./types').Ramp} */
-      const f = { type: 'ramp', X0: X, X1: X + 1.15 * G.cowH, hr: 0.3 };
+      const f = createFeature('ramp', X, X + 1.15 * G.cowH, { hr: 0.3 });
       feats.push(f);
-      S.nextSpawnX = f.X1 + rand(12, 17) * G.cowH * Math.max(1, 0.8 * S.spdN);
+      S.nextSpawnX = f.x1 + rand(12, 17) * G.cowH * Math.max(1, 0.8 * S.spdN);
     } else {
       let r = Math.random() * OBS_TOTAL;
       /** @type {import('./types').ObstacleKind} */
@@ -37,21 +53,20 @@ export function spawnFeatures() {
         }
       }
       const w = OBS[kind].w * G.cowH;
-      feats.push({
-        type: 'ob',
-        kind,
-        X: X + w / 2,
-        over: false,
-        cleared: false,
-        fly: null,
-      });
+      feats.push(
+        createFeature('ob', X, X + w, {
+          kind,
+          over: false,
+          cleared: false,
+          fly: null,
+        }),
+      );
       S.nextSpawnX = X + w + rand(7.5, 13) * G.cowH * Math.max(1, 0.8 * S.spdN);
     }
   }
   for (let i = feats.length - 1; i >= 0; i--) {
-    const f = feats[i],
-      end = f.type === 'ramp' ? f.X1 : f.X + OBS[f.kind].w * G.cowH;
-    if (G.vx + (end - S.camX) < -W * 0.5) feats.splice(i, 1);
+    const f = feats[i];
+    if (G.vx + (f.x1 - S.camX) < -W * 0.5) feats.splice(i, 1);
   }
 }
 /**
@@ -60,19 +75,22 @@ export function spawnFeatures() {
  */
 export function groundInfo(X) {
   for (const f of feats) {
-    if (f.type === 'ramp' && X >= f.X0 && X <= f.X1) {
-      const k = (X - f.X0) / (f.X1 - f.X0);
-      return { h: f.hr * k, slope: (f.hr * G.cowH) / (f.X1 - f.X0) };
+    if (f.type === 'ramp' && X >= f.x0 && X <= f.x1) {
+      const k = (X - f.x0) / (f.x1 - f.x0);
+      return {
+        h: f.data.hr * k,
+        slope: (f.data.hr * G.cowH) / (f.x1 - f.x0),
+      };
     }
   }
   return { h: 0, slope: 0 };
 }
 /**
- * @param {import('./types').Obstacle} f
+ * @param {import('./types').ObstacleFeature} f
  * @param {number} power
  */
 function knock(f, power) {
-  f.fly = {
+  f.data.fly = {
     h: 0.02,
     vh: rand(1.6, 2.6) * power,
     vx: rand(0.7, 1.5) * power,
@@ -85,10 +103,9 @@ export function checkObstacles() {
   const Xb = boardX(),
     hb = 0.2 * G.cowH;
   for (const f of feats) {
-    if (f.type !== 'ob' || f.fly) continue;
-    const o = OBS[f.kind],
-      half = (o.w * G.cowH) / 2;
-    const over = Xb + hb > f.X - half && Xb - hb < f.X + half;
+    if (f.type !== 'ob' || f.data.fly) continue;
+    const o = OBS[f.data.kind];
+    const over = Xb + hb > f.x0 && Xb - hb < f.x1;
     if (over) {
       if (S.mode === 'crash' || S.invuln > 0) {
         if (S.h < o.h) knock(f, 0.7);
@@ -97,9 +114,9 @@ export function checkObstacles() {
       if (S.h < o.h * 0.85) {
         knock(f, 1);
         enterCrash('hit');
-      } else f.over = true;
-    } else if (f.over && !f.cleared && Xb - hb >= f.X + half) {
-      f.cleared = true;
+      } else f.data.over = true;
+    } else if (f.data.over && !f.data.cleared && Xb - hb >= f.x1) {
+      f.data.cleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
       if (playerMode()) addScore(50);
     }
@@ -136,12 +153,14 @@ export function stepCracks() {
 /** Сбитые препятствия летят и отскакивают. @param {number} dt */
 export function stepFlying(dt) {
   for (const f of feats) {
-    if (f.type !== 'ob' || !f.fly) continue;
-    const q = f.fly;
+    if (f.type !== 'ob' || !f.data.fly) continue;
+    const q = f.data.fly;
     q.vh -= GRAV * dt;
     q.h += q.vh * dt;
     q.rot += q.vr * dt;
-    f.X += q.vx * G.cowH * dt;
+    const dX = q.vx * G.cowH * dt;
+    f.x0 += dX;
+    f.x1 += dX;
     if (q.h <= 0) {
       q.h = 0;
       q.vh = Math.abs(q.vh) > 0.7 ? -q.vh * 0.35 : 0;
@@ -166,22 +185,22 @@ function fillPoly(pts, style, dx) {
   ctx.fill();
 }
 /**
- * @param {import('./types').Ramp} f
+ * @param {import('./types').RampFeature} f
  * @param {number} blur смаз по x в пикселях
  */
 function drawRamp(f, blur) {
-  const q = obZ(f.X0 - S.camX),
+  const q = obZ(f.x0 - S.camX),
     zn = 0.8 * q,
     zf = 1.28 * q,
-    hh = f.hr * G.cowH;
+    hh = f.data.hr * G.cowH;
   /** @type {(X: number, h: number, z: number) => number[]} */
   const P = (X, h, z) => [G.vx + (X - S.camX) / z, yAt(z) - h / z];
-  const A = P(f.X0, 0, zn),
-    B = P(f.X1, hh, zn),
-    C = P(f.X1, hh, zf),
-    D = P(f.X0, 0, zf);
-  const F = P(f.X1, 0, zn),
-    Gp = P(f.X1, 0, zf);
+  const A = P(f.x0, 0, zn),
+    B = P(f.x1, hh, zn),
+    C = P(f.x1, hh, zf),
+    D = P(f.x0, 0, zf);
+  const F = P(f.x1, 0, zn),
+    Gp = P(f.x1, 0, zf);
   if (Math.max(B[0], F[0]) < X0() - 60 || Math.min(A[0], D[0]) > X1() + 60)
     return;
   const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
@@ -204,8 +223,8 @@ function drawRamp(f, blur) {
     ctx.beginPath();
     for (let i = 1; i < 6; i++) {
       const z = zn + ((zf - zn) * i) / 6,
-        a = P(f.X0, 0, z),
-        b = P(f.X1, hh, z);
+        a = P(f.x0, 0, z),
+        b = P(f.x1, hh, z);
       ctx.moveTo(a[0] + dx, a[1]);
       ctx.lineTo(b[0] + dx, b[1]);
     }
@@ -218,8 +237,8 @@ function drawRamp(f, blur) {
     ctx.lineWidth = Math.max(1, 2.2 * G.u);
     ctx.beginPath();
     for (const k of [0.4, 0.72]) {
-      const t = P(f.X0 + (f.X1 - f.X0) * k, hh * k, zn),
-        b = P(f.X0 + (f.X1 - f.X0) * k, 0, zn);
+      const t = P(f.x0 + (f.x1 - f.x0) * k, hh * k, zn),
+        b = P(f.x0 + (f.x1 - f.x0) * k, 0, zn);
       ctx.moveTo(t[0] + dx, t[1]);
       ctx.lineTo(b[0] + dx, b[1]);
     }
@@ -305,15 +324,15 @@ function groundGlow(x, y, rx, ry, a) {
 }
 export function drawFeatures() {
   const blur = (S.speed * G.cowH) / 45;
-  /** @type {{z: number, f: import('./types').Feature, x?: number, y?: number}[]} */
+  /** @type {{z: number, f: import('./types').AnyFeature, x?: number, y?: number}[]} */
   const items = []; // дальние рисуем первыми
   for (const f of feats) {
     if (f.type === 'ramp') {
-      items.push({ z: obZ(f.X0 - S.camX) * 1.06, f });
+      items.push({ z: obZ(f.x0 - S.camX) * 1.06, f });
       continue;
     }
-    if (f.fly) continue;
-    const [x, y, z] = obPos(f.X);
+    if (f.data.fly) continue;
+    const [x, y, z] = obPos(featMid(f));
     if (x < X0() - G.cowH || x > X1() + G.cowH) continue;
     items.push({ z, f, x, y });
   }
@@ -324,7 +343,7 @@ export function drawFeatures() {
       drawRamp(f, blur);
       continue;
     }
-    const o = OBS[f.kind],
+    const o = OBS[f.data.kind],
       z = it.z;
     const a = clamp((G.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
     if (a <= 0.02) continue;
@@ -343,27 +362,27 @@ export function drawFeatures() {
       (0.035 * G.cowH) / z,
       0.55 * a,
     );
-    drawObSprite(f.kind, it.x, it.y, 0, blur / z, 1 / z, a);
+    drawObSprite(f.data.kind, it.x, it.y, 0, blur / z, 1 / z, a);
   }
   ctx.globalAlpha = 1;
 }
 export function drawFlying() {
   for (const f of feats) {
-    if (f.type !== 'ob' || !f.fly) continue;
-    const [x, y, z] = obPos(f.X);
+    if (f.type !== 'ob' || !f.data.fly) continue;
+    const [x, y, z] = obPos(featMid(f));
     if (x < X0() - G.cowH || x > X1() + G.cowH) continue;
     groundShadow(
       x,
       y,
-      (OBS[f.kind].w * G.cowH * 0.5) / (z * (1 + f.fly.h * 2)),
+      (OBS[f.data.kind].w * G.cowH * 0.5) / (z * (1 + f.data.fly.h * 2)),
       (0.03 * G.cowH) / z,
       0.4,
     );
     drawObSprite(
-      f.kind,
+      f.data.kind,
       x,
-      y - (f.fly.h * G.cowH) / z,
-      f.fly.rot || 0.001,
+      y - (f.data.fly.h * G.cowH) / z,
+      f.data.fly.rot || 0.001,
       0,
       1 / z,
     );
@@ -380,14 +399,14 @@ export function drawMarkers() {
   const V = Math.max(1, S.speed * G.cowH),
     Xb = boardX();
   for (const f of feats) {
-    if (f.type !== 'ob' || f.fly || f.over) continue;
-    const o = OBS[f.kind],
-      t = (f.X - Xb) / V;
+    if (f.type !== 'ob' || f.data.fly || f.data.over) continue;
+    const o = OBS[f.data.kind],
+      t = (featMid(f) - Xb) / V;
     if (t <= 0 || t > 2.6) continue;
-    const z = obZ(f.X - S.camX);
+    const z = obZ(featMid(f) - S.camX);
     const p = CAM.transformPoint(
       new DOMPoint(
-        G.vx + (f.X - S.camX) / z,
+        G.vx + (featMid(f) - S.camX) / z,
         yAt(z) - ((o.h + 0.06) * G.cowH) / z,
       ),
     );
@@ -419,13 +438,13 @@ export function drawWarnings() {
     Xb = boardX(),
     r = Math.max(14 * DPR, 0.06 * G.cowH);
   for (const f of feats) {
-    if (f.type !== 'ob' || f.fly || f.over) continue;
-    const o = OBS[f.kind],
-      t = (f.X - Xb) / V,
+    if (f.type !== 'ob' || f.data.fly || f.data.over) continue;
+    const o = OBS[f.data.kind],
+      t = (featMid(f) - Xb) / V,
       lead = o.long || o.tall ? 0.5 : 0.3;
-    const z = obZ(f.X - S.camX);
+    const z = obZ(featMid(f) - S.camX);
     const edge = CAM.transformPoint(
-      new DOMPoint(G.vx + (f.X - S.camX - (o.w * G.cowH) / 2) / z, yAt(z)),
+      new DOMPoint(G.vx + (f.x0 - S.camX) / z, yAt(z)),
     );
     if (t > lead + 1.3 || t < 0) continue;
     const fadeIn = smooth(clamp((lead + 1.3 - t) / 0.35, 0, 1)); // появился заранее
@@ -451,7 +470,7 @@ export function drawWarnings() {
     ctx.beginPath();
     ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + prog * TAU);
     ctx.stroke();
-    const spr = obSprites[f.kind],
+    const spr = obSprites[f.data.kind],
       k = (r * 1.25) / Math.max(spr.width, spr.height);
     ctx.drawImage(
       spr,
