@@ -181,7 +181,7 @@
         {
           "label": "double-360",
           "frame": 603,
-          "scene": "900919c38a26b3475704cbf8cd4c5d7317a51990add892fa3db93eb03d830524",
+          "scene": "728f38e0d10eeb4cd8cbcbb2ad0feb049d36984c9c1a4b289244976f0c9c0e19",
           "bloom": "8ba1d97db952928e3820222d75f409c9111f74857072d671c40d3909a8d644fd",
           "hud": {
             "score": "100",
@@ -199,8 +199,8 @@
         {
           "label": "boost",
           "frame": 753,
-          "scene": "0fb70425cda1b7105bc88bfd9038aeeba018f5ea708bccc7b23996e5b20516f9",
-          "bloom": "8e72928a55e85c03f98ddf96546823b62b3d2e189b1b15a989b83eaa7a3a9eff",
+          "scene": "c10dce74809283a1b5ecb7570ede0f409ddc923bd0fbfa3562ab991d6be4aff6",
+          "bloom": "7092962b223dad52ed246102063fb031d94d79566b417bc60e39b26d7fa1c3ad",
           "hud": {
             "score": "0",
             "best": "100",
@@ -217,8 +217,8 @@
         {
           "label": "flip",
           "frame": 903,
-          "scene": "c51e2878cfcca7e4e2441153b0769a9a9110963bb2e61c79612a248179354ade",
-          "bloom": "70e7aad52f848cdfc5b5b1f8f5ab7e7f008cebe0d5e5ac9ffc177fcce069caca",
+          "scene": "4f605edb8e5c125fa8cae45d90f64d15d7866d73629bd3413dd455edea222509",
+          "bloom": "dcfa0b7be246b1e92234a35efa96a997be80271ebd971bbaeb8f6b4e235f7e1b",
           "hud": {
             "score": "150",
             "best": "150",
@@ -235,17 +235,17 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "65de5d11da5cceb1ea5cf30670599ac991587da6018e30dc73d46a199feb82f1",
-          "bloom": "8f4fc6cde12d2fe424b85141b9949d0690a8de9b528b2fd382964468056b3891",
+          "scene": "ba7727cf618c7e5ed5e4a25c8cdab17862ba961631a2b2deda1ca3253d691e4e",
+          "bloom": "89de9cd4aedd8e5358f1189a0c674597fca8be40f7ed4462e1f30c2b8eb63986",
           "hud": {
-            "score": "0",
-            "best": "150",
+            "score": "190",
+            "best": "190",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim"
           }
@@ -253,17 +253,17 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "42b72bd4b1c4d798c89daf974c40d1df612ef9c8f61eaae2c2791c5b010c0cdb",
-          "bloom": "bb0cfe304a876e8e03b69695f7864c0eab80f448c6f5efda4b207171e899f6ba",
+          "scene": "131ae267a3b21d337502d4ee16a30416830e32ce4e3c6c905931331188b85647",
+          "bloom": "526a521ea26f921c18fd75ca79ba6e24905c34b1fcdd4692d39799a4aec6fb47",
           "hud": {
-            "score": "0",
-            "best": "150",
+            "score": "190",
+            "best": "190",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim"
           }

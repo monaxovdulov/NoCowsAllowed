@@ -6,6 +6,8 @@ export const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
 export const AUTO_DELAY = 4.5; // через столько секунд без касаний рулит автопилот
+export const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
+export const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */
 export const TRICKS = {
   spin: { name: '360', dur: 0.5, pts: 100 },

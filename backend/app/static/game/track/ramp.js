@@ -93,8 +93,9 @@ function drawRamp(f, blur) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').RampData, 'ramp'>} */
 export const rampSpec = {
   type: 'ramp',
-  weight: 0, // базовая конструкция: выбор пока в spawnFeatures (0.24)
+  weight: 24,
   minGapBeforeCowH: 12,
+  special: true,
   plan(ctx) {
     return {
       data: { hr: 0.3 },

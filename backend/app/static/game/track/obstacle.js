@@ -101,7 +101,7 @@ function groundGlow(x, y, rx, ry, a) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').ObstacleData, 'ob'>} */
 export const obstacleSpec = {
   type: 'ob',
-  weight: 0, // базовая конструкция: выбор пока в spawnFeatures (0.76)
+  weight: 76,
   minGapBeforeCowH: 7.5,
   plan(ctx) {
     let r = ctx.rand(0, OBS_TOTAL);

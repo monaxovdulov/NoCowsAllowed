@@ -1,7 +1,9 @@
 import { clamp, rand, smooth, TAU } from './utils.js';
+import { CLEAR_AFTER_LAND_COWH, SPECIAL_EVERY_COWH } from './constants.js';
 import { cracks, ctx, feats, G, S } from './state.js';
 import { CAM } from './camera.js';
 import { META } from './assets.js';
+import { on } from './events.js';
 import { boardX, DPR, obZ, W, xAt, yAt, zAt } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { bumpAt, enterCrash } from './player.js';
@@ -30,24 +32,66 @@ export function createFeature(type, x0, x1, data) {
 const FEAT0 = new URLSearchParams(location.search).get('feat');
 let feat0pending = !!(FEAT0 && FEATURE_TYPES[FEAT0]);
 
+// выбор вида по весам таблицы FEATURE_TYPES
+const SPECS = Object.values(FEATURE_TYPES);
+const TOTAL_W = SPECS.reduce((a, s) => a + s.weight, 0);
+const FALLBACK = FEATURE_TYPES.ob;
+function pickSpec() {
+  let r = Math.random() * TOTAL_W;
+  for (const s of SPECS) {
+    r -= s.weight;
+    if (r <= 0) return s;
+  }
+  return FALLBACK;
+}
+/** x0 последней спец-конструкции (для рейт-лимита). */
+function lastSpecialX() {
+  const horizon = S.nextSpawnX - SPECIAL_EVERY_COWH * G.cowH;
+  for (let i = feats.length - 1; i >= 0; i--) {
+    const f = feats[i];
+    if (FEATURE_TYPES[f.type].special) return f.x0;
+    if (f.x1 < horizon) break; // дальше только старые
+  }
+  return -Infinity;
+}
+/** Подписки модели трассы (вызывается из main при старте). */
+export function initFeatures() {
+  // чистая зона после приземления — ближние CLEAR_AFTER_LAND_COWH без конструкций
+  on('land', () => {
+    S.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * G.cowH;
+  });
+}
+
 export function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
   const ahead =
     S.camX + Math.max(W * 1.5 - G.vx, G.zEdge * 1.15 * (W - G.vx) + 2 * G.cowH);
   while (S.nextSpawnX < ahead) {
-    const X = S.nextSpawnX;
-    let type = Math.random() < 0.24 ? 'ramp' : 'ob';
-    if (feat0pending) {
-      type = /** @type {string} */ (FEAT0);
-      feat0pending = false;
+    if (S.nextSpawnX < S.clearSpawnX) S.nextSpawnX = S.clearSpawnX;
+    // форс-спавн через ?feat= обходит веса и рейт-лимиты
+    const forced = feat0pending
+      ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
+      : null;
+    feat0pending = false;
+    let spec = forced || pickSpec();
+    const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
+    let X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+    // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
+    if (
+      !forced &&
+      spec.special &&
+      X - lastSpecialX() < SPECIAL_EVERY_COWH * G.cowH
+    ) {
+      spec = FALLBACK;
+      X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
     }
-    const plan = FEATURE_TYPES[type].plan({
+    const plan = spec.plan({ X, cowH: G.cowH, spdN: S.spdN, rand });
+    const f = createFeature(
+      spec.type,
       X,
-      cowH: G.cowH,
-      spdN: S.spdN,
-      rand,
-    });
-    const f = createFeature(type, X, X + plan.lengthCowH * G.cowH, plan.data);
+      X + plan.lengthCowH * G.cowH,
+      plan.data,
+    );
     // реестр стирает вид: на границе спавна приводим к известному объединению
     feats.push(
       /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),

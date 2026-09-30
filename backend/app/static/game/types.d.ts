@@ -193,6 +193,7 @@ export interface GameState {
   autoAfter: TrickKind | null;
   nextFlourish: number;
   nextSpawnX: number;
+  clearSpawnX: number;
   score: number;
   best: number;
   touched0: boolean;
@@ -417,8 +418,12 @@ export interface FeatureTypeSpec<
   TType extends string = string,
 > {
   type: TType;
+  // вес в выборе вида при спавне (относительный, не обязан суммироваться)
   weight: number;
+  // минимальный зазор до предыдущей конструкции в ростах коровы
   minGapBeforeCowH: number;
+  // «спец-конструкция»: рейт-лимит SPECIAL_EVERY_COWH между такими
+  special?: boolean;
   plan(ctx: SpawnContext): SpawnPlan<TData>;
   ground?(feat: TrackFeature<TType, TData>, X: number): GroundInfo | null;
   collide?(

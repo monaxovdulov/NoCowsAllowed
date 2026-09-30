@@ -150,6 +150,7 @@ export const S = {
   autoAfter: null,
   nextFlourish: 2.5,
   nextSpawnX: 0,
+  clearSpawnX: 0,
   score: 0,
   best: 0,
   touched0: false,

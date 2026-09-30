@@ -15,6 +15,7 @@ import { stepCamera } from './camera.js';
 import {
   checkObstacles,
   groundInfo,
+  initFeatures,
   spawnFeatures,
   stepCracks,
   stepFlying,
@@ -32,7 +33,8 @@ import { render } from './render.js';
 import { coachStep, initUi } from './ui.js';
 
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
-// исполнения при emit — эффекты первыми, дальше счёт, потом DOM.
+// исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
+initFeatures();
 initEffects();
 initScore();
 initUi();

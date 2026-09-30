@@ -547,6 +547,8 @@ const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
 const AUTO_DELAY = 4.5; // через столько секунд без касаний рулит автопилот
+const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
+const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */
 const TRICKS = {
   spin: { name: '360', dur: 0.5, pts: 100 },
@@ -715,6 +717,7 @@ const S = {
   autoAfter: null,
   nextFlourish: 2.5,
   nextSpawnX: 0,
+  clearSpawnX: 0,
   score: 0,
   best: 0,
   touched0: false,
@@ -1861,8 +1864,9 @@ function drawRamp(f, blur) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').RampData, 'ramp'>} */
 const rampSpec = {
   type: 'ramp',
-  weight: 0, // базовая конструкция: выбор пока в spawnFeatures (0.24)
+  weight: 24,
   minGapBeforeCowH: 12,
+  special: true,
   plan(ctx) {
     return {
       data: { hr: 0.3 },
@@ -2042,7 +2046,7 @@ function groundGlow(x, y, rx, ry, a) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').ObstacleData, 'ob'>} */
 const obstacleSpec = {
   type: 'ob',
-  weight: 0, // базовая конструкция: выбор пока в spawnFeatures (0.76)
+  weight: 76,
   minGapBeforeCowH: 7.5,
   plan(ctx) {
     let r = ctx.rand(0, OBS_TOTAL);
@@ -3095,24 +3099,66 @@ function createFeature(type, x0, x1, data) {
 const FEAT0 = new URLSearchParams(location.search).get('feat');
 let feat0pending = !!(FEAT0 && FEATURE_TYPES[FEAT0]);
 
+// выбор вида по весам таблицы FEATURE_TYPES
+const SPECS = Object.values(FEATURE_TYPES);
+const TOTAL_W = SPECS.reduce((a, s) => a + s.weight, 0);
+const FALLBACK = FEATURE_TYPES.ob;
+function pickSpec() {
+  let r = Math.random() * TOTAL_W;
+  for (const s of SPECS) {
+    r -= s.weight;
+    if (r <= 0) return s;
+  }
+  return FALLBACK;
+}
+/** x0 последней спец-конструкции (для рейт-лимита). */
+function lastSpecialX() {
+  const horizon = S.nextSpawnX - SPECIAL_EVERY_COWH * G.cowH;
+  for (let i = feats.length - 1; i >= 0; i--) {
+    const f = feats[i];
+    if (FEATURE_TYPES[f.type].special) return f.x0;
+    if (f.x1 < horizon) break; // дальше только старые
+  }
+  return -Infinity;
+}
+/** Подписки модели трассы (вызывается из main при старте). */
+function initFeatures() {
+  // чистая зона после приземления — ближние CLEAR_AFTER_LAND_COWH без конструкций
+  on('land', () => {
+    S.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * G.cowH;
+  });
+}
+
 function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
   const ahead =
     S.camX + Math.max(W * 1.5 - G.vx, G.zEdge * 1.15 * (W - G.vx) + 2 * G.cowH);
   while (S.nextSpawnX < ahead) {
-    const X = S.nextSpawnX;
-    let type = Math.random() < 0.24 ? 'ramp' : 'ob';
-    if (feat0pending) {
-      type = /** @type {string} */ (FEAT0);
-      feat0pending = false;
+    if (S.nextSpawnX < S.clearSpawnX) S.nextSpawnX = S.clearSpawnX;
+    // форс-спавн через ?feat= обходит веса и рейт-лимиты
+    const forced = feat0pending
+      ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
+      : null;
+    feat0pending = false;
+    let spec = forced || pickSpec();
+    const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
+    let X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+    // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
+    if (
+      !forced &&
+      spec.special &&
+      X - lastSpecialX() < SPECIAL_EVERY_COWH * G.cowH
+    ) {
+      spec = FALLBACK;
+      X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
     }
-    const plan = FEATURE_TYPES[type].plan({
+    const plan = spec.plan({ X, cowH: G.cowH, spdN: S.spdN, rand });
+    const f = createFeature(
+      spec.type,
       X,
-      cowH: G.cowH,
-      spdN: S.spdN,
-      rand,
-    });
-    const f = createFeature(type, X, X + plan.lengthCowH * G.cowH, plan.data);
+      X + plan.lengthCowH * G.cowH,
+      plan.data,
+    );
     // реестр стирает вид: на границе спавна приводим к известному объединению
     feats.push(
       /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
@@ -3949,7 +3995,8 @@ function render() {
 
 // ---- game/main.js
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
-// исполнения при emit — эффекты первыми, дальше счёт, потом DOM.
+// исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
+initFeatures();
 initEffects();
 initScore();
 initUi();
