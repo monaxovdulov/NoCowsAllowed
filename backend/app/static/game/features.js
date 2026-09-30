@@ -1,9 +1,12 @@
 import { clamp, rand, smooth, TAU } from './utils.js';
-import { OBS } from './constants.js';
-import { CAM, ctx, feats, G, playerMode, S } from './state.js';
-import { boardX, DPR, obPos, obZ, W, X0, X1, yAt } from './layout.js';
+import { GRAV, OBS } from './constants.js';
+import { cracks, ctx, feats, G, playerMode, S } from './state.js';
+import { CAM } from './camera.js';
+import { META } from './assets.js';
+import { boardX, DPR, obPos, obZ, W, xAt, X0, X1, yAt, zAt } from './layout.js';
 import { glowImg, OBR, obSprites, shadowImg } from './sprites.js';
-import { enterCrash } from './player.js';
+import { bumpAt, enterCrash } from './player.js';
+import { poseMatrix } from './pose.js';
 import { addScore } from './score.js';
 
 // ---------------------------------------------------------------- road features
@@ -99,6 +102,51 @@ export function checkObstacles() {
       f.cleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
       if (playerMode()) addScore(50);
+    }
+  }
+}
+/** Швы на асфальте → удары по колёсам. */
+export function stepCracks() {
+  const zB = G.zBottom,
+    farX = S.camX + (W * 1.3 - G.vx) * G.zEdge;
+  let last = cracks.length
+    ? cracks[cracks.length - 1].X
+    : S.camX + W * 0.6 * zB;
+  while (last < farX) {
+    last += rand(5, 13) * G.cowH;
+    cracks.push({
+      X: last,
+      hit: /** @type {[boolean, boolean]} */ ([false, false]),
+    });
+  }
+  while (cracks.length && xAt(cracks[0].X, G.zEdge) < -W * 0.3) cracks.shift();
+  const restM = poseMatrix({ y: S.bob, tilt: S.tilt, sq: S.sq });
+  for (let i = 0; i < 2; i++) {
+    const p = restM.transformPoint(
+      new DOMPoint(META.contact[i][0], META.contact[i][1]),
+    );
+    const Xw = S.camX + (p.x - G.vx) * zAt(p.y);
+    for (const c of cracks)
+      if (!c.hit[i] && Xw >= c.X) {
+        c.hit[i] = true;
+        bumpAt(i, rand(0.6, 1));
+      }
+  }
+}
+/** Сбитые препятствия летят и отскакивают. @param {number} dt */
+export function stepFlying(dt) {
+  for (const f of feats) {
+    if (f.type !== 'ob' || !f.fly) continue;
+    const q = f.fly;
+    q.vh -= GRAV * dt;
+    q.h += q.vh * dt;
+    q.rot += q.vr * dt;
+    f.X += q.vx * G.cowH * dt;
+    if (q.h <= 0) {
+      q.h = 0;
+      q.vh = Math.abs(q.vh) > 0.7 ? -q.vh * 0.35 : 0;
+      q.vr *= 0.55;
+      q.vx *= 0.5;
     }
   }
 }

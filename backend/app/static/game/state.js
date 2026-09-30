@@ -98,15 +98,10 @@ export const G = {
   hg: null,
   rg: null,
 };
-export let CAM = new DOMMatrix(); // камера (тряска, зум, подъём за коровой)
 export const PM = new DOMMatrix(); // переиспользуемая матрица для паттернов
 export const canPatternTransform =
   typeof CanvasPattern !== 'undefined' &&
   'setTransform' in CanvasPattern.prototype;
-/** @param {DOMMatrix} m */
-export function setCAM(m) {
-  CAM = m;
-}
 
 /** @type {import('./types').GameState} */
 export const S = {

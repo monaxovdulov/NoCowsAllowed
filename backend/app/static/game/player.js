@@ -14,7 +14,7 @@ import { DOUBLE_V, GRAV, OBS, OLLIE_V, TRICKS } from './constants.js';
 import { emit } from './events.js';
 import { feats, G, onFlat, playerMode, reduce, S } from './state.js';
 import { boardX } from './layout.js';
-import { wheelsScreen } from './pose.js';
+import { curPose, wheelsScreen } from './pose.js';
 import { imgs } from './sprites.js';
 import { puff, sparks } from './effects.js';
 
@@ -267,6 +267,36 @@ function crashStep(dt) {
     S.invuln = 1.1;
     S.sqV -= 1;
     enterGround(0, 0);
+  }
+}
+
+// ---------------------------------------------------------------- ground
+/**
+ * Опора под доской в режиме ground: конструкция несёт — едем по её
+ * поверхности, съехали с края — вылет.
+ * @param {import('./types').GroundInfo} gi поверхность под доской
+ */
+export function stepGround(gi) {
+  if (S.mode !== 'ground') return;
+  if (gi.h > 0.001) {
+    S.h = gi.h;
+    S.onRamp = true;
+    S.slope = gi.slope;
+  } else if (S.onRamp) {
+    S.onRamp = false;
+    S.h = 0;
+    launch();
+  } else S.h = 0;
+}
+
+// ---------------------------------------------------------------- history
+/** История поз для призраков (фиксированный шаг 1/60). @param {number} dt */
+export function stepHistory(dt) {
+  S.histAcc += dt;
+  while (S.histAcc >= 1 / 60) {
+    S.histAcc -= 1 / 60;
+    S.hist.unshift(curPose());
+    if (S.hist.length > 14) S.hist.pop();
   }
 }
 

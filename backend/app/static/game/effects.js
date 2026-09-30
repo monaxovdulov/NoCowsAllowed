@@ -2,17 +2,19 @@ import { clamp, easeOutBack, lerp, pick, rand, TAU } from './utils.js';
 import { TRICKS } from './constants.js';
 import { on } from './events.js';
 import {
-  CAM,
+  clouds,
   cracks,
   ctx,
   G,
   lines,
   onFeature,
+  onFlat,
   parts,
   pops,
   reduce,
   S,
 } from './state.js';
+import { CAM } from './camera.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
 import { poseMatrix, wheelsScreen } from './pose.js';
 import { dustImg, lineImg, woodImg } from './sprites.js';
@@ -127,6 +129,62 @@ export function popup(text, kind) {
       : clamp(head.x, W * 0.3, W * 0.7),
     y: right ? head.y + 0.05 * G.cowH : head.y - 0.12 * G.cowH,
   });
+}
+
+// ---------------------------------------------------------------- update-шаги
+/** Пыль из-под колёс на ровном ходу. @param {number} dt */
+export function stepDust(dt) {
+  if (!onFlat()) return;
+  const rate = 16 * S.spdN;
+  const w = wheelsScreen();
+  for (let i = 0; i < 2; i++)
+    if (Math.random() < rate * dt)
+      puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * S.boost);
+}
+/** Частицы и всплывающие подписи. @param {number} dt */
+export function stepParticles(dt) {
+  const V = S.speed * G.cowH;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.life += dt;
+    if (p.life >= p.max) {
+      parts.splice(i, 1);
+      continue;
+    }
+    if (p.k === 0) {
+      p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
+      p.vy += (0.03 * G.cowH - p.vy) * (1 - Math.exp(-dt * 2));
+    } else if (p.k === 1) {
+      p.vy += 6.5 * G.cowH * dt;
+    } else {
+      p.vx = -V * 0.35;
+    }
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
+  if (parts.length > 460) parts.splice(0, parts.length - 460);
+  for (let i = pops.length - 1; i >= 0; i--) {
+    pops[i].t += dt;
+    if (pops[i].t >= pops[i].dur) pops.splice(i, 1);
+  }
+}
+/** Линии скорости. @param {number} dt */
+export function stepLines(dt) {
+  const V = S.speed * G.cowH;
+  const nLines = reduce ? 10 : 26;
+  while (lines.length < nLines) lines.push(newLine(true));
+  for (const l of lines) {
+    l.x -= (V * l.sp * (0.55 + 0.9 * S.boost) * dt) / W;
+    if (l.x + l.len < -0.05) Object.assign(l, newLine(false));
+  }
+}
+/** Облака: параллакс плюс собственный дрейф. @param {number} dt */
+export function stepClouds(dt) {
+  for (const c of clouds) {
+    const w = c.img.width * c.scale * G.u * 1.05;
+    c.x -=
+      ((c.drift + c.par * S.speed) * G.cowH * dt) / (W * 1.24 + w + c.gap * W);
+  }
 }
 
 export function drawCracks() {

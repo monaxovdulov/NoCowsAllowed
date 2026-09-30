@@ -574,8 +574,8 @@ export let grainPats = [];
 /** @type {HTMLCanvasElement[]} */
 export let grainTiles = [];
 
-export function buildSizeDependent() {
-  // небо уходит высоко вверх: камера поднимается за коровой на трамплинах
+// небо уходит высоко вверх: камера поднимается за коровой на трамплинах
+function buildSky() {
   G.skyOff = Math.ceil(H * 1.05);
   const oY = G.skyOff;
   const sh = Math.max(4, Math.ceil(G.horizon + oY + 6 * DPR));
@@ -627,40 +627,44 @@ export function buildSizeDependent() {
     g.fill();
     g.restore();
   }
+}
 
-  // виньетка + тёмный правый низ, как на фото (при DOM-посте её рисует CSS-слой .vig)
+// виньетка + тёмный правый низ, как на фото (при DOM-посте её рисует CSS-слой .vig)
+function buildVignette() {
   if (cssPost) {
     vigCv = null;
-  } else {
-    vigCv = mk(W, H);
-    const v = vigCv.getContext('2d'),
-      R = Math.hypot(W, H) * 0.5;
-    const rg = v.createRadialGradient(
-      W * 0.47,
-      H * 0.45,
-      R * 0.3,
-      W * 0.47,
-      H * 0.45,
-      R * 1.08,
-    );
-    rg.addColorStop(0, 'rgba(0,0,0,0)');
-    rg.addColorStop(0.62, 'rgba(6,8,20,0.26)');
-    rg.addColorStop(1, 'rgba(3,4,12,0.72)');
-    v.fillStyle = rg;
-    v.fillRect(0, 0, W, H);
-    const br = v.createLinearGradient(W * 0.5, H * 0.45, W, H);
-    br.addColorStop(0, 'rgba(0,0,0,0)');
-    br.addColorStop(1, 'rgba(2,3,8,0.5)');
-    v.fillStyle = br;
-    v.fillRect(0, 0, W, H);
-    const tl = v.createRadialGradient(0, 0, 0, 0, 0, Math.max(W, H) * 0.55);
-    tl.addColorStop(0, 'rgba(255,246,225,0.10)');
-    tl.addColorStop(1, 'rgba(255,246,225,0)');
-    v.fillStyle = tl;
-    v.fillRect(0, 0, W, H);
+    return;
   }
+  vigCv = mk(W, H);
+  const v = vigCv.getContext('2d'),
+    R = Math.hypot(W, H) * 0.5;
+  const rg = v.createRadialGradient(
+    W * 0.47,
+    H * 0.45,
+    R * 0.3,
+    W * 0.47,
+    H * 0.45,
+    R * 1.08,
+  );
+  rg.addColorStop(0, 'rgba(0,0,0,0)');
+  rg.addColorStop(0.62, 'rgba(6,8,20,0.26)');
+  rg.addColorStop(1, 'rgba(3,4,12,0.72)');
+  v.fillStyle = rg;
+  v.fillRect(0, 0, W, H);
+  const br = v.createLinearGradient(W * 0.5, H * 0.45, W, H);
+  br.addColorStop(0, 'rgba(0,0,0,0)');
+  br.addColorStop(1, 'rgba(2,3,8,0.5)');
+  v.fillStyle = br;
+  v.fillRect(0, 0, W, H);
+  const tl = v.createRadialGradient(0, 0, 0, 0, 0, Math.max(W, H) * 0.55);
+  tl.addColorStop(0, 'rgba(255,246,225,0.10)');
+  tl.addColorStop(1, 'rgba(255,246,225,0)');
+  v.fillStyle = tl;
+  v.fillRect(0, 0, W, H);
+}
 
-  // буферы свечения
+// буферы свечения
+function buildGlowBuffers() {
   bA = mk(W / 4, H / 4);
   bB = mk(W / 16, H / 16);
   bAg = bA.getContext('2d');
@@ -676,8 +680,10 @@ export function buildSizeDependent() {
     bCg = bC.getContext('2d');
     bCg.imageSmoothingQuality = 'high';
   }
+}
 
-  // статичные градиенты земли — зависят только от геометрии кадра
+// статичные градиенты земли — зависят только от геометрии кадра
+function buildGroundGrads() {
   const yEnd = H * 1.2;
   G.hg = ctx.createLinearGradient(0, G.horizon, 0, G.edgeY);
   G.hg.addColorStop(0, 'rgba(160,180,210,0.86)');
@@ -694,8 +700,10 @@ export function buildSizeDependent() {
   G.rg.addColorStop(mid * 0.7, 'rgba(60,76,100,0.14)');
   G.rg.addColorStop(mid, 'rgba(0,0,0,0)');
   G.rg.addColorStop(1, 'rgba(4,5,10,0.5)');
+}
 
-  // зерно
+// зерно
+function buildGrain() {
   grainPats = [];
   grainTiles = [];
   for (let k = 0; k < 3; k++) {
@@ -712,6 +720,14 @@ export function buildSizeDependent() {
     grainTiles.push(c);
     grainPats.push(ctx.createPattern(c, 'repeat'));
   }
+}
+
+export function buildSizeDependent() {
+  buildSky();
+  buildVignette();
+  buildGlowBuffers();
+  buildGroundGrads();
+  buildGrain();
 }
 
 /** @type {import('./types').CowImages} */

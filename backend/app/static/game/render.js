@@ -3,7 +3,6 @@ import { clamp, DEG, fbm, nA, nC, nE, TAU } from './utils.js';
 import {
   bloomEl,
   bloomG,
-  CAM,
   canPatternTransform,
   clouds,
   ctx,
@@ -15,6 +14,7 @@ import {
   reduce,
   S,
 } from './state.js';
+import { CAM } from './camera.js';
 import { boardX, DPR, H, W, X0, X1, xAt, yAt } from './layout.js';
 import {
   bA,
@@ -314,38 +314,35 @@ function star(x, y, r) {
   ctx.stroke();
 }
 
-function drawCow() {
-  const pose = curPose(),
-    m = poseMatrix(pose);
-  const sp = clamp(S.spdN, 0.5, 2);
-  const busy = S.trick || S.mode === 'crash' || Math.abs(S.roll) > 0.01;
-  // полосы смаза
-  if (streaks.length && streakCv) {
-    setT(m);
-    const t = S.t,
-      fade = busy ? 0.25 : 1;
-    for (let i = 0; i < streaks.length; i++) {
-      const s = streaks[i];
-      const len =
-        (60 + 150 * s.w * s.base) *
-        (0.45 + 0.55 * sp) *
-        (0.62 + 0.38 * Math.sin(t * s.f + s.ph));
-      ctx.globalAlpha =
-        clamp((0.1 + 0.2 * s.w) * (0.55 + 0.45 * sp), 0, 0.6) * fade;
-      ctx.drawImage(
-        streakCv,
-        0,
-        i * 4 + 1,
-        128,
-        2,
-        s.x - len,
-        s.y - 1.2,
-        len,
-        2.6,
-      );
-    }
+// полосы смаза
+function drawStreaks(m, sp, busy) {
+  if (!streaks.length || !streakCv) return;
+  setT(m);
+  const t = S.t,
+    fade = busy ? 0.25 : 1;
+  for (let i = 0; i < streaks.length; i++) {
+    const s = streaks[i];
+    const len =
+      (60 + 150 * s.w * s.base) *
+      (0.45 + 0.55 * sp) *
+      (0.62 + 0.38 * Math.sin(t * s.f + s.ph));
+    ctx.globalAlpha =
+      clamp((0.1 + 0.2 * s.w) * (0.55 + 0.45 * sp), 0, 0.6) * fade;
+    ctx.drawImage(
+      streakCv,
+      0,
+      i * 4 + 1,
+      128,
+      2,
+      s.x - len,
+      s.y - 1.2,
+      len,
+      2.6,
+    );
   }
-  // призраки
+}
+// призраки
+function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * S.boost) * G.cowH * sp;
   for (let i = GN; i >= 1; i--) {
@@ -356,6 +353,36 @@ function drawCow() {
       0.2 * (1 - i / (GN + 1)) * (0.55 + 0.45 * sp) * (busy ? 0.4 : 1);
     ctx.drawImage(ghostCv, META.base.x - GHOST_BLUR, META.base.y);
   }
+}
+// звёздочки над головой после падения
+function drawCrashStars() {
+  const c = S.crash;
+  if (!c || c.t <= 0.3) return;
+  setCam();
+  const hm = poseMatrix({ y: S.bob - S.h, tilt: S.tilt, sq: S.sq });
+  const hp = hm.transformPoint(new DOMPoint(430, 30));
+  ctx.globalAlpha =
+    clamp((c.dur - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
+  ctx.fillStyle = '#ffd84a';
+  ctx.strokeStyle = 'rgba(60,40,0,.7)';
+  ctx.lineWidth = Math.max(1, 1.5 * G.u);
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < 3; i++) {
+    const an = S.t * 7 + (i * TAU) / 3;
+    star(
+      hp.x + Math.cos(an) * 0.13 * G.cowH,
+      hp.y + Math.sin(an) * 0.035 * G.cowH,
+      0.03 * G.cowH,
+    );
+  }
+}
+function drawCow() {
+  const pose = curPose(),
+    m = poseMatrix(pose);
+  const sp = clamp(S.spdN, 0.5, 2);
+  const busy = S.trick || S.mode === 'crash' || Math.abs(S.roll) > 0.01;
+  drawStreaks(m, sp, busy);
+  drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
   // доска, потом корова поверх (копыта стоят на деке)
   setT(boardMatrix(m));
@@ -378,29 +405,8 @@ function drawCow() {
       .translate(-tp[0], -tp[1]),
   );
   ctx.drawImage(imgs.tag, META.tag.x, META.tag.y);
-  // звёздочки над головой после падения
-  const c = S.crash;
-  if (c && c.t > 0.3) {
-    setCam();
-    const hm = poseMatrix({ y: S.bob - S.h, tilt: S.tilt, sq: S.sq });
-    const hp = hm.transformPoint(new DOMPoint(430, 30));
-    const a =
-      clamp((c.dur - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
-    ctx.globalAlpha = a;
-    ctx.fillStyle = '#ffd84a';
-    ctx.strokeStyle = 'rgba(60,40,0,.7)';
-    ctx.lineWidth = Math.max(1, 1.5 * G.u);
-    ctx.lineJoin = 'round';
-    for (let i = 0; i < 3; i++) {
-      const an = S.t * 7 + (i * TAU) / 3;
-      star(
-        hp.x + Math.cos(an) * 0.13 * G.cowH,
-        hp.y + Math.sin(an) * 0.035 * G.cowH,
-        0.03 * G.cowH,
-      );
-    }
-    ctx.globalAlpha = 1;
-  }
+  drawCrashStars();
+  ctx.globalAlpha = 1;
 }
 
 let grainFlip = 0;
