@@ -47,6 +47,77 @@ export function newLine(init) {
 }
 
 // ---------------------------------------------------------------- particles, popups
+// Фабрики частиц — единая форма Particle (карта, этап 5, S2).
+// Порядок rand() в литералах — часть детерминизма, не переставлять.
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z глубина точки спавна
+ * @param {number} strength сила разлёта
+ * @param {CanvasImageSource} [img]
+ * @returns {import('./types').Particle}
+ */
+export function createDust(x, y, z, strength, img) {
+  const V = S.speed * G.cowH;
+  return {
+    kind: 'dust',
+    img: img || dustImg,
+    x: x + rand(-6, 6) * G.u,
+    y: y - rand(0, 8) * G.u,
+    z,
+    vx: (-rand(0.05, 0.35) * V) / z,
+    vy: -rand(0.04, 0.26) * G.cowH * strength,
+    life: 0,
+    max: rand(0.45, 1.1),
+    r0: (rand(3, 8) * G.u) / z,
+    r1: ((rand(24, 60) * G.u) / z) * (0.5 + strength * 0.5),
+    a: rand(0.1, 0.24) * Math.min(1.4, 0.6 + strength * 0.4),
+  };
+}
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @returns {import('./types').Particle}
+ */
+export function createSpark(x, y, z) {
+  const V = S.speed * G.cowH;
+  return {
+    kind: 'spark',
+    img: null,
+    x,
+    y: y - 2 * G.u,
+    z,
+    vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * G.u,
+    vy: -rand(0.25, 1.5) * G.cowH,
+    life: 0,
+    max: rand(0.18, 0.45),
+    r0: 0,
+    r1: 0,
+    a: 0,
+  };
+}
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {import('./types').Particle}
+ */
+export function createRing(x, y) {
+  return {
+    kind: 'ring',
+    img: null,
+    x,
+    y,
+    z: 1,
+    vx: 0,
+    vy: 0,
+    life: 0,
+    max: 0.45,
+    r0: 0,
+    r1: 0,
+    a: 0,
+  };
+}
 /**
  * @param {number} x
  * @param {number} y
@@ -57,23 +128,7 @@ export function newLine(init) {
  */
 export function puff(x, y, z, n, strength, img) {
   if (reduce) n = Math.ceil(n * 0.4);
-  const V = S.speed * G.cowH;
-  for (let i = 0; i < n; i++) {
-    parts.push({
-      k: 0,
-      img: img || dustImg,
-      x: x + rand(-6, 6) * G.u,
-      y: y - rand(0, 8) * G.u,
-      z,
-      vx: (-rand(0.05, 0.35) * V) / z,
-      vy: -rand(0.04, 0.26) * G.cowH * strength,
-      life: 0,
-      max: rand(0.45, 1.1),
-      r0: (rand(3, 8) * G.u) / z,
-      r1: ((rand(24, 60) * G.u) / z) * (0.5 + strength * 0.5),
-      a: rand(0.1, 0.24) * Math.min(1.4, 0.6 + strength * 0.4),
-    });
-  }
+  for (let i = 0; i < n; i++) parts.push(createDust(x, y, z, strength, img));
 }
 /**
  * @param {number} x
@@ -83,26 +138,14 @@ export function puff(x, y, z, n, strength, img) {
  */
 export function sparks(x, y, z, n) {
   if (reduce) return;
-  const V = S.speed * G.cowH;
-  for (let i = 0; i < n; i++) {
-    parts.push({
-      k: 1,
-      x,
-      y: y - 2 * G.u,
-      z,
-      vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * G.u,
-      vy: -rand(0.25, 1.5) * G.cowH,
-      life: 0,
-      max: rand(0.18, 0.45),
-    });
-  }
+  for (let i = 0; i < n; i++) parts.push(createSpark(x, y, z));
 }
 /**
  * @param {number} x
  * @param {number} y
  */
 export function ring(x, y) {
-  parts.push({ k: 2, x, y, z: 1, vx: 0, vy: 0, life: 0, max: 0.45 });
+  parts.push(createRing(x, y));
 }
 /**
  * @param {string} text
@@ -151,10 +194,10 @@ export function stepParticles(dt) {
       parts.splice(i, 1);
       continue;
     }
-    if (p.k === 0) {
+    if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
       p.vy += (0.03 * G.cowH - p.vy) * (1 - Math.exp(-dt * 2));
-    } else if (p.k === 1) {
+    } else if (p.kind === 'spark') {
       p.vy += 6.5 * G.cowH * dt;
     } else {
       p.vx = -V * 0.35;
@@ -230,7 +273,8 @@ export function drawLines(front) {
 export function drawParticles() {
   for (const p of parts) {
     const t = p.life / p.max;
-    if (p.k === 0) {
+    if (p.kind === 'dust') {
+      if (!p.img) continue;
       const r = lerp(p.r0, p.r1, Math.sqrt(t));
       const stretch = Math.abs(p.vx) * 0.02;
       ctx.globalAlpha = p.a * (1 - t) ** 1.4;
@@ -241,7 +285,7 @@ export function drawParticles() {
         r * 2 + stretch,
         r * 2,
       );
-    } else if (p.k === 2) {
+    } else if (p.kind === 'ring') {
       const rx = G.cowH * 0.34 * (0.35 + 1.3 * t);
       ctx.globalAlpha = 0.85 * (1 - t);
       ctx.strokeStyle = '#f4f8ff';
@@ -254,7 +298,7 @@ export function drawParticles() {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   for (const p of parts) {
-    if (p.k !== 1) continue;
+    if (p.kind !== 'spark') continue;
     const t = p.life / p.max;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';

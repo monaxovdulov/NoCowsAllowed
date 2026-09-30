@@ -319,9 +319,12 @@ function coneTo(g, w, h) {
   g.fillStyle = '#c64a0a';
   g.fillRect(cx - tw / 2, h * 0.02, tw, h * 0.03);
 }
-function buildObSprites() {
-  obSprites.cone = sprite(OBS.cone.w, OBS.cone.h, coneTo);
-  obSprites.cones = sprite(OBS.cones.w, OBS.cones.h, (g, w, h) => {
+// Таблица рисовальщиков препятствий — ключи 1:1 с OBS (карта, этап 5):
+// новый вид препятствия = запись в OBS + запись здесь.
+/** @type {Record<import('./types').ObstacleKind, (g: CanvasRenderingContext2D, w: number, h: number) => void>} */
+const OB_PAINT = {
+  cone: coneTo,
+  cones: (g, w, h) => {
     const cw = OBS.cone.w * OBR;
     for (const f of [0, 0.5, 1]) {
       g.save();
@@ -329,8 +332,8 @@ function buildObSprites() {
       coneTo(g, cw, h);
       g.restore();
     }
-  });
-  obSprites.hay = sprite(OBS.hay.w, OBS.hay.h, (g, w, h) => {
+  },
+  hay: (g, w, h) => {
     const r = rng(71),
       fy = h * 0.2,
       fw = w * 0.93;
@@ -381,8 +384,8 @@ function buildObSprites() {
       g.closePath();
       g.fill();
     }
-  });
-  obSprites.tire = sprite(OBS.tire.w, OBS.tire.h, (g, w, h) => {
+  },
+  tire: (g, w, h) => {
     const cx = w / 2,
       cy = h / 2,
       R = h / 2,
@@ -442,8 +445,8 @@ function buildObSprites() {
     g.beginPath();
     g.arc(cx, cy, r1 * 0.22, 0, TAU);
     g.fill();
-  });
-  obSprites.can = sprite(OBS.can.w, OBS.can.h, (g, w, h) => {
+  },
+  can: (g, w, h) => {
     const metal = (x0, x1) => {
       const lg = g.createLinearGradient(x0, 0, x1, 0);
       lg.addColorStop(0, '#89939f');
@@ -497,8 +500,8 @@ function buildObSprites() {
       Math.PI * 0.45,
     );
     g.stroke();
-  });
-  obSprites.barrier = sprite(OBS.barrier.w, OBS.barrier.h, (g, w, h) => {
+  },
+  barrier: (g, w, h) => {
     g.strokeStyle = '#3a3f49';
     g.lineWidth = w * 0.035;
     g.lineCap = 'round';
@@ -549,7 +552,13 @@ function buildObSprites() {
     g.beginPath();
     g.arc(w * 0.5, by - h * 0.11, h * 0.09, 0, TAU);
     g.fill();
-  });
+  },
+};
+function buildObSprites() {
+  for (const kind of /** @type {import('./types').ObstacleKind[]} */ (
+    Object.keys(OB_PAINT)
+  ))
+    obSprites[kind] = sprite(OBS[kind].w, OBS[kind].h, OB_PAINT[kind]);
 }
 
 // ---------------------------------------------------------------- size-dependent buffers

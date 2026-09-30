@@ -226,7 +226,13 @@ export interface Crack {
 
 // ---------------------------------------------------------------- effects
 
-interface ParticleBase {
+export type ParticleKind = 'dust' | 'spark' | 'ring';
+
+// Единая мономорфная форма частицы (карта, этап 5, S2): все поля
+// присутствуют всегда — стабильная hidden class. Создаётся только
+// фабриками createDust/createSpark/createRing в effects.js.
+export interface Particle {
+  kind: ParticleKind;
   x: number;
   y: number;
   z: number;
@@ -234,25 +240,12 @@ interface ParticleBase {
   vy: number;
   life: number;
   max: number;
-}
-
-export interface DustParticle extends ParticleBase {
-  k: 0;
-  img: CanvasImageSource;
+  // dust: спрайт и радиус разрастания; у spark/ring — null/0
+  img: CanvasImageSource | null;
   r0: number;
   r1: number;
   a: number;
 }
-
-export interface SparkParticle extends ParticleBase {
-  k: 1;
-}
-
-export interface RingParticle extends ParticleBase {
-  k: 2;
-}
-
-export type Particle = DustParticle | SparkParticle | RingParticle;
 
 export type PopKind = 'trick' | 'pts' | 'crash';
 
