@@ -31,3 +31,24 @@ export function writeBest(v) {
     warnStorage(error);
   }
 }
+
+const TUT_KEY = 'cow-skate-tut';
+/** @returns {Set<string>} ids уже показанных туториал-гейтов */
+export function readTutored() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TUT_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved : []);
+  } catch (error) {
+    warnStorage(error);
+    return new Set();
+  }
+}
+
+/** @param {Iterable<string>} ids показанные гейты */
+export function writeTutored(ids) {
+  try {
+    localStorage.setItem(TUT_KEY, JSON.stringify([...ids]));
+  } catch (error) {
+    warnStorage(error);
+  }
+}

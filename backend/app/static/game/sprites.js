@@ -925,3 +925,54 @@ export function initAssets(loaded) {
 export function initShadow() {
   shadowImg = makeShadow();
 }
+
+// ---------------------------------------------------------------- text sprites
+// Надписи кадра («+50», «!», имена трюков) растеризуются один раз и дальше
+// идут через drawImage: strokeText/fillText на каждом кадре — заметная
+// доля бюджета на слабом железе, плюс строка ctx.font аллоцируется заново.
+// Ключ — текст + размер + стили: повторяющиеся надписи («+50», «360»…)
+// переиспользуются и между появлениями, и между drawPops/drawMarkers.
+/** @type {Map<string, HTMLCanvasElement>} */
+const textCache = new Map();
+/** @type {CanvasRenderingContext2D | null} */
+let textMeasure = null;
+/**
+ * @param {string} text
+ * @param {number} px размер шрифта в пикселях буфера (как в ctx.font)
+ * @param {string} fill цвет заливки
+ * @param {string | null} [stroke] цвет обводки (нет — без обводки)
+ * @param {number} [lw] толщина обводки в пикселях
+ * @returns {HTMLCanvasElement} спрайт с текстом по центру
+ */
+export function textSprite(text, px, fill, stroke, lw = 0) {
+  px = Math.round(px * 10) / 10;
+  const key = `${text}|${px}|${fill}|${stroke || ''}|${lw}`;
+  const cached = textCache.get(key);
+  if (cached) return cached;
+  const font = `800 ${px}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
+  if (!textMeasure) textMeasure = mk(2, 2).getContext('2d');
+  const mg = /** @type {CanvasRenderingContext2D} */ (textMeasure);
+  mg.font = font;
+  const tw = mg.measureText(text).width;
+  const padX = lw + px * 0.16 + 2,
+    padY = lw + px * 0.34 + 2;
+  const spr = mk(tw + padX * 2, px + padY * 2),
+    g = /** @type {CanvasRenderingContext2D} */ (spr.getContext('2d'));
+  g.font = font;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  if (stroke && lw > 0) {
+    g.strokeStyle = stroke;
+    g.lineWidth = lw;
+    g.strokeText(text, spr.width / 2, spr.height / 2);
+  }
+  g.fillStyle = fill;
+  g.fillText(text, spr.width / 2, spr.height / 2);
+  // кэш ограничен: старейшую запись вытесняем — при resize размеры
+  // пересобираются под новый масштаб сами
+  if (textCache.size >= 64)
+    textCache.delete(/** @type {string} */ (textCache.keys().next().value));
+  textCache.set(key, spr);
+  return spr;
+}

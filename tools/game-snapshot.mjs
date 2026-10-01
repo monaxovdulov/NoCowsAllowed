@@ -58,11 +58,30 @@ const SCRIPT = [
   { run: 420, label: 'back-to-demo' }, // 7 с тишины → AUTO_DELAY → автопилот
 ];
 
+// Прогон туториал-гейтов: без засеянного localStorage. Шаги без флага
+// tutor не кликают карточку — чекпоинты gate-*/gate-open фиксируют
+// открытую карточку и замороженную сцену; шаги с tutor кликают «Понял»
+// по каждой открывшейся карточке и игра идёт дальше.
+const TUTOR_SCRIPT = [
+  { run: 30 },
+  { act: 'tap' },
+  { run: 200, label: 'gate-start' }, // «Корова на скейте» висит открытой
+  { run: 90, tutor: true }, // «Понял» → секунда игры
+  { act: 'tap' },
+  { run: 300, tutor: true }, // прыжок → приземление: «double»/«ob» прокликиваются
+  { act: 'tap' },
+  { run: 300, tutor: true },
+  { run: 900, tutor: true, label: 'mid' },
+  { run: 400, label: 'gate-open' }, // следующий гейт остаётся открытым
+  { run: 700, tutor: true, label: 'end' },
+];
+
 const VIEWPORTS = [
   {
     name: 'desktop-1280x720',
     context: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
     coarse: false,
+    tutored: true,
   },
   {
     name: 'mobile-390x780',
@@ -74,12 +93,38 @@ const VIEWPORTS = [
       reducedMotion: 'reduce',
     },
     coarse: true,
+    tutored: true,
+  },
+  {
+    name: 'tutorial-390x780',
+    context: {
+      viewport: { width: 390, height: 780 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+    },
+    coarse: true,
+    tutored: false,
+    script: TUTOR_SCRIPT,
   },
 ];
 
 // ---------------------------------------------------------------- init-хук
 // Выполняется в странице до любого её кода (addInitScript).
-const initHook = ({ seed, coarse }) => {
+const initHook = ({ seed, coarse, tutored }) => {
+  // обычные сценарии не должны вставать на туториал-паузы: помечаем все
+  // гейты пройденными (туториал прогоняется отдельным вьюпортом)
+  if (tutored) {
+    try {
+      localStorage.setItem(
+        'cow-skate-tut',
+        JSON.stringify(['start', 'ob', 'double', 'ramp', 'loop']),
+      );
+    } catch (e) {
+      /* storage недоступен — тогда гейты просто не встанут */
+    }
+  }
+
   // mulberry32 — тот же генератор, что в game/utils.js (rng)
   let rs = seed | 0;
   Math.random = () => {
@@ -206,6 +251,8 @@ const initHook = ({ seed, coarse }) => {
         resultHtml: el('result').innerHTML,
         resultClass: el('result').className,
         hintClass: el('hint').className,
+        tutorClass: el('tutor').className,
+        tutorTitle: el('tutorTitle').textContent,
       },
     };
   };
@@ -252,7 +299,11 @@ function serveStatic() {
 // ---------------------------------------------------------------- прогон
 async function runViewport(browser, origin, vp) {
   const context = await browser.newContext(vp.context);
-  await context.addInitScript(initHook, { seed: SEED, coarse: vp.coarse });
+  await context.addInitScript(initHook, {
+    seed: SEED,
+    coarse: vp.coarse,
+    tutored: vp.tutored,
+  });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -279,15 +330,23 @@ async function runViewport(browser, origin, vp) {
 
   let frame = 0;
   const checkpoints = [];
-  for (const step of SCRIPT) {
+  for (const step of vp.script || SCRIPT) {
     if (step.act) await page.evaluate((a) => window.__act(a), step.act);
     if (step.run) {
       frame += step.run;
       await page.evaluate(
-        ({ n, dt }) => {
-          for (let i = 0; i < n; i++) window.__vt.step(dt);
+        ({ n, dt, tutor }) => {
+          for (let i = 0; i < n; i++) {
+            window.__vt.step(dt);
+            // туториал-прогон: открытую карточку закрываем «Понял»
+            if (
+              tutor &&
+              document.getElementById('tutor').classList.contains('on')
+            )
+              document.getElementById('tutorOk').click();
+          }
         },
-        { n: step.run, dt: FRAME_MS },
+        { n: step.run, dt: FRAME_MS, tutor: !!step.tutor },
       );
     }
     if (step.label) {

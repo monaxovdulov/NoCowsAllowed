@@ -120,48 +120,12 @@ function setCoach(text, durationS) {
   coachEl.classList.remove('dim');
   state.coachUntil = durationS ? state.t + durationS : Infinity;
 }
-// подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
+// Тикер-тренер сокращён до гашения по таймеру: пошаговое обучение
+// первого заезда — на пауза-гейтах (tutorial.js), здесь остаются только
+// короткие советы по событию (сейчас — после пустого крэша).
 export function coachStep() {
-  if (
-    state.coachText &&
-    state.coachUntil !== Infinity &&
-    state.t > state.coachUntil
-  )
+  if (state.coachText && (state.t > state.coachUntil || !playerMode()))
     setCoach(null);
-  if (!playerMode()) {
-    if (state.coachText) setCoach(null);
-    return;
-  } // в демо подсказок нет
-  if (state.mode === 'crash' || state.coachStage > 2) return;
-  if (state.coachStage === 0) {
-    if (state.mode === 'air') {
-      state.coachStage = 1;
-      setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
-    } else {
-      const Xb = boardX(),
-        V = Math.max(1, state.speed * geometry.cowH);
-      // ближайшая прыгаемая конструкция — по подсказке её спеки
-      let jumpAt = Infinity;
-      for (const f of feats) {
-        const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
-        if (
-          hnt &&
-          (hnt.action === 'jump' || hnt.action === 'double') &&
-          hnt.at > Xb
-        ) {
-          jumpAt = hnt.at;
-          break;
-        }
-      }
-      if ((jumpAt - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
-      else if (state.coachText === 'ПРЫГАЙ!') setCoach(null);
-    }
-  } else if (state.coachStage === 1) {
-    if (state.mode !== 'air' || state.jumps >= 2) {
-      state.coachStage = 2;
-      setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
-    }
-  } else if (state.t > state.coachUntil) state.coachStage = 3;
 }
 
 // ---------------------------------------------------------------- подписки
@@ -217,12 +181,16 @@ gasEl.addEventListener('pointerup', gasOff);
 gasEl.addEventListener('pointercancel', gasOff);
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
+  // пауза туториала: сцену не трогаем — резюм только кнопкой карточки,
+  // чтобы текст успели прочитать, а не промахнуть тапом
+  if (state.isPaused) return;
   touched();
   if (a === 'jump') jump();
   else trick(a);
 }
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (state.isPaused) return;
   holdPid = e.pointerId;
   act('jump');
   clearTimeout(holdTimer);
@@ -268,6 +236,7 @@ addEventListener('keydown', (e) => {
   const t = /** @type {HTMLElement | null} */ (e.target);
   if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
+  if (state.isPaused) return;
   const keyAct =
     /** @type {Record<string, import('./types').Action | undefined>} */ ({
       Space: 'jump',

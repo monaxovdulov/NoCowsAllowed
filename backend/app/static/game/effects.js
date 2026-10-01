@@ -25,7 +25,7 @@ import {
 import { CAM } from './camera.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
 import { poseMatrix, wheelsScreen } from './pose.js';
-import { dustImg, fireImg, lineImg, woodImg } from './sprites.js';
+import { dustImg, fireImg, lineImg, textSprite, woodImg } from './sprites.js';
 
 /**
  * @param {boolean} init полоса по всему экрану (true) или справа за краем
@@ -417,9 +417,6 @@ export function initEffects() {
 
 export function drawPops() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
   const lh = 0.12 * geometry.cowH,
     top = H * 0.13 + lh * 0.5;
   for (const q of pops) {
@@ -432,18 +429,20 @@ export function drawPops() {
     const y = q.right
       ? clamp(q.y, top, H * 0.45) + q.slot * lh
       : Math.max(top + q.slot * lh, q.y - q.slot * lh);
+    // текст — кэшированный спрайт: strokeText каждый кадр слишком дорогой
+    const spr = textSprite(
+      q.text,
+      size,
+      q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff',
+      'rgba(8,10,22,0.8)',
+      size * 0.17,
+    );
     ctx.save();
     ctx.translate(q.x, y - k * 0.06 * geometry.cowH);
     ctx.scale(sc, sc);
     ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
-    ctx.font = `800 ${size.toFixed(1)}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
     ctx.globalAlpha = a;
-    ctx.lineWidth = size * 0.17;
-    ctx.strokeStyle = 'rgba(8,10,22,0.8)';
-    ctx.strokeText(q.text, 0, 0);
-    ctx.fillStyle =
-      q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff';
-    ctx.fillText(q.text, 0, 0);
+    ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
     ctx.restore();
   }
   ctx.globalAlpha = 1;

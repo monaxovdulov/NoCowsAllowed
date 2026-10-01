@@ -11,8 +11,8 @@ Telegram HTML5-игра (корова на скейте) + бот с сорев�
 - `backend/app/static/` — игра: `index.html` (DOM + CSS, грузит
   `<script type="module" src="game/main.js">`), `game/*.js` — ES-модули без
   сборки (assets, utils, constants, state, layout, sprites, player, features,
-  effects, render, ui, main), `telegram-bridge.js` (Mini App init, отправка
-  счёта по событию `cowskate:run-end`, оверлей топа), `leaders.html`
+  effects, render, ui, tutorial, main), `telegram-bridge.js` (Mini App init,
+  отправка счёта по событию `cowskate:run-end`, оверлей топа), `leaders.html`
   (публичный топ).
 - Игровые сессии — HMAC-подписанный токен `?s=` в URL, выдаётся в
   `answerCallbackQuery` и связывает счёт с конкретным игровым сообщением

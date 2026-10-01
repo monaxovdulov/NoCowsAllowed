@@ -39,6 +39,7 @@ import {
 import { initScore } from './score.js';
 import { render } from './render.js';
 import { coachStep, initUi } from './ui.js';
+import { initTutorial, tutorialStep } from './tutorial.js';
 
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
 // исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
@@ -46,6 +47,7 @@ initFeatures();
 initEffects();
 initScore();
 initUi();
+initTutorial();
 
 // layout() только считает геометрию; буферы пересобираем здесь.
 function relayout() {
@@ -110,6 +112,7 @@ function stepPhysics(dt, gi) {
   checkObstacles();
   autopilot();
   coachStep();
+  tutorialStep();
 }
 
 /** @param {number} dt шаг кадра, секунды */
@@ -141,6 +144,13 @@ function frame(now) {
   let dt = last ? (now - last) / 1000 : 1 / 60;
   last = now;
   if (!(dt > 0)) dt = 1 / 60;
+  // туториал-гейт: update/render пропускаем — canvas держит последний
+  // кадр, state.t стоит → таймеры и спавн заморожены, а last=now выше
+  // не даёт поймать «долгий кадр» на выходе из паузы
+  if (state.isPaused) {
+    requestAnimationFrame(frame);
+    return;
+  }
   const t0 = performance.now();
   update(Math.min(dt, 1 / 20));
   render();
@@ -171,6 +181,15 @@ addEventListener('resize', () => {
     relayout();
   });
 });
+
+// Unbounded подгреваем сразу, не дожидаясь первой надписи: иначе тренер
+// и попапы в первые секунды рисуются фолбэком и мигают при подмене
+const warmFont = () => {
+  if (!document.fonts || !document.fonts.load) return;
+  for (const w of [500, 700, 800]) document.fonts.load(`${w} 16px Unbounded`);
+};
+warmFont();
+if (document.fonts) document.fonts.ready.then(warmFont);
 
 /*TEST_HOOK*/
 Promise.all([

@@ -8,6 +8,7 @@ import { boardX, DPR, obZ, W, xAt, yAt, zAt } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { bumpAt, enterCrash, enterRide } from './player.js';
 import { poseMatrix } from './pose.js';
+import { textSprite } from './sprites.js';
 
 // ---------------------------------------------------------------- road features
 // Движок не знает видов конструкций: всё видоспецифичное — в спеках
@@ -200,9 +201,6 @@ export function drawFlying() {
 // «×2» — длинные/высокие, где нужен двойной прыжок; краснеет к моменту прыжка
 export function drawMarkers() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
   const V = Math.max(1, state.speed * geometry.cowH),
     Xb = boardX();
   for (const f of feats) {
@@ -231,9 +229,13 @@ export function drawMarkers() {
     ctx.lineTo(p.x, p.y - bob);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(10,14,26,.92)';
-    ctx.font = `800 ${(s * 1.05).toFixed(1)}px Unbounded, "Arial Black", system-ui, sans-serif`;
-    ctx.fillText(mk.label, p.x, p.y - bob - s * 1.14);
+    // подпись — кэшированный спрайт, fillText каждый кадр не нужен
+    const spr = textSprite(mk.label, s * 1.05, 'rgba(10,14,26,.92)');
+    ctx.drawImage(
+      spr,
+      p.x - spr.width / 2,
+      p.y - bob - s * 1.14 - spr.height / 2,
+    );
   }
   ctx.globalAlpha = 1;
 }
@@ -292,14 +294,14 @@ export function drawWarnings() {
       );
     }
     if (mk.label !== '!') {
-      ctx.font = `800 ${(r * 0.62).toFixed(1)}px Unbounded, "Arial Black", system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = r * 0.16;
-      ctx.strokeStyle = 'rgba(8,10,22,.85)';
-      ctx.fillStyle = '#ffd84a';
-      ctx.strokeText(mk.label, x - r * 1.75, y);
-      ctx.fillText(mk.label, x - r * 1.75, y);
+      const spr = textSprite(
+        mk.label,
+        r * 0.62,
+        '#ffd84a',
+        'rgba(8,10,22,.85)',
+        r * 0.16,
+      );
+      ctx.drawImage(spr, x - r * 1.75 - spr.width / 2, y - spr.height / 2);
     }
   }
   ctx.globalAlpha = 1;
