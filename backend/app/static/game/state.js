@@ -124,6 +124,7 @@ export const state = {
   speed: CRUISE,
   throttle: 0,
   turbo: 0,
+  gasHeld: false,
   boost: 0,
   spdN: 1,
   bob: 0,

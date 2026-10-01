@@ -154,9 +154,8 @@ function drawLoopFront(f) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').LoopData, 'loop'>} */
 export const loopSpec = {
   type: 'loop',
-  weight: 6,
+  weight: 16, // не special: иначе петля делила редкий слот с рампой 6:24
   minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
-  special: true,
   needsBoost: true, // вход требует скорости выше крейсерской — ui покажет «ГАЗ»
   plan(ctx) {
     return {

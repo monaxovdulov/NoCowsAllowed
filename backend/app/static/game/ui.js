@@ -77,7 +77,8 @@ export function hud() {
       // marker() != null уже значит «конструкция ждёт действия» (не isTried)
       if (!spec.needsBoost || !spec.marker?.(f)) continue;
       const t = (f.x0 - Xb) / V;
-      if (t > -0.1 && t < 3.4) {
+      // запас по хвосту: x0 — край конструкции, вход петли глубже
+      if (t > -0.6 && t < 4) {
         boost = true;
         break;
       }
@@ -86,6 +87,7 @@ export function hud() {
   if (state.mode === 'crash') boost = false;
   if (boost !== shown.boost) {
     boostEl.classList.toggle('dim', !boost);
+    if (!boost) state.turbo = 0; // блок скрылся — запас «исчезает»
     shown.boost = boost;
   }
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
@@ -175,7 +177,9 @@ export function initUi() {
 
 // ---------------------------------------------------------------- input
 let holdTimer = 0,
-  holding = false;
+  holding = false,
+  holdPid = -1, // pointerId касания на canvas — чужие пальцы не снимают холд
+  gasPid = -1;
 function touched() {
   if (!playerMode()) {
     state.score = 0;
@@ -186,19 +190,31 @@ function touched() {
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
+  state.gasHeld = false; // если автопилот держал «ГАЗ» — перехват снимает
   hintEl.classList.add('dim');
 }
-/** Тап по «ГАЗ» (или нажатие →): подкачка турбо-запаса. */
+/** Тап по «ГАЗ»: мгновенная подкачка; удержание качает в stepSpeed. */
 function pumpTurbo() {
   touched();
   state.turbo = Math.min(1, state.turbo + TURBO_PUMP);
 }
 gasEl.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  gasPid = e.pointerId;
+  gasEl.setPointerCapture(e.pointerId); // pointerup придёт на кнопку
   pumpTurbo();
+  state.gasHeld = true; // после pumpTurbo: touched() сбрасывает флаг
   gasEl.classList.add('on');
-  setTimeout(() => gasEl.classList.remove('on'), 120);
 });
+/** @param {PointerEvent} e отпуск/отмена пальца на кнопке «ГАЗ» */
+const gasOff = (e) => {
+  if (e.pointerId !== gasPid) return;
+  gasPid = -1;
+  state.gasHeld = false;
+  gasEl.classList.remove('on');
+};
+gasEl.addEventListener('pointerup', gasOff);
+gasEl.addEventListener('pointercancel', gasOff);
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
   touched();
@@ -207,6 +223,7 @@ function act(a) {
 }
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  holdPid = e.pointerId;
   act('jump');
   clearTimeout(holdTimer);
   holding = false;
@@ -215,7 +232,10 @@ cv.addEventListener('pointerdown', (e) => {
     state.throttle = 1;
   }, 280);
 });
-const release = () => {
+/** @param {PointerEvent} [e] отпуск пальца; чужой pointerId игнорируем */
+const release = (e) => {
+  if (e && holdPid >= 0 && e.pointerId !== holdPid) return;
+  holdPid = -1;
   clearTimeout(holdTimer);
   if (holding) {
     holding = false;
@@ -266,9 +286,9 @@ addEventListener('keydown', (e) => {
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
     state.throttle = 1;
-    if (!e.repeat)
-      pumpTurbo(); // машинг клавишей качает тот же запас
+    if (!e.repeat) pumpTurbo();
     else touched();
+    state.gasHeld = true; // зажатый газ качает турбо в stepSpeed
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
     state.throttle = -1;
@@ -277,8 +297,10 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => {
   const k = e.code;
-  if ((k === 'ArrowRight' || k === 'KeyD') && state.throttle > 0)
-    state.throttle = 0;
+  if (k === 'ArrowRight' || k === 'KeyD') {
+    state.gasHeld = false;
+    if (state.throttle > 0) state.throttle = 0;
+  }
   if ((k === 'ArrowLeft' || k === 'KeyA') && state.throttle < 0)
     state.throttle = 0;
 });

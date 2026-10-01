@@ -17,7 +17,6 @@ import {
   MINSPD,
   OLLIE_V,
   TRICKS,
-  TURBO_PUMP,
 } from './constants.js';
 import { emit } from './events.js';
 import { feats, geometry, onFlat, playerMode, reduce, state } from './state.js';
@@ -98,6 +97,7 @@ export function enterCrash(reason) {
   state.autoDouble = 0;
   state.autoAfter = null;
   state.turbo = 0; // заезд кончился — турбо-запас сгорает
+  state.gasHeld = false;
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
   state.sqV -= 2;
@@ -454,6 +454,7 @@ export function autopilot() {
   const Xb = boardX(),
     V = state.speed * geometry.cowH;
   state.throttle = 0; // в демо газом владеет автопилот
+  state.gasHeld = false;
   // ближайшая конструкция с подсказкой: спека знает свою актуальность
   /** @type {import('./types').AutopilotHint | null} */
   let hint = null;
@@ -476,7 +477,7 @@ export function autopilot() {
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
       } else {
         state.throttle = 1; // hold — зажать разгон
-        state.turbo = Math.min(1, state.turbo + TURBO_PUMP); // демо «машит» газом
+        state.gasHeld = true; // демо держит «ГАЗ» — качает как игрок
       }
       return;
     }

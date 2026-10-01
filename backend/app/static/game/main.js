@@ -6,6 +6,7 @@ import {
   MINSPD,
   TURBO_DRAIN,
   TURBO_EXTRA,
+  TURBO_HOLD,
 } from './constants.js';
 import { geometry, grainEl, hintEl, lines, reduce, state } from './state.js';
 import { boardX, layout, perfScale, setPerfScale } from './layout.js';
@@ -65,7 +66,9 @@ function stepSpeed(dt) {
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  // турбо-запас горит постоянно и даёт добавку к целевой скорости
+  // турбо-запас: зажатый «ГАЗ» качает непрерывно, запас горит в добавку
+  if (state.gasHeld && state.mode !== 'crash')
+    state.turbo = Math.min(1, state.turbo + dt * TURBO_HOLD);
   state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
   const target = Math.min(
     MAXSPD + TURBO_EXTRA,

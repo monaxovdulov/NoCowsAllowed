@@ -153,6 +153,8 @@ export interface GameState {
   throttle: -1 | 0 | 1;
   // турбо-запас 0..1: накачивается тапами по «ГАЗ», горит в ускорение
   turbo: number;
+  // кнопка/клавиша «ГАЗ» зажата — непрерывная подкачка турбо
+  gasHeld: boolean;
   boost: number;
   spdN: number;
   bob: number;
