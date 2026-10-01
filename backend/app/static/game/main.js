@@ -1,6 +1,12 @@
 import { SRC } from './assets.js';
 import { clamp, lerp, loadImg, smooth } from './utils.js';
-import { CRUISE, MAXSPD, MINSPD } from './constants.js';
+import {
+  CRUISE,
+  MAXSPD,
+  MINSPD,
+  TURBO_DRAIN,
+  TURBO_EXTRA,
+} from './constants.js';
 import { geometry, grainEl, hintEl, lines, reduce, state } from './state.js';
 import { boardX, layout, perfScale, setPerfScale } from './layout.js';
 import {
@@ -59,8 +65,11 @@ function stepSpeed(dt) {
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  const target =
-    state.mode === 'crash'
+  // турбо-запас горит постоянно и даёт добавку к целевой скорости
+  state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
+  const target = Math.min(
+    MAXSPD + TURBO_EXTRA,
+    (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
         ? MAXSPD
@@ -68,7 +77,9 @@ function stepSpeed(dt) {
           ? MINSPD
           : reduce
             ? 3.2
-            : cruise;
+            : cruise) +
+      state.turbo * TURBO_EXTRA,
+  );
   state.speed +=
     (target - state.speed) *
     (1 -

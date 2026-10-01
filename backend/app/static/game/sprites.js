@@ -776,6 +776,8 @@ export let lineImg;
 export let shadowImg;
 /** @type {HTMLCanvasElement} */
 export let glowImg;
+/** @type {HTMLCanvasElement} */
+export let fireImg;
 
 // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
 /** @returns {HTMLCanvasElement} */
@@ -915,6 +917,7 @@ export function initAssets(loaded) {
   dustImg = softDot('rgba(170,166,164,1)');
   woodImg = softDot('rgba(186,140,86,1)');
   glowImg = softDot('rgba(255,214,90,1)');
+  fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
   buildCowCaches();

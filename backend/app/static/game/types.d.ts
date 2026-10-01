@@ -151,6 +151,8 @@ export interface GameState {
   camX: number;
   speed: number;
   throttle: -1 | 0 | 1;
+  // турбо-запас 0..1: накачивается тапами по «ГАЗ», горит в ускорение
+  turbo: number;
   boost: number;
   spdN: number;
   bob: number;
@@ -243,7 +245,7 @@ export type CrackRing = Ring<Crack>;
 
 // ---------------------------------------------------------------- effects
 
-export type ParticleKind = 'dust' | 'spark' | 'ring';
+export type ParticleKind = 'dust' | 'spark' | 'ring' | 'flame';
 
 // Единая мономорфная форма частицы (карта, этап 5, S2): все поля
 // присутствуют всегда — стабильная hidden class. Создаётся только
@@ -443,6 +445,8 @@ export interface FeatureTypeSpec<
   minGapBeforeCowH: number;
   // «спец-конструкция»: рейт-лимит SPECIAL_EVERY_COWH между такими
   special?: boolean;
+  // на подходе нужен разгон — ui показывает временную кнопку «ГАЗ»
+  needsBoost?: boolean;
   plan(ctx: SpawnContext): SpawnPlan<TData>;
   ground?(feat: TrackFeature<TType, TData>, X: number): GroundInfo | null;
   collide?(

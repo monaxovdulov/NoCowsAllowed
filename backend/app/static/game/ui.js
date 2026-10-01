@@ -1,10 +1,12 @@
 import {
   autoEl,
   bestEl,
+  boostEl,
   coachEl,
   ctaEl,
   cv,
   feats,
+  gasEl,
   geometry,
   hintEl,
   hudEl,
@@ -12,7 +14,9 @@ import {
   resultEl,
   state,
   scoreEl,
+  turboBarEl,
 } from './state.js';
+import { TURBO_PUMP } from './constants.js';
 import { on } from './events.js';
 import { boardX } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
@@ -26,8 +30,15 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null}} */
-const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
+/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+const shown = {
+  score: -1,
+  best: -1,
+  auto: null,
+  cta: null,
+  res: null,
+  boost: null,
+};
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
   if (state.score !== shown.score) {
@@ -54,6 +65,30 @@ export function hud() {
     resultEl.classList.toggle('dim', !res);
     shown.res = res;
   }
+  // временный блок «ГАЗ»+шкала: на подходе к boost-конструкции и внутри неё
+  let boost = false;
+  const rf = state.ride?.feat;
+  if (rf && FEATURE_TYPES[rf.type].needsBoost) boost = true;
+  else if (state.mode !== 'crash') {
+    const V = Math.max(1, state.speed * geometry.cowH),
+      Xb = boardX();
+    for (const f of feats) {
+      const spec = FEATURE_TYPES[f.type];
+      // marker() != null уже значит «конструкция ждёт действия» (не isTried)
+      if (!spec.needsBoost || !spec.marker?.(f)) continue;
+      const t = (f.x0 - Xb) / V;
+      if (t > -0.1 && t < 3.4) {
+        boost = true;
+        break;
+      }
+    }
+  }
+  if (state.mode === 'crash') boost = false;
+  if (boost !== shown.boost) {
+    boostEl.classList.toggle('dim', !boost);
+    shown.boost = boost;
+  }
+  turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
@@ -153,6 +188,17 @@ function touched() {
   state.autoAfter = null;
   hintEl.classList.add('dim');
 }
+/** Тап по «ГАЗ» (или нажатие →): подкачка турбо-запаса. */
+function pumpTurbo() {
+  touched();
+  state.turbo = Math.min(1, state.turbo + TURBO_PUMP);
+}
+gasEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  pumpTurbo();
+  gasEl.classList.add('on');
+  setTimeout(() => gasEl.classList.remove('on'), 120);
+});
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
   touched();
@@ -220,7 +266,9 @@ addEventListener('keydown', (e) => {
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
     state.throttle = 1;
-    touched();
+    if (!e.repeat)
+      pumpTurbo(); // машинг клавишей качает тот же запас
+    else touched();
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
     state.throttle = -1;

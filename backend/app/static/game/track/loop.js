@@ -5,7 +5,7 @@
 // держит доску. Не добрал скорость — откат назад и мягкий выход без
 // крэша (повторный заезд запрещён флагом data.isTried).
 import { clamp, TAU } from '../utils.js';
-import { GRAV } from '../constants.js';
+import { GRAV, TURBO_RIDE_ACC } from '../constants.js';
 import { ctx, geometry, state } from '../state.js';
 import { boardX, obZ, X0, X1, yAt } from '../layout.js';
 
@@ -157,6 +157,7 @@ export const loopSpec = {
   weight: 6,
   minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
   special: true,
+  needsBoost: true, // вход требует скорости выше крейсерской — ui покажет «ГАЗ»
   plan(ctx) {
     return {
       data: { r: R, entry: R + PAD, isTried: false },
@@ -189,6 +190,8 @@ export const loopSpec = {
     step(feat, ride, dt) {
       const th = ride.s / feat.data.r,
         g = GRAV * (th > TOP0 && th < TOP1 ? ASSIST : 1);
+      // турбо-машинг докручивает и внутри петли — жми «ГАЗ» на подъёме
+      ride.v += TURBO_RIDE_ACC * state.turbo * dt;
       ride.v -= g * Math.sin(th) * dt;
       ride.s += ride.v * dt;
       // прошёл круг или откатился назад через вход — конструкция «used»

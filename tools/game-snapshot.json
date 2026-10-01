@@ -235,8 +235,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "f4cf59721781d68469252cb1b79629d3f742f3d2e7e5f16bc6a1fd864134890a",
-          "bloom": "62366717b529fe64f809ee3d70b8ea2d815b3ccd43dec8c4dba37650344025b5",
+          "scene": "204118a104378ab152fb9147ea35486c35fb7ec91e0fd3aec9ba45b58831080c",
+          "bloom": "99f3bcc1162ba647692e6cb16b5f4a0e1716f743600de457425c6ae6db0dd543",
           "hud": {
             "score": "190",
             "best": "190",
@@ -253,8 +253,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "1fc6d8db7b295f5a4d509185108ce7bf01c25d664f802d972a669a02b9e28691",
-          "bloom": "3d1f0c79684062609969c70bb797f014a1ce1030a6d28f1420556be85aa19830",
+          "scene": "bf4897d7452939ce074203def4536ac11f510f568b437652f1ef5a46bd30a825",
+          "bloom": "1054e637cee60c93edbae03cb6170b7338368b16f454e197147fbe93f96c7109",
           "hud": {
             "score": "190",
             "best": "190",

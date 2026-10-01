@@ -64,6 +64,18 @@ export const coachEl = /** @type {HTMLElement} */ (
 export const resultEl = /** @type {HTMLElement} */ (
   document.getElementById('result')
 );
+/** @type {HTMLElement} временная кнопка+шкала турбо у boost-конструкций */
+export const boostEl = /** @type {HTMLElement} */ (
+  document.getElementById('boost')
+);
+/** @type {HTMLButtonElement} */
+export const gasEl = /** @type {HTMLButtonElement} */ (
+  document.getElementById('gas')
+);
+/** @type {HTMLElement} заполнение шкалы турбо */
+export const turboBarEl = /** @type {HTMLElement} */ (
+  document.getElementById('turboBar')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 export let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -111,6 +123,7 @@ export const state = {
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
   throttle: 0,
+  turbo: 0,
   boost: 0,
   spdN: 1,
   bob: 0,

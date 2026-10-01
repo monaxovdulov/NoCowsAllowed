@@ -356,6 +356,85 @@
           font-size: 26px;
         }
       }
+      /* временный блок турбо: кнопка «ГАЗ» + шкала запаса, только у
+         boost-конструкций (петля) — ui.js гоняет класс .dim */
+      .boost {
+        position: fixed;
+        left: calc(18px + env(safe-area-inset-left, 0px));
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        transition: opacity 0.25s ease;
+        z-index: 6;
+      }
+      .boost.dim {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boost .turbo {
+        width: 10px;
+        height: 66px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--glass);
+        display: flex;
+        align-items: flex-end;
+        overflow: hidden;
+      }
+      .boost .turbo i {
+        display: block;
+        width: 100%;
+        height: 0;
+        background: linear-gradient(180deg, var(--gold), #ff7a2a);
+        transition: height 0.08s linear;
+      }
+      .boost button {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 154, 60, 0.75);
+        background: radial-gradient(
+          circle at 50% 32%,
+          rgba(255, 122, 42, 0.95),
+          rgba(158, 44, 10, 0.95)
+        );
+        color: #fff;
+        font:
+          800 17px/1 'Unbounded',
+          ui-rounded,
+          sans-serif;
+        letter-spacing: 0.07em;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 6px 26px rgba(255, 110, 30, 0.35);
+        transition:
+          transform 0.08s ease,
+          box-shadow 0.08s ease;
+      }
+      .boost button:active,
+      .boost button.on {
+        transform: scale(0.92);
+        box-shadow: 0 2px 12px rgba(255, 110, 30, 0.5);
+      }
+      .boost button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      @media (max-width: 520px) {
+        .boost {
+          bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+        }
+        .boost button {
+          width: 74px;
+          height: 74px;
+          font-size: 15px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         .auto::before {
           animation: none;
@@ -388,6 +467,12 @@
     </div>
     <div class="coach ui dim" id="coach"></div>
     <div class="result ui dim" id="result"></div>
+    <div class="boost ui dim" id="boost">
+      <div class="turbo"><i id="turboBar"></i></div>
+      <button type="button" id="gas" aria-label="Газ — жми часто для турбо">
+        ГАЗ
+      </button>
+    </div>
     <nav class="pad" aria-label="Трюки">
       <button type="button" data-act="jump">Прыжок<kbd>Пробел</kbd></button>
       <button type="button" data-act="spin">360<kbd>Q</kbd></button>
@@ -631,6 +716,12 @@ const CRUISE = 4.2,
 const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
+// Турбо-машинг: тап по кнопке «ГАЗ» качает запас turbo (0..1), запас горит
+// в добавку к целевой скорости и в тангенциальное ускорение на ride-дуге.
+const TURBO_PUMP = 0.16, // запаса за один тап
+  TURBO_DRAIN = 0.34, // расход запаса в секунду (полная шкала ≈ 3 с буста)
+  TURBO_EXTRA = 2.6, // +cowH/с к целевой скорости при полной шкале
+  TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
@@ -749,6 +840,18 @@ const coachEl = /** @type {HTMLElement} */ (
 const resultEl = /** @type {HTMLElement} */ (
   document.getElementById('result')
 );
+/** @type {HTMLElement} временная кнопка+шкала турбо у boost-конструкций */
+const boostEl = /** @type {HTMLElement} */ (
+  document.getElementById('boost')
+);
+/** @type {HTMLButtonElement} */
+const gasEl = /** @type {HTMLButtonElement} */ (
+  document.getElementById('gas')
+);
+/** @type {HTMLElement} заполнение шкалы турбо */
+const turboBarEl = /** @type {HTMLElement} */ (
+  document.getElementById('turboBar')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -796,6 +899,7 @@ const state = {
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
   throttle: 0,
+  turbo: 0,
   boost: 0,
   spdN: 1,
   bob: 0,
@@ -1743,6 +1847,8 @@ let lineImg;
 let shadowImg;
 /** @type {HTMLCanvasElement} */
 let glowImg;
+/** @type {HTMLCanvasElement} */
+let fireImg;
 
 // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
 /** @returns {HTMLCanvasElement} */
@@ -1882,6 +1988,7 @@ function initAssets(loaded) {
   dustImg = softDot('rgba(170,166,164,1)');
   woodImg = softDot('rgba(186,140,86,1)');
   glowImg = softDot('rgba(255,214,90,1)');
+  fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
   buildCowCaches();
@@ -2481,6 +2588,7 @@ const loopSpec = {
   weight: 6,
   minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
   special: true,
+  needsBoost: true, // вход требует скорости выше крейсерской — ui покажет «ГАЗ»
   plan(ctx) {
     return {
       data: { r: R, entry: R + PAD, isTried: false },
@@ -2513,6 +2621,8 @@ const loopSpec = {
     step(feat, ride, dt) {
       const th = ride.s / feat.data.r,
         g = GRAV * (th > TOP0 && th < TOP1 ? ASSIST : 1);
+      // турбо-машинг докручивает и внутри петли — жми «ГАЗ» на подъёме
+      ride.v += TURBO_RIDE_ACC * state.turbo * dt;
       ride.v -= g * Math.sin(th) * dt;
       ride.s += ride.v * dt;
       // прошёл круг или откатился назад через вход — конструкция «used»
@@ -2782,6 +2892,31 @@ function createSpark(x, y, z) {
   };
 }
 /**
+ * Турбо-пламя за кормой коровы: короткоживущий оранжевый блоб,
+ * уносится назад потоком. Спавнится кадрами, пока turbo > 0.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z глубина точки спавна
+ * @returns {import('./types').Particle}
+ */
+function createFlame(x, y, z) {
+  const V = state.speed * geometry.cowH;
+  return {
+    kind: 'flame',
+    img: fireImg,
+    x: x + rand(-5, 5) * geometry.u,
+    y: y + rand(-5, 3) * geometry.u,
+    z,
+    vx: (-rand(0.55, 0.95) * V) / z - rand(20, 60) * geometry.u,
+    vy: -rand(0.1, 0.55) * geometry.cowH,
+    life: 0,
+    max: rand(0.14, 0.3),
+    r0: ((rand(9, 16) * geometry.u) / z) * (0.55 + 0.75 * state.turbo),
+    r1: 0,
+    a: rand(0.5, 0.85),
+  };
+}
+/**
  * @param {number} x
  * @param {number} y
  * @returns {import('./types').Particle}
@@ -2872,6 +3007,17 @@ const MAX_PARTS = 460; // верхний предел живых частиц �
 /** Частицы и всплывающие подписи. @param {number} dt */
 function stepParticles(dt) {
   const V = state.speed * geometry.cowH;
+  // турбо-жжение: огонь из-под кормы, пока запас turbo расходуется
+  if (state.turbo > 0.05 && state.mode !== 'crash' && !reduce) {
+    const w = wheelsScreen();
+    parts.push(
+      createFlame(
+        w[0].x - 0.22 * geometry.cowH,
+        w[0].y - 0.35 * geometry.cowH,
+        w[0].z * 0.95,
+      ),
+    );
+  }
   compactInPlace(parts, (p) => {
     p.life += dt;
     if (p.life >= p.max) return false;
@@ -2986,8 +3132,16 @@ function drawParticles() {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   for (const p of parts) {
-    if (p.kind !== 'spark') continue;
     const t = p.life / p.max;
+    if (p.kind === 'flame') {
+      // огонь затухает и сжимается к концу жизни
+      if (!p.img) continue;
+      const r = p.r0 * (1 - t) ** 0.6;
+      ctx.globalAlpha = p.a * (1 - t);
+      ctx.drawImage(p.img, p.x - r, p.y - r, r * 2, r * 2);
+      continue;
+    }
+    if (p.kind !== 'spark') continue;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
@@ -3528,7 +3682,10 @@ function autopilot() {
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else state.throttle = 1; // hold — зажать разгон
+      } else {
+        state.throttle = 1; // hold — зажать разгон
+        state.turbo = Math.min(1, state.turbo + TURBO_PUMP); // демо «машит» газом
+      }
       return;
     }
   }
@@ -3944,8 +4101,15 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null}} */
-const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
+/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+const shown = {
+  score: -1,
+  best: -1,
+  auto: null,
+  cta: null,
+  res: null,
+  boost: null,
+};
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
   if (state.score !== shown.score) {
@@ -3972,6 +4136,30 @@ function hud() {
     resultEl.classList.toggle('dim', !res);
     shown.res = res;
   }
+  // временный блок «ГАЗ»+шкала: на подходе к boost-конструкции и внутри неё
+  let boost = false;
+  const rf = state.ride?.feat;
+  if (rf && FEATURE_TYPES[rf.type].needsBoost) boost = true;
+  else if (state.mode !== 'crash') {
+    const V = Math.max(1, state.speed * geometry.cowH),
+      Xb = boardX();
+    for (const f of feats) {
+      const spec = FEATURE_TYPES[f.type];
+      // marker() != null уже значит «конструкция ждёт действия» (не isTried)
+      if (!spec.needsBoost || !spec.marker?.(f)) continue;
+      const t = (f.x0 - Xb) / V;
+      if (t > -0.1 && t < 3.4) {
+        boost = true;
+        break;
+      }
+    }
+  }
+  if (state.mode === 'crash') boost = false;
+  if (boost !== shown.boost) {
+    boostEl.classList.toggle('dim', !boost);
+    shown.boost = boost;
+  }
+  turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
@@ -4071,6 +4259,17 @@ function touched() {
   state.autoAfter = null;
   hintEl.classList.add('dim');
 }
+/** Тап по «ГАЗ» (или нажатие →): подкачка турбо-запаса. */
+function pumpTurbo() {
+  touched();
+  state.turbo = Math.min(1, state.turbo + TURBO_PUMP);
+}
+gasEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  pumpTurbo();
+  gasEl.classList.add('on');
+  setTimeout(() => gasEl.classList.remove('on'), 120);
+});
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
   touched();
@@ -4138,7 +4337,8 @@ addEventListener('keydown', (e) => {
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
     state.throttle = 1;
-    touched();
+    if (!e.repeat) pumpTurbo(); // машинг клавишей качает тот же запас
+    else touched();
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
     state.throttle = -1;
@@ -4665,8 +4865,11 @@ function stepSpeed(dt) {
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  const target =
-    state.mode === 'crash'
+  // турбо-запас горит постоянно и даёт добавку к целевой скорости
+  state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
+  const target = Math.min(
+    MAXSPD + TURBO_EXTRA,
+    (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
         ? MAXSPD
@@ -4674,7 +4877,9 @@ function stepSpeed(dt) {
           ? MINSPD
           : reduce
             ? 3.2
-            : cruise;
+            : cruise) +
+      state.turbo * TURBO_EXTRA,
+  );
   state.speed +=
     (target - state.speed) *
     (1 -

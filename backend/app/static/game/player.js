@@ -17,6 +17,7 @@ import {
   MINSPD,
   OLLIE_V,
   TRICKS,
+  TURBO_PUMP,
 } from './constants.js';
 import { emit } from './events.js';
 import { feats, geometry, onFlat, playerMode, reduce, state } from './state.js';
@@ -96,6 +97,7 @@ export function enterCrash(reason) {
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
+  state.turbo = 0; // заезд кончился — турбо-запас сгорает
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
   state.sqV -= 2;
@@ -472,7 +474,10 @@ export function autopilot() {
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else state.throttle = 1; // hold — зажать разгон
+      } else {
+        state.throttle = 1; // hold — зажать разгон
+        state.turbo = Math.min(1, state.turbo + TURBO_PUMP); // демо «машит» газом
+      }
       return;
     }
   }
