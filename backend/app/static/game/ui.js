@@ -26,6 +26,7 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
+/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null}} */
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
@@ -201,17 +202,18 @@ addEventListener('keydown', (e) => {
   const t = /** @type {HTMLElement | null} */ (e.target);
   if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
-  const keyAct = {
-    Space: 'jump',
-    ArrowUp: 'jump',
-    KeyW: 'jump',
-    KeyQ: 'spin',
-    Digit1: 'spin',
-    KeyE: 'flip',
-    Digit2: 'flip',
-    KeyR: 'kick',
-    Digit3: 'kick',
-  }[k];
+  const keyAct =
+    /** @type {Record<string, import('./types').Action | undefined>} */ ({
+      Space: 'jump',
+      ArrowUp: 'jump',
+      KeyW: 'jump',
+      KeyQ: 'spin',
+      Digit1: 'spin',
+      KeyE: 'flip',
+      Digit2: 'flip',
+      KeyR: 'kick',
+      Digit3: 'kick',
+    })[k];
   if (keyAct) {
     e.preventDefault();
     if (!e.repeat) act(keyAct);

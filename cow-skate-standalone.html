@@ -469,6 +469,18 @@ function mk(w, h) {
   return c;
 }
 /**
+ * 2d-контекст канваса. Браузер без canvas2d для игры фатален — падаем
+ * явно (раньше это был бы TypeError на первой же команде рисования).
+ * @param {HTMLCanvasElement} cv
+ * @param {CanvasRenderingContext2DSettings} [opts]
+ * @returns {CanvasRenderingContext2D}
+ */
+function ctx2d(cv, opts) {
+  const g = cv.getContext('2d', opts);
+  if (!g) throw new Error('canvas 2d недоступен');
+  return g;
+}
+/**
  * @param {number} seed
  * @returns {(x: number) => number}
  */
@@ -964,9 +976,9 @@ const X1 = () => W * 1.12;
 const RT = { w: 2048, h: 256 };
 /** @type {import('./types').TextureSize} */
 const FT = { w: 2048, h: 256 };
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 let roadPat;
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 let fieldPat;
 
 /**
@@ -979,7 +991,7 @@ let fieldPat;
  */
 function toCanvas(w, h, R, Gc, B) {
   const c = mk(w, h),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     img = g.createImageData(w, h),
     d = img.data;
   for (let i = 0, j = 0; i < w * h; i++, j += 4) {
@@ -1100,9 +1112,10 @@ function makeFieldTex() {
 function makeCloud(seed, w, h, n, flat) {
   const r = rng(seed),
     c = mk(w, h),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const base = h * (flat ? 0.7 : 0.86);
   const nb = flat ? 4 : 2 + ((r() * 2) | 0),
+    /** @type {{x: number, s: number, a: number}[]} */
     bumps = [];
   for (let i = 0; i < nb; i++) {
     bumps.push({
@@ -1112,6 +1125,7 @@ function makeCloud(seed, w, h, n, flat) {
     });
   }
   const cap = flat ? 0.34 : 0.8;
+  /** @param {number} u */
   const top = (u) => {
     let v = 0;
     for (const b of bumps)
@@ -1167,9 +1181,9 @@ function makeCloud(seed, w, h, n, flat) {
   g.fillStyle = sh;
   g.fillRect(0, 0, w, h);
   const small = mk(w / 4, h / 4);
-  small.getContext('2d').drawImage(c, 0, 0, small.width, small.height);
+  ctx2d(small).drawImage(c, 0, 0, small.width, small.height);
   const out = mk(w, h),
-    og = out.getContext('2d');
+    og = ctx2d(out);
   og.imageSmoothingQuality = 'high';
   og.globalAlpha = 0.92;
   og.drawImage(small, 0, 0, w, h);
@@ -1185,7 +1199,7 @@ function makeCloud(seed, w, h, n, flat) {
  */
 function softDot(color, size = 64) {
   const c = mk(size, size),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     h = size / 2;
   const gr = g.createRadialGradient(h, h, 0, h, h, h);
   gr.addColorStop(0, color);
@@ -1198,7 +1212,7 @@ function softDot(color, size = 64) {
 /** @returns {HTMLCanvasElement} */
 function lineStrip() {
   const c = mk(256, 4),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     gr = g.createLinearGradient(0, 0, 256, 0);
   gr.addColorStop(0, 'rgba(236,243,255,0)');
   gr.addColorStop(0.12, 'rgba(236,243,255,1)');
@@ -1224,7 +1238,7 @@ function sprite(w, h, draw) {
   const c = /** @type {import('./types').ObstacleSprite} */ (
     mk(w * OBR + pad * 2, h * OBR + pad * 2)
   );
-  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  const g = ctx2d(c);
   g.translate(pad, pad);
   draw(g, w * OBR, h * OBR);
   c.pad = pad;
@@ -1402,6 +1416,7 @@ const OB_PAINT = {
     g.fill();
   },
   can: (g, w, h) => {
+    /** @param {number} x0 @param {number} x1 */
     const metal = (x0, x1) => {
       const lg = g.createLinearGradient(x0, 0, x1, 0);
       lg.addColorStop(0, '#89939f');
@@ -1519,19 +1534,19 @@ function buildObSprites() {
 // ---------------------------------------------------------------- size-dependent buffers
 /** @type {HTMLCanvasElement} */
 let skyCv;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-посте (cssPost) */
 let vigCv;
 /** @type {HTMLCanvasElement} */
 let bA;
 /** @type {HTMLCanvasElement} */
 let bB;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-слое bloomEl */
 let bC;
 /** @type {CanvasRenderingContext2D} */
 let bAg;
 /** @type {CanvasRenderingContext2D} */
 let bBg;
-/** @type {CanvasRenderingContext2D} */
+/** @type {CanvasRenderingContext2D | null} null при DOM-слое bloomEl */
 let bCg;
 /** @type {CanvasPattern[]} */
 let grainPats = [];
@@ -1544,10 +1559,11 @@ function buildSky() {
   const oY = geometry.skyOff;
   const sh = Math.max(4, Math.ceil(geometry.horizon + oY + 6 * DPR));
   skyCv = mk(W * 1.24, sh);
-  const g = skyCv.getContext('2d'),
+  const g = ctx2d(skyCv),
     sw = skyCv.width;
-  const total = oY + geometry.horizon,
-    f = (y) => clamp(y / total, 0, 1);
+  const total = oY + geometry.horizon;
+  /** @param {number} y */
+  const f = (y) => clamp(y / total, 0, 1);
   const lg = g.createLinearGradient(0, 0, 0, total);
   lg.addColorStop(0, '#244a9a');
   lg.addColorStop(f(oY), '#4673c6');
@@ -1608,7 +1624,7 @@ function buildVignette() {
     return;
   }
   vigCv = mk(W, H);
-  const v = vigCv.getContext('2d'),
+  const v = ctx2d(vigCv),
     R = Math.hypot(W, H) * 0.5;
   const rg = v.createRadialGradient(
     W * 0.47,
@@ -1639,8 +1655,8 @@ function buildVignette() {
 function buildGlowBuffers() {
   bA = mk(W / 4, H / 4);
   bB = mk(W / 16, H / 16);
-  bAg = bA.getContext('2d');
-  bBg = bB.getContext('2d');
+  bAg = ctx2d(bA);
+  bBg = ctx2d(bB);
   if (bloomG) {
     bloomEl.width = Math.max(1, W >> 2);
     bloomEl.height = Math.max(1, H >> 2);
@@ -1649,7 +1665,7 @@ function buildGlowBuffers() {
     bCg = null;
   } else {
     bC = mk(W / 4, H / 4);
-    bCg = bC.getContext('2d');
+    bCg = ctx2d(bC);
     bCg.imageSmoothingQuality = 'high';
   }
 }
@@ -1686,7 +1702,7 @@ function buildGrain() {
   grainTiles = [];
   for (let k = 0; k < 3; k++) {
     const c = mk(160, 160),
-      gg = c.getContext('2d'),
+      gg = ctx2d(c),
       img = gg.createImageData(160, 160),
       d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -1696,7 +1712,8 @@ function buildGrain() {
     }
     gg.putImageData(img, 0, 0);
     grainTiles.push(c);
-    grainPats.push(ctx.createPattern(c, 'repeat'));
+    const pat = ctx.createPattern(c, 'repeat');
+    if (pat) grainPats.push(pat);
   }
 }
 
@@ -1731,7 +1748,7 @@ let glowImg;
 /** @returns {HTMLCanvasElement} */
 function makeShadow() {
   const c = mk(128, 128),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, 'rgba(3,4,9,1)');
   gr.addColorStop(0.55, 'rgba(3,4,9,0.55)');
@@ -1745,7 +1762,7 @@ const GHOST_BLUR = 40;
 function buildCowCaches() {
   const b = META.base;
   const full = mk(b.w, b.h),
-    g = full.getContext('2d');
+    g = ctx2d(full);
   g.drawImage(imgs.board, META.board.x - b.x, META.board.y - b.y);
   g.drawImage(imgs.base, 0, 0);
   g.drawImage(imgs.ear, META.ear.x - b.x, META.ear.y - b.y);
@@ -1753,7 +1770,7 @@ function buildCowCaches() {
 
   // размытая копия для призрачного шлейфа (смаз только назад)
   ghostCv = mk(b.w + GHOST_BLUR, b.h);
-  const gg = ghostCv.getContext('2d'),
+  const gg = ctx2d(ghostCv),
     n = 12;
   gg.globalCompositeOperation = 'lighter';
   gg.globalAlpha = 1 / n;
@@ -1798,7 +1815,7 @@ function buildCowCaches() {
       });
     }
     streakCv = mk(128, streaks.length * 4);
-    const sg = streakCv.getContext('2d');
+    const sg = ctx2d(streakCv);
     streaks.forEach((s, i) => {
       const [r, gg2, bb] = s.c;
       const lg = sg.createLinearGradient(0, 0, 128, 0);
@@ -2113,7 +2130,9 @@ function knock(f, power) {
  * @param {number} [al]
  */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
-  const spr = obSprites[kind],
+  const spr = /** @type {import('../types').ObstacleSprite} */ (
+      obSprites[kind]
+    ),
     sc = (geometry.cowH * (zs || 1)) / OBR,
     a = al === undefined ? 1 : al;
   const w = spr.width * sc,
@@ -3203,7 +3222,9 @@ function exitRide(ride, p, res) {
   }
 }
 
-/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+/** Кадр катания по траектории: спека двигает s, поза — по path(s).
+ * @param {number} dt шаг, секунды
+ */
 function rideStep(dt) {
   const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
@@ -3311,6 +3332,7 @@ function finishTrick() {
     if (tl > 0.3) startTrick(q, tl);
   }
 }
+/** @param {number} dt шаг, секунды */
 function stepTrick(dt) {
   const tr = state.trick;
   if (!tr) return;
@@ -3380,7 +3402,7 @@ function land(g) {
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = state.crash;
+  const c = /** @type {import('./types').CrashState} */ (state.crash);
   c.t += dt;
   // корова: подброс и кувырок вперёд
   state.hV -= GRAV * dt;
@@ -3475,8 +3497,10 @@ function autopilot() {
       state.autoSeq.length &&
       state.airT > 0.05 &&
       timeToLand() > 0.36
-    )
-      startTrick(state.autoSeq.shift());
+    ) {
+      const tk = state.autoSeq.shift();
+      if (tk) startTrick(tk);
+    }
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота
@@ -3920,6 +3944,7 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
+/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null}} */
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
@@ -4095,17 +4120,18 @@ addEventListener('keydown', (e) => {
   const t = /** @type {HTMLElement | null} */ (e.target);
   if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
-  const keyAct = {
-    Space: 'jump',
-    ArrowUp: 'jump',
-    KeyW: 'jump',
-    KeyQ: 'spin',
-    Digit1: 'spin',
-    KeyE: 'flip',
-    Digit2: 'flip',
-    KeyR: 'kick',
-    Digit3: 'kick',
-  }[k];
+  const keyAct =
+    /** @type {Record<string, import('./types').Action | undefined>} */ ({
+      Space: 'jump',
+      ArrowUp: 'jump',
+      KeyW: 'jump',
+      KeyQ: 'spin',
+      Digit1: 'spin',
+      KeyE: 'flip',
+      Digit2: 'flip',
+      KeyR: 'kick',
+      Digit3: 'kick',
+    })[k];
   if (keyAct) {
     e.preventDefault();
     if (!e.repeat) act(keyAct);
@@ -4128,6 +4154,7 @@ addEventListener('keyup', (e) => {
 });
 
 // ---- game/render.js
+/** @param {DOMMatrix} m */
 function setT(m) {
   const c = CAM.multiply(m);
   ctx.setTransform(c.a, c.b, c.c, c.d, c.e, c.f);
@@ -4178,6 +4205,15 @@ function drawSky() {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * @param {string | CanvasGradient | CanvasPattern} color
+ * @param {number} par параллакс
+ * @param {number} amp0
+ * @param {number} amp1
+ * @param {number} freq
+ * @param {(x: number) => number} seedFn шум
+ * @param {number} offY
+ */
 function ridge(color, par, amp0, amp1, freq, seedFn, offY) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -4242,9 +4278,11 @@ function drawGround() {
     PM.d = d;
     PM.e = geometry.vx - u0 * a;
     PM.f = y - d * (vA % T.h);
-    pat.setTransform(PM);
-    ctx.fillStyle = pat;
-    ctx.fillRect(x0, y, x1 - x0, bnd);
+    if (pat) {
+      pat.setTransform(PM);
+      ctx.fillStyle = pat;
+      ctx.fillRect(x0, y, x1 - x0, bnd);
+    }
     y += bnd;
   }
 }
@@ -4256,10 +4294,14 @@ function drawGroundOverlays() {
     w = x1 - x0,
     yEnd = H * 1.2;
   const fh = geometry.edgeY - hz;
-  ctx.fillStyle = geometry.hg;
-  ctx.fillRect(x0, hz - 1, w, fh + 2);
-  ctx.fillStyle = geometry.rg;
-  ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  if (geometry.hg) {
+    ctx.fillStyle = geometry.hg;
+    ctx.fillRect(x0, hz - 1, w, fh + 2);
+  }
+  if (geometry.rg) {
+    ctx.fillStyle = geometry.rg;
+    ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  }
   const zE = geometry.zEdge;
   const yS0 = yAt(zE * 1.07),
     yS1 = geometry.edgeY;
@@ -4271,6 +4313,12 @@ function drawGroundOverlays() {
   ctx.fillRect(x0, yL - th / 2, w, th);
 }
 
+/**
+ * @param {number} z
+ * @param {number} P период, мировые пиксели
+ * @param {number} off сдвиг фазы
+ * @param {(k: number, x: number) => void} fn
+ */
 function repeatAt(z, P, off, fn) {
   const k0 = Math.floor((state.camX + (X0() - geometry.vx) * z - off) / P) - 1;
   const k1 = Math.ceil((state.camX + (X1() - geometry.vx) * z - off) / P) + 1;
@@ -4311,6 +4359,7 @@ function drawPoles() {
     sag = (0.1 * geometry.cowH) / z;
   ctx.strokeStyle = 'rgba(38,48,66,0.5)';
   ctx.lineWidth = Math.max(1, 0.8 * DPR);
+  /** @type {number[]} */
   const xs = [];
   repeatAt(z, P, P * 0.37, (k, x) => xs.push(x));
   for (let j = 0; j < 2; j++) {
@@ -4378,6 +4427,7 @@ function drawShadow() {
   const len = Math.hypot(b.x - a.x, b.y - a.y) * 0.62,
     wid = 0.05 * geometry.cowH;
   const k = 1 - clamp((state.h - g) / 0.5, 0, 0.7);
+  /** @param {number} sx @param {number} sy @param {number} al */
   const draw = (sx, sy, al) => {
     ctx.save();
     ctx.translate(cx, cy);
@@ -4392,6 +4442,7 @@ function drawShadow() {
   draw(len * k, wid * k, 0.7 * k);
 }
 
+/** @param {number} x @param {number} y @param {number} r */
 function star(x, y, r) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -4405,6 +4456,7 @@ function star(x, y, r) {
 }
 
 // полосы смаза
+/** @param {DOMMatrix} m @param {number} sp @param {boolean} busy */
 function drawStreaks(m, sp, busy) {
   if (!streaks.length || !streakCv) return;
   setT(m);
@@ -4432,6 +4484,7 @@ function drawStreaks(m, sp, busy) {
   }
 }
 // призраки
+/** @param {number} sp @param {boolean} busy */
 function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
@@ -4477,7 +4530,7 @@ function drawCow() {
     m = poseMatrix(pose);
   const sp = clamp(state.spdN, 0.5, 2);
   const busy =
-    state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
+    !!state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
   drawStreaks(m, sp, busy);
   drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
@@ -4526,14 +4579,16 @@ function post() {
     return;
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  bCg.globalCompositeOperation = 'copy';
-  bCg.drawImage(bB, 0, 0, bC.width, bC.height);
-  ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.42;
-  ctx.drawImage(bC, 0, 0, W, H);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
-  ctx.drawImage(vigCv, 0, 0);
+  if (bC && bCg) {
+    bCg.globalCompositeOperation = 'copy';
+    bCg.drawImage(bB, 0, 0, bC.width, bC.height);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.42;
+    ctx.drawImage(bC, 0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+  if (vigCv) ctx.drawImage(vigCv, 0, 0);
   const pat = grainPats[((state.t * 24) | 0) % grainPats.length];
   if (pat && canPatternTransform) {
     PM.a = 1;
@@ -4600,7 +4655,9 @@ function relayout() {
 // update() — оркестрация: шаги в прежнем порядке, по одной
 // ответственности (карта, этап 4). Владельцы шагов — доменные модули.
 
-/** Скорость и продвижение мира: разгон, крейсер, глушение после падения. */
+/** Скорость и продвижение мира: разгон, крейсер, глушение после падения.
+ * @param {number} dt шаг, секунды
+ */
 function stepSpeed(dt) {
   state.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать

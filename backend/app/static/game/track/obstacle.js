@@ -41,7 +41,9 @@ function knock(f, power) {
  * @param {number} [al]
  */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
-  const spr = obSprites[kind],
+  const spr = /** @type {import('../types').ObstacleSprite} */ (
+      obSprites[kind]
+    ),
     sc = (geometry.cowH * (zs || 1)) / OBR,
     a = al === undefined ? 1 : al;
   const w = spr.width * sc,

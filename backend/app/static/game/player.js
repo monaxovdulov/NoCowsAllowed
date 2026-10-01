@@ -166,7 +166,9 @@ function exitRide(ride, p, res) {
   }
 }
 
-/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+/** Кадр катания по траектории: спека двигает s, поза — по path(s).
+ * @param {number} dt шаг, секунды
+ */
 function rideStep(dt) {
   const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
@@ -274,6 +276,7 @@ function finishTrick() {
     if (tl > 0.3) startTrick(q, tl);
   }
 }
+/** @param {number} dt шаг, секунды */
 function stepTrick(dt) {
   const tr = state.trick;
   if (!tr) return;
@@ -343,7 +346,7 @@ function land(g) {
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = state.crash;
+  const c = /** @type {import('./types').CrashState} */ (state.crash);
   c.t += dt;
   // корова: подброс и кувырок вперёд
   state.hV -= GRAV * dt;
@@ -438,8 +441,10 @@ export function autopilot() {
       state.autoSeq.length &&
       state.airT > 0.05 &&
       timeToLand() > 0.36
-    )
-      startTrick(state.autoSeq.shift());
+    ) {
+      const tk = state.autoSeq.shift();
+      if (tk) startTrick(tk);
+    }
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота

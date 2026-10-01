@@ -60,6 +60,18 @@ export function mk(w, h) {
   return c;
 }
 /**
+ * 2d-контекст канваса. Браузер без canvas2d для игры фатален — падаем
+ * явно (раньше это был бы TypeError на первой же команде рисования).
+ * @param {HTMLCanvasElement} cv
+ * @param {CanvasRenderingContext2DSettings} [opts]
+ * @returns {CanvasRenderingContext2D}
+ */
+export function ctx2d(cv, opts) {
+  const g = cv.getContext('2d', opts);
+  if (!g) throw new Error('canvas 2d недоступен');
+  return g;
+}
+/**
  * @param {number} seed
  * @returns {(x: number) => number}
  */

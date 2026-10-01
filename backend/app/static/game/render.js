@@ -48,6 +48,7 @@ import {
 import { drawCracks, drawLines, drawParticles, drawPops } from './effects.js';
 import { hud } from './ui.js';
 
+/** @param {DOMMatrix} m */
 function setT(m) {
   const c = CAM.multiply(m);
   ctx.setTransform(c.a, c.b, c.c, c.d, c.e, c.f);
@@ -98,6 +99,15 @@ function drawSky() {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * @param {string | CanvasGradient | CanvasPattern} color
+ * @param {number} par параллакс
+ * @param {number} amp0
+ * @param {number} amp1
+ * @param {number} freq
+ * @param {(x: number) => number} seedFn шум
+ * @param {number} offY
+ */
 function ridge(color, par, amp0, amp1, freq, seedFn, offY) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -162,9 +172,11 @@ function drawGround() {
     PM.d = d;
     PM.e = geometry.vx - u0 * a;
     PM.f = y - d * (vA % T.h);
-    pat.setTransform(PM);
-    ctx.fillStyle = pat;
-    ctx.fillRect(x0, y, x1 - x0, bnd);
+    if (pat) {
+      pat.setTransform(PM);
+      ctx.fillStyle = pat;
+      ctx.fillRect(x0, y, x1 - x0, bnd);
+    }
     y += bnd;
   }
 }
@@ -176,10 +188,14 @@ function drawGroundOverlays() {
     w = x1 - x0,
     yEnd = H * 1.2;
   const fh = geometry.edgeY - hz;
-  ctx.fillStyle = geometry.hg;
-  ctx.fillRect(x0, hz - 1, w, fh + 2);
-  ctx.fillStyle = geometry.rg;
-  ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  if (geometry.hg) {
+    ctx.fillStyle = geometry.hg;
+    ctx.fillRect(x0, hz - 1, w, fh + 2);
+  }
+  if (geometry.rg) {
+    ctx.fillStyle = geometry.rg;
+    ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  }
   const zE = geometry.zEdge;
   const yS0 = yAt(zE * 1.07),
     yS1 = geometry.edgeY;
@@ -191,6 +207,12 @@ function drawGroundOverlays() {
   ctx.fillRect(x0, yL - th / 2, w, th);
 }
 
+/**
+ * @param {number} z
+ * @param {number} P период, мировые пиксели
+ * @param {number} off сдвиг фазы
+ * @param {(k: number, x: number) => void} fn
+ */
 function repeatAt(z, P, off, fn) {
   const k0 = Math.floor((state.camX + (X0() - geometry.vx) * z - off) / P) - 1;
   const k1 = Math.ceil((state.camX + (X1() - geometry.vx) * z - off) / P) + 1;
@@ -231,6 +253,7 @@ function drawPoles() {
     sag = (0.1 * geometry.cowH) / z;
   ctx.strokeStyle = 'rgba(38,48,66,0.5)';
   ctx.lineWidth = Math.max(1, 0.8 * DPR);
+  /** @type {number[]} */
   const xs = [];
   repeatAt(z, P, P * 0.37, (k, x) => xs.push(x));
   for (let j = 0; j < 2; j++) {
@@ -298,6 +321,7 @@ function drawShadow() {
   const len = Math.hypot(b.x - a.x, b.y - a.y) * 0.62,
     wid = 0.05 * geometry.cowH;
   const k = 1 - clamp((state.h - g) / 0.5, 0, 0.7);
+  /** @param {number} sx @param {number} sy @param {number} al */
   const draw = (sx, sy, al) => {
     ctx.save();
     ctx.translate(cx, cy);
@@ -312,6 +336,7 @@ function drawShadow() {
   draw(len * k, wid * k, 0.7 * k);
 }
 
+/** @param {number} x @param {number} y @param {number} r */
 function star(x, y, r) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -325,6 +350,7 @@ function star(x, y, r) {
 }
 
 // полосы смаза
+/** @param {DOMMatrix} m @param {number} sp @param {boolean} busy */
 function drawStreaks(m, sp, busy) {
   if (!streaks.length || !streakCv) return;
   setT(m);
@@ -352,6 +378,7 @@ function drawStreaks(m, sp, busy) {
   }
 }
 // призраки
+/** @param {number} sp @param {boolean} busy */
 function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
@@ -397,7 +424,7 @@ function drawCow() {
     m = poseMatrix(pose);
   const sp = clamp(state.spdN, 0.5, 2);
   const busy =
-    state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
+    !!state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
   drawStreaks(m, sp, busy);
   drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
@@ -446,14 +473,16 @@ function post() {
     return;
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  bCg.globalCompositeOperation = 'copy';
-  bCg.drawImage(bB, 0, 0, bC.width, bC.height);
-  ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.42;
-  ctx.drawImage(bC, 0, 0, W, H);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
-  ctx.drawImage(vigCv, 0, 0);
+  if (bC && bCg) {
+    bCg.globalCompositeOperation = 'copy';
+    bCg.drawImage(bB, 0, 0, bC.width, bC.height);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.42;
+    ctx.drawImage(bC, 0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+  if (vigCv) ctx.drawImage(vigCv, 0, 0);
   const pat = grainPats[((state.t * 24) | 0) % grainPats.length];
   if (pat && canPatternTransform) {
     PM.a = 1;
