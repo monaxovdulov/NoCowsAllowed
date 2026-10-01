@@ -15,7 +15,8 @@ function warnStorage(error) {
 /** @returns {number} сохранённый рекорд (0, если пусто или недоступен) */
 export function readBest() {
   try {
-    return Math.max(0, parseInt(localStorage.getItem(BEST_KEY), 10) || 0);
+    const raw = localStorage.getItem(BEST_KEY);
+    return Math.max(0, parseInt(raw ?? '', 10) || 0);
   } catch (error) {
     warnStorage(error);
     return 0;

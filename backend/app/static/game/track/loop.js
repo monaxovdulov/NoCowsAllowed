@@ -42,6 +42,7 @@ function drawLoop(f, blur) {
     q = obZ(Xc - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q;
+  /** @param {number} th @param {number} z @param {number} k */
   const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
   // отсечение: вся конструкция за кадром
   if (
@@ -124,7 +125,9 @@ function drawLoop(f, blur) {
   ctx.globalAlpha = 1;
 }
 
-/** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
+/** Ближний рельс поверх коровы — она едет внутри кольца, за ним.
+ * @param {import('../types').LoopFeature} f
+ */
 function drawLoopFront(f) {
   const Xc = entryX(f),
     rPx = f.data.r * geometry.cowH,
@@ -134,6 +137,7 @@ function drawLoopFront(f) {
     geometry.vx + (Xc - rPx - state.camX) / zn > X1() + 60
   )
     return;
+  /** @param {number} th */
   const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
   ctx.strokeStyle = '#a5713b';
   ctx.lineWidth = Math.max(1.4, 4.6 * geometry.u);

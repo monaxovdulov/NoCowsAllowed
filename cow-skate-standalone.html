@@ -657,7 +657,8 @@ function warnStorage(error) {
 /** @returns {number} сохранённый рекорд (0, если пусто или недоступен) */
 function readBest() {
   try {
-    return Math.max(0, parseInt(localStorage.getItem(BEST_KEY), 10) || 0);
+    const raw = localStorage.getItem(BEST_KEY);
+    return Math.max(0, parseInt(raw ?? '', 10) || 0);
   } catch (error) {
     warnStorage(error);
     return 0;
@@ -1940,6 +1941,7 @@ function drawRamp(f, blur) {
   const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
   if (fa <= 0.02) return;
   const shadowLen = 0.35 * geometry.cowH;
+  /** @param {number} dx сдвиг по x @param {number} alpha прозрачность */
   const shape = (dx, alpha) => {
     ctx.globalAlpha = alpha;
     fillPoly(
@@ -2345,6 +2347,7 @@ function drawLoop(f, blur) {
     q = obZ(Xc - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q;
+  /** @param {number} th @param {number} z @param {number} k */
   const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
   // отсечение: вся конструкция за кадром
   if (
@@ -2427,7 +2430,9 @@ function drawLoop(f, blur) {
   ctx.globalAlpha = 1;
 }
 
-/** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
+/** Ближний рельс поверх коровы — она едет внутри кольца, за ним.
+ * @param {import('../types').LoopFeature} f
+ */
 function drawLoopFront(f) {
   const Xc = entryX(f),
     rPx = f.data.r * geometry.cowH,
@@ -2437,6 +2442,7 @@ function drawLoopFront(f) {
     geometry.vx + (Xc - rPx - state.camX) / zn > X1() + 60
   )
     return;
+  /** @param {number} th */
   const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
   ctx.strokeStyle = '#a5713b';
   ctx.lineWidth = Math.max(1.4, 4.6 * geometry.u);

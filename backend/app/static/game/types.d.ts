@@ -86,8 +86,9 @@ export interface Geometry {
   obD: number;
   obL: number;
   skyOff: number;
-  hg: CanvasGradient;
-  rg: CanvasGradient;
+  // градиенты неба и дороги — строит sprites.buildSizeDependent при layout
+  hg: CanvasGradient | null;
+  rg: CanvasGradient | null;
 }
 
 export interface TextureSize {

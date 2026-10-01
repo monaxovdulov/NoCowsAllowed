@@ -1,0 +1,24 @@
+// Strict-миграция game/* помодульно (карта, этап 6.4): файлы в include
+// проверяются со strict: true. Сюда добавляем модуль, когда все его
+// импорты уже в списке. Остальные файлы покрывает базовый tsconfig
+// (strict: false). telegram-bridge.js — вне рамок карты (§7).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": [
+    "backend/app/static/game/utils.js",
+    "backend/app/static/game/constants.js",
+    "backend/app/static/game/storage.js",
+    "backend/app/static/game/events.js",
+    "backend/app/static/game/assets.js",
+    "backend/app/static/game/state.js",
+    "backend/app/static/game/layout.js",
+    "backend/app/static/game/camera.js",
+    "backend/app/static/game/pose.js",
+    "backend/app/static/game/score.js",
+    "backend/app/static/game/track/ramp.js",
+    "backend/app/static/game/track/loop.js"
+  ]
+}

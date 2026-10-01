@@ -40,6 +40,7 @@ function drawRamp(f, blur) {
   const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
   if (fa <= 0.02) return;
   const shadowLen = 0.35 * geometry.cowH;
+  /** @param {number} dx сдвиг по x @param {number} alpha прозрачность */
   const shape = (dx, alpha) => {
     ctx.globalAlpha = alpha;
     fillPoly(
