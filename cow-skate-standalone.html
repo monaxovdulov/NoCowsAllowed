@@ -639,6 +639,40 @@ const OBS = {
   cones: { w: 0.85, h: 0.24, wt: 1.4, long: true },
 };
 
+// ---- game/storage.js
+// ---------------------------------------------------------------- storage
+// Доступ к localStorage (карта, этап 6.3, B4): в приватных режимах и
+// части WebView он недоступен — бросает SecurityError. Предупреждаем
+// один раз за сессию и живём без персистентности рекорда.
+
+const BEST_KEY = 'cow-skate-best';
+let warned = false;
+/** @param {unknown} error */
+function warnStorage(error) {
+  if (warned) return;
+  warned = true;
+  console.warn('localStorage недоступен — рекорд не сохраняется:', error);
+}
+
+/** @returns {number} сохранённый рекорд (0, если пусто или недоступен) */
+function readBest() {
+  try {
+    return Math.max(0, parseInt(localStorage.getItem(BEST_KEY), 10) || 0);
+  } catch (error) {
+    warnStorage(error);
+    return 0;
+  }
+}
+
+/** @param {number} v рекорд для сохранения */
+function writeBest(v) {
+  try {
+    localStorage.setItem(BEST_KEY, String(v));
+  } catch (error) {
+    warnStorage(error);
+  }
+}
+
 // ---- game/state.js
 // ---------------------------------------------------------------- DOM, canvas
 /** @type {HTMLCanvasElement} */
@@ -802,14 +836,7 @@ const state = {
   coachUntil: 0, // микро-обучение в первом заезде
   resultUntil: 0, // карточка результата после крэша
 };
-try {
-  state.best = Math.max(
-    0,
-    parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
-  );
-} catch (e) {
-  /* без рекорда */
-}
+state.best = readBest();
 /** @type {import('./types').Cloud[]} */
 const clouds = [];
 /** @type {import('./types').Particle[]} */
@@ -1780,7 +1807,9 @@ function buildCowCaches() {
       sg.fillStyle = lg;
       sg.fillRect(0, i * 4, 128, 4);
     });
-  } catch (e) {
+  } catch (error) {
+    // B4: getImageData может кинуть (tainted canvas) — не глотаем молча
+    console.warn('полосы смаза отключены:', error);
     streaks = [];
   }
 }
@@ -2012,11 +2041,7 @@ function addScore(pts, mult = 1) {
 function endRun() {
   if (state.score > state.best) {
     state.best = state.score;
-    try {
-      localStorage.setItem('cow-skate-best', String(state.best));
-    } catch (e) {
-      /* ок */
-    }
+    writeBest(state.best);
     document.dispatchEvent(
       new CustomEvent('cowskate:run-end', {
         detail: { score: state.score, best: state.best },
@@ -4682,18 +4707,26 @@ Promise.all([
   loadImg(SRC.board),
   loadImg(SRC.ear),
   loadImg(SRC.tag),
-]).then(([base, board, ear, tag]) => {
-  initAssets({ base, board, ear, tag });
-  initClouds();
-  relayout();
-  initShadow();
-  if (grainEl && grainTiles.length) {
-    grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
-  }
-  for (let i = 0; i < 26; i++) lines.push(newLine(true));
-  for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
-  requestAnimationFrame(frame);
-});
+])
+  .then(([base, board, ear, tag]) => {
+    initAssets({ base, board, ear, tag });
+    initClouds();
+    relayout();
+    initShadow();
+    if (grainEl && grainTiles.length) {
+      grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
+    }
+    for (let i = 0; i < 26; i++) lines.push(newLine(true));
+    for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
+    requestAnimationFrame(frame);
+  })
+  .catch((error) => {
+    // B3: без обработчика ошибка загрузки давала чёрный экран без слов
+    console.error('boot:', error);
+    hintEl.textContent =
+      'Не удалось загрузить картинки — обнови страницу или проверь сеть';
+    hintEl.classList.remove('dim');
+  });
 })();
 </script>
   </body>

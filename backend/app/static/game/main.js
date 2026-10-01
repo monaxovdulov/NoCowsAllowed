@@ -162,15 +162,23 @@ Promise.all([
   loadImg(SRC.board),
   loadImg(SRC.ear),
   loadImg(SRC.tag),
-]).then(([base, board, ear, tag]) => {
-  initAssets({ base, board, ear, tag });
-  initClouds();
-  relayout();
-  initShadow();
-  if (grainEl && grainTiles.length) {
-    grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
-  }
-  for (let i = 0; i < 26; i++) lines.push(newLine(true));
-  for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
-  requestAnimationFrame(frame);
-});
+])
+  .then(([base, board, ear, tag]) => {
+    initAssets({ base, board, ear, tag });
+    initClouds();
+    relayout();
+    initShadow();
+    if (grainEl && grainTiles.length) {
+      grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
+    }
+    for (let i = 0; i < 26; i++) lines.push(newLine(true));
+    for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
+    requestAnimationFrame(frame);
+  })
+  .catch((error) => {
+    // B3: без обработчика ошибка загрузки давала чёрный экран без слов
+    console.error('boot:', error);
+    hintEl.textContent =
+      'Не удалось загрузить картинки — обнови страницу или проверь сеть';
+    hintEl.classList.remove('dim');
+  });

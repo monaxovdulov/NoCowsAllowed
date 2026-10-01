@@ -853,7 +853,9 @@ function buildCowCaches() {
       sg.fillStyle = lg;
       sg.fillRect(0, i * 4, 128, 4);
     });
-  } catch (e) {
+  } catch (error) {
+    // B4: getImageData может кинуть (tainted canvas) — не глотаем молча
+    console.warn('полосы смаза отключены:', error);
     streaks = [];
   }
 }

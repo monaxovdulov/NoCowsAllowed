@@ -1,4 +1,5 @@
 import { AUTO_DELAY_S, CRUISE } from './constants.js';
+import { readBest } from './storage.js';
 import { makeRing } from './utils.js';
 
 // ---------------------------------------------------------------- DOM, canvas
@@ -163,14 +164,7 @@ export const state = {
   coachUntil: 0, // микро-обучение в первом заезде
   resultUntil: 0, // карточка результата после крэша
 };
-try {
-  state.best = Math.max(
-    0,
-    parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
-  );
-} catch (e) {
-  /* без рекорда */
-}
+state.best = readBest();
 /** @type {import('./types').Cloud[]} */
 export const clouds = [];
 /** @type {import('./types').Particle[]} */
