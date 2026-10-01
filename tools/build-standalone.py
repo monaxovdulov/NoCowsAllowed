@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Собирает cow-skate-standalone.html из backend/app/static (index.html + game/*.js).
 
 ES-модули по file:// не грузятся, поэтому модули подставляются инлайном в один
@@ -18,11 +17,15 @@ STATIC = ROOT / "backend" / "app" / "static"
 TARGET = ROOT / "cow-skate-standalone.html"
 
 ENTRY_TAG = '<script type="module" src="game/main.js"></script>'
-TELEGRAM_RE = re.compile(r"<!-- telegram:begin -->\n.*?<!-- telegram:end -->\n", re.S)
-IMPORT_RE = re.compile(
-    r"^import\s*\{[^}]*\}\s*from\s*'((?:\.{1,2}/)[\w./-]+\.js)';\n", re.M
+TELEGRAM_RE = re.compile(
+    r"<!-- telegram:begin -->\n.*?<!-- telegram:end -->\n", re.DOTALL
 )
-EXPORT_RE = re.compile(r"^export (?=(?:const|let|function|async function) )", re.M)
+IMPORT_RE = re.compile(
+    r"^import\s*\{[^}]*\}\s*from\s*'((?:\.{1,2}/)[\w./-]+\.js)';\n", re.MULTILINE
+)
+EXPORT_RE = re.compile(
+    r"^export (?=(?:const|let|function|async function) )", re.MULTILINE
+)
 NOTICE = "<!-- Сгенерировано tools/build-standalone.py из backend/app/static — не править руками. -->\n"
 
 
@@ -46,7 +49,7 @@ def module_order(entry: Path) -> list[Path]:
 def strip_module(path: Path) -> str:
     src = IMPORT_RE.sub("", path.read_text(encoding="utf-8"))
     src = EXPORT_RE.sub("", src)
-    leftovers = re.findall(r"^\s*(?:import|export)\b.*", src, re.M)
+    leftovers = re.findall(r"^\s*(?:import|export)\b.*", src, re.MULTILINE)
     if leftovers:
         raise SystemExit(f"{path}: неподдерживаемый import/export: {leftovers[0]!r}")
     return src.strip("\n")

@@ -265,7 +265,7 @@ createRing`. Рисовальщики препятствий — таблица 
 7. Режим `ride` (D5): `enterRide(feat)` → `S.mode = 'ride'`,
    `S.ride = {feat, s, v, ang}`; `rideStep` внутри `physicsStep` берёт
    позу из `spec.ride.path`, камера следует за точкой пути (`camX =
-   p.X − якорь`), трюки разрешены, если `spec.ride.tricks`; выход —
+p.X − якорь`), трюки разрешены, если `spec.ride.tricks`; выход —
    `RideStep`: `exit` → ground/air по углу, `fail` →
    `crash('stall'|'fall')`. Проверено первой ride-конструкцией —
    `track/loop.js` (план §B): честная гравитация + магнитная помощь
