@@ -247,8 +247,17 @@
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
+      /* выехать → стоять → раствориться (гашение — opacity-переход .dim).
+         В keyframe обязан остаться translateX(-50%): анимация transform
+         заменяет базовый transform — без него текст прыгал влево-вправо. */
       .coach:not(.dim) {
-        animation: ctaPulse 0.85s ease-in-out infinite;
+        animation: coachIn 0.3s ease-out;
+      }
+      @keyframes coachIn {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(10px);
+        }
       }
       .result {
         top: 26%;
