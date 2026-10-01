@@ -2,9 +2,11 @@
 // + запись здесь. Движок не знает типов — диспетчит по этой таблице.
 import { rampSpec } from './ramp.js';
 import { obstacleSpec } from './obstacle.js';
+import { loopSpec } from './loop.js';
 
 /** @type {Record<string, import('../types').FeatureTypeSpec>} */
 export const FEATURE_TYPES = {
   ramp: rampSpec,
   ob: obstacleSpec,
+  loop: loopSpec,
 };

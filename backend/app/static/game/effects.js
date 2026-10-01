@@ -353,6 +353,10 @@ export function initEffects() {
   on('score', (d) => {
     popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
   });
+  on('ride-exit', (d) => {
+    if (d.result === 'fail') return; // срыв — попап покажет crash
+    popup(d.ok ? 'ПЕТЛЯ!' : 'НЕ ДОТЯНУЛ!', d.ok ? 'trick' : 'pts');
+  });
 }
 
 export function drawPops() {

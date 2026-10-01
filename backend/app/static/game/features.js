@@ -6,7 +6,7 @@ import { META } from './assets.js';
 import { on } from './events.js';
 import { boardX, DPR, obZ, W, xAt, yAt, zAt } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
-import { bumpAt, enterCrash } from './player.js';
+import { bumpAt, enterCrash, enterRide } from './player.js';
 import { poseMatrix } from './pose.js';
 
 // ---------------------------------------------------------------- road features
@@ -113,6 +113,20 @@ export function groundInfo(X) {
     if (gi) return gi;
   }
   return { h: 0, slope: 0 };
+}
+/**
+ * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, S).
+ * Вызывается после stepGround — доска на поверхности, режим актуален.
+ */
+export function checkRideEntry() {
+  if (S.mode !== 'ground') return;
+  for (const f of feats) {
+    const rs = FEATURE_TYPES[f.type].ride;
+    if (rs && rs.canEnter(f, S)) {
+      enterRide(f);
+      return;
+    }
+  }
 }
 export function checkObstacles() {
   const Xb = boardX();

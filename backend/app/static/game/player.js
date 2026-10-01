@@ -10,7 +10,14 @@ import {
   smooth,
   TAU,
 } from './utils.js';
-import { DOUBLE_V, GRAV, OLLIE_V, TRICKS } from './constants.js';
+import {
+  DOUBLE_V,
+  GRAV,
+  MAXSPD,
+  MINSPD,
+  OLLIE_V,
+  TRICKS,
+} from './constants.js';
 import { emit } from './events.js';
 import { feats, G, onFlat, playerMode, reduce, S } from './state.js';
 import { FEATURE_TYPES } from './track/index.js';
@@ -51,6 +58,11 @@ export function enterCrash(reason) {
   if (S.mode === 'crash') return;
   // колёса снимаем до смены режима — поза с вибрацией, как на кадре крэша
   const w = wheelsScreen();
+  // с конструкции — сразу: угол дуги уходит в roll, чтобы поза не прыгнула
+  if (S.ride) {
+    S.roll += S.ride.ang;
+    S.ride = null;
+  }
   S.mode = 'crash';
   S.crash = {
     reason,
@@ -86,6 +98,95 @@ export function enterCrash(reason) {
   emit('crash', { reason, score: S.score, wheels: w });
 }
 
+// ---------------------------------------------------------------- ride
+// Режим катания по конструкции (карта, этап 5, петля по gameplay-ux-plan §B):
+// спека задаёт траекторию path(s) и интегрирует step(); двигатель только
+// вешает позу на точку пути и ведёт камеру. Мир при этом прокручивается
+// вслед за коровой — camX держит доску на экранном якоре.
+
+/** @returns {number} секунды до конца текущей траектории ride */
+function rideTimeLeft() {
+  const ride = S.ride;
+  if (!ride) return 0;
+  const rs = FEATURE_TYPES[ride.feat.type].ride;
+  return rs ? (rs.length(ride.feat) - ride.s) / Math.max(1, ride.v) : 0;
+}
+
+/** @param {import('./types').AnyFeature} feat конструкция с ride-спекой */
+export function enterRide(feat) {
+  if (S.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
+  S.mode = 'ride';
+  S.ride = { feat, s: 0, v: S.speed, ang: 0, autoDone: false };
+  S.onRamp = false;
+  S.tilt = 0;
+  S.tiltV = 0;
+  S.h = 0;
+  S.hV = 0;
+  S.jumps = 1;
+  S.trick = null;
+  S.trickQ = null;
+  S.airTricks = [];
+  S.airBonus = 0;
+  emit('ride-enter', { type: feat.type });
+}
+
+/**
+ * Сход с траектории: exit — угол дуги переходит в roll, скорость вдоль
+ * траектории становится скоростью заезда; высокий выход — в воздух по
+ * касательной. fail — срыв с конструкции.
+ * @param {import('./types').RideState} ride
+ * @param {import('./types').PathPoint} p точка пути на момент схода
+ * @param {import('./types').RideStep} res результат последнего шага спеки
+ */
+function exitRide(ride, p, res) {
+  const v = ride.v,
+    feat = ride.feat;
+  S.roll += ride.ang;
+  S.ride = null;
+  emit('ride-exit', { type: feat.type, result: res, ok: v > 0 });
+  if (res === 'fail') {
+    enterCrash('stall');
+    return;
+  }
+  S.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
+  if (Math.abs(p.h) < 0.06) {
+    if (v > 0) S.airBonus += 150; // прошёл конструкцию
+    S.hV = 0;
+    enterGround(0, 0);
+  } else {
+    S.hV = clamp(-v * Math.sin(p.angle), 0, 9);
+    S.airT = 0;
+    S.jumps = 1;
+    S.airDur = timeToLand();
+    enterAir('launch');
+  }
+}
+
+/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+function rideStep(dt) {
+  const ride = /** @type {import('./types').RideState} */ (S.ride),
+    rs = FEATURE_TYPES[ride.feat.type].ride;
+  if (!rs) {
+    exitRide(ride, { X: boardX(), h: 0, angle: 0 }, 'exit');
+    return;
+  }
+  stepTrick(dt);
+  // демо-автопилот делает один трюк на дуге — показывает, что можно
+  if (!playerMode() && rs.tricks && !ride.autoDone && S.trick === null) {
+    const left = rs.length(ride.feat);
+    if (ride.s > left * 0.25 && ride.s < left * 0.75) {
+      ride.autoDone = true;
+      startTrick(pick(['spin', 'kick']), rideTimeLeft());
+    }
+  }
+  const res = rs.step(ride.feat, ride, dt);
+  const p = rs.path(ride.feat, ride.s);
+  S.camX = p.X - (G.ox + 200 * G.s - G.vx);
+  S.h = Math.max(0, p.h);
+  ride.ang = p.angle;
+  if (res !== 'ride') exitRide(ride, p, res);
+}
+
 /** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 export function jump() {
   if (!ready() || S.mode === 'crash') return false;
@@ -115,13 +216,16 @@ export function jump() {
   S.airDur = S.airT + timeToLand();
   return true;
 }
-/** @param {import('./types').TrickKind} kind */
-function startTrick(kind) {
+/**
+ * @param {import('./types').TrickKind} kind
+ * @param {number} [tl] секунд до конца окна трюка (в воздухе — до земли)
+ */
+function startTrick(kind, tl = timeToLand()) {
   const T = TRICKS[kind];
   S.trick = {
     kind,
     t: 0,
-    dur: clamp(timeToLand() - 0.06, 0.28, T.dur),
+    dur: clamp(tl - 0.06, 0.28, T.dur),
     dir: /** @type {1 | -1} */ (Math.random() < 0.5 ? 1 : -1),
   };
   S.earV -= 1.5;
@@ -130,6 +234,17 @@ function startTrick(kind) {
 /** @param {import('./types').TrickKind} kind */
 export function trick(kind) {
   if (!ready() || S.mode === 'crash') return;
+  // на конструкции трюки без прыжка — доска прижата к траектории
+  if (S.mode === 'ride') {
+    const rs = S.ride && FEATURE_TYPES[S.ride.feat.type].ride;
+    if (!rs || !rs.tricks) return;
+    if (S.trick) {
+      S.trickQ = kind;
+      return;
+    }
+    startTrick(kind, rideTimeLeft());
+    return;
+  }
   if (S.mode !== 'air' && !jump()) return;
   if (S.trick) {
     S.trickQ = kind;
@@ -145,12 +260,14 @@ function finishTrick() {
   S.kick = 0;
   S.kickDrop = 0;
   S.airTricks.push(tr.kind);
+  if (S.mode === 'ride') S.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
   S.trick = null;
   if (S.trickQ) {
     const q = S.trickQ;
     S.trickQ = null;
-    if (timeToLand() > 0.3) startTrick(q);
+    const tl = S.mode === 'ride' ? rideTimeLeft() : timeToLand();
+    if (tl > 0.3) startTrick(q, tl);
   }
 }
 function stepTrick(dt) {
@@ -417,6 +534,10 @@ export function physicsStep(dt, g) {
 
   if (S.mode === 'crash') {
     crashStep(dt);
+    return;
+  }
+  if (S.mode === 'ride') {
+    rideStep(dt);
     return;
   }
   if (S.mode === 'air') {

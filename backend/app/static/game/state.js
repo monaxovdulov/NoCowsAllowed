@@ -138,6 +138,7 @@ export const S = {
   airTricks: [],
   airBonus: 0,
   crash: null,
+  ride: null,
   invuln: 0,
   shake: 0,
   lift: 0,

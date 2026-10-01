@@ -705,6 +705,7 @@ const S = {
   airTricks: [],
   airBonus: 0,
   crash: null,
+  ride: null,
   invuln: 0,
   shake: 0,
   lift: 0,
@@ -2188,6 +2189,214 @@ const obstacleSpec = {
   },
 };
 
+// ---- game/track/loop.js
+// Мёртвая петля (gameplay-ux-plan §B): ride-конструкция — корова катит по
+// внутренней поверхности кольца. Траектория параметрическая: дуга s ∈
+// [0, 2πR]; гравитация честная (тангенциальная составляющая −g·sinθ),
+// в верхней трети дуги действует магнитная помощь (ASSIST < 1) — рельс
+// держит доску. Не добрал скорость — откат назад и мягкий выход без
+// крэша (повторный заезд запрещён флагом data.tried).
+
+const R = 1.0; // радиус петли, cowH: кольцо 2 роста — читается, вход ~5.2 cowH/с
+const PAD = 0.5; // ровная полка до/после круга, cowH
+const ASSIST = 0.55; // ослабление g в верхней трети — «магнитная» помощь рельса
+const TOP0 = 2.05,
+  TOP1 = TAU - 2.05; // дуга верхней трети (рад от нижней точки)
+
+/** @param {import('../types').LoopFeature} f @returns {number} мировой X входа (низ круга) */
+const entryX = (f) => f.x0 + f.data.entry * G.cowH;
+
+/**
+ * Точка дуги в экранных координатах для стенки глубиной z и радиуса k·R.
+ * θ = 0 — низ петли, θ = π — верх.
+ * @type {(th: number, z: number, k: number, Xc: number, rPx: number) => number[]}
+ */
+const arcPt = (th, z, k, Xc, rPx) => {
+  const r = (rPx * k) / z;
+  return [
+    G.vx + (Xc - S.camX) / z + r * Math.sin(th),
+    yAt(z) - rPx / z - r * Math.cos(th),
+  ];
+};
+
+// две стенки кольца в перспективе + шпалы между ними, опоры и бортик
+/**
+ * @param {import('../types').LoopFeature} f
+ * @param {number} blur смаз по x в пикселях
+ */
+function drawLoop(f, blur) {
+  const Xc = entryX(f),
+    rPx = f.data.r * G.cowH,
+    q = obZ(Xc - S.camX),
+    zn = 0.8 * q,
+    zf = 1.28 * q;
+  const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
+  // отсечение: вся конструкция за кадром
+  if (
+    G.vx + (Xc + rPx - S.camX) / zn < X0() - 80 ||
+    G.vx + (Xc - rPx - S.camX) / zf > X1() + 80
+  )
+    return;
+  const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1);
+  if (fa <= 0.02) return;
+  /** @param {number} dx @param {number} alpha */
+  const shape = (dx, alpha) => {
+    ctx.globalAlpha = alpha;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    // тень-пятно под конструкцией
+    ctx.fillStyle = 'rgba(4,5,10,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(
+      G.vx + (Xc - S.camX) / zn + dx,
+      yAt(zn),
+      (rPx * 1.3) / zn,
+      0.09 * G.cowH,
+      0,
+      0,
+      TAU,
+    );
+    ctx.fill();
+    // опоры: по две стойки на стенку под боковые точки дуги
+    ctx.strokeStyle = '#4a2c12';
+    ctx.lineWidth = Math.max(1.2, 4 * G.u);
+    ctx.beginPath();
+    for (const z of [zn, zf])
+      for (const th of [Math.PI * 0.62, Math.PI * 1.38]) {
+        const p = a(th, z, 1);
+        ctx.moveTo(p[0] + dx, p[1]);
+        ctx.lineTo(p[0] + dx, yAt(z));
+      }
+    ctx.stroke();
+    // шпалы: радиальные связи между стенками
+    ctx.strokeStyle = 'rgba(70,42,18,0.8)';
+    ctx.lineWidth = Math.max(1, 2.6 * G.u);
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const th = (i / 16) * TAU,
+        p0 = a(th, zn, 0.93),
+        p1 = a(th, zf, 0.93);
+      ctx.moveTo(p0[0] + dx, p0[1]);
+      ctx.lineTo(p1[0] + dx, p1[1]);
+    }
+    ctx.stroke();
+    // кольцевое полотно: внешний и внутренний край обеих стенок
+    for (const [z, shade] of /** @type {[number, string][]} */ ([
+      [zf, '#6b451f'],
+      [zn, '#8a5c2f'],
+    ]))
+      for (const k of [1.08, 0.86]) {
+        ctx.strokeStyle = shade;
+        ctx.lineWidth = Math.max(1.2, (k > 1 ? 4.6 : 3.6) * G.u);
+        ctx.beginPath();
+        for (let i = 0; i <= 40; i++) {
+          const p = a((i / 40) * TAU, z, k);
+          if (i) ctx.lineTo(p[0] + dx, p[1]);
+          else ctx.moveTo(p[0] + dx, p[1]);
+        }
+        ctx.stroke();
+      }
+    // металлический бортик ближней стенки
+    ctx.strokeStyle = '#dfe4ea';
+    ctx.lineWidth = Math.max(1.5, 3.4 * G.u);
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) {
+      const p = a((i / 40) * TAU, zn, 0.97);
+      if (i) ctx.lineTo(p[0] + dx, p[1]);
+      else ctx.moveTo(p[0] + dx, p[1]);
+    }
+    ctx.stroke();
+  };
+  shape((blur * 0.8) / q, 0.3 * fa);
+  shape(0, fa);
+  ctx.globalAlpha = 1;
+}
+
+/** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
+function drawLoopFront(f) {
+  const Xc = entryX(f),
+    rPx = f.data.r * G.cowH,
+    zn = 0.8 * obZ(Xc - S.camX);
+  if (
+    G.vx + (Xc + rPx - S.camX) / zn < X0() - 60 ||
+    G.vx + (Xc - rPx - S.camX) / zn > X1() + 60
+  )
+    return;
+  const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
+  ctx.strokeStyle = '#a5713b';
+  ctx.lineWidth = Math.max(1.4, 4.6 * G.u);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i <= 40; i++) {
+    const p = a((i / 40) * TAU);
+    if (i) ctx.lineTo(p[0], p[1]);
+    else ctx.moveTo(p[0], p[1]);
+  }
+  ctx.stroke();
+}
+
+/** @type {import('../types').FeatureTypeSpec<import('../types').LoopData, 'loop'>} */
+const loopSpec = {
+  type: 'loop',
+  weight: 6,
+  minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
+  special: true,
+  plan(ctx) {
+    return {
+      data: { r: R, entry: R + PAD, tried: false },
+      lengthCowH: 2 * (R + PAD),
+      // за выездом — чистая зона приземления
+      gapAfterCowH: ctx.rand(18, 24) * Math.max(1, 0.8 * ctx.spdN),
+    };
+  },
+  ride: {
+    tricks: true,
+    canEnter(feat, st) {
+      const Xb = boardX();
+      return (
+        st.mode === 'ground' &&
+        !feat.data.tried &&
+        Xb >= entryX(feat) &&
+        // только в момент пересечения входа: приземлился позже — проехал мимо
+        Xb < entryX(feat) + 0.4 * G.cowH
+      );
+    },
+    length: (feat) => TAU * feat.data.r,
+    path(feat, s) {
+      const th = s / feat.data.r;
+      return {
+        X: entryX(feat) + feat.data.r * G.cowH * Math.sin(th),
+        h: feat.data.r * (1 - Math.cos(th)),
+        angle: -th, // касательная в canvas-угле: вверх — против часовой
+      };
+    },
+    step(feat, ride, dt) {
+      const th = ride.s / feat.data.r,
+        g = GRAV * (th > TOP0 && th < TOP1 ? ASSIST : 1);
+      ride.v -= g * Math.sin(th) * dt;
+      ride.s += ride.v * dt;
+      // прошёл круг или откатился назад через вход — конструкция «used»
+      if (ride.s >= TAU * feat.data.r || (ride.s < 0 && ride.v < 0)) {
+        feat.data.tried = true;
+        return 'exit';
+      }
+      return 'ride';
+    },
+  },
+  marker: (feat) =>
+    feat.data.tried || S.ride?.feat === feat
+      ? null
+      : { label: 'ГАЗ', leadS: 1.5, heightCowH: 1.1 },
+  autopilot(feat) {
+    if (feat.data.tried || boardX() > entryX(feat)) return null;
+    // зажать разгон заранее — к входу нужна скорость выше крейсерской
+    return { at: entryX(feat), leadS: 1.7, action: 'hold' };
+  },
+  depth: (feat) => obZ(entryX(feat) - S.camX) * 1.06,
+  draw: drawLoop,
+  drawFlying: drawLoopFront,
+};
+
 // ---- game/track/index.js
 // Реестр видов конструкций (карта, этап 5, D4): добавить вид =
 // + запись здесь. Движок не знает типов — диспетчит по этой таблице.
@@ -2196,6 +2405,7 @@ const obstacleSpec = {
 const FEATURE_TYPES = {
   ramp: rampSpec,
   ob: obstacleSpec,
+  loop: loopSpec,
 };
 
 // ---- game/pose.js
@@ -2232,7 +2442,8 @@ const curPose = () => ({
   tilt: S.tilt,
   sq: S.sq,
   spin: S.spin,
-  roll: S.roll,
+  // на ride-конструкции к кувырку добавляется угол касательной дуги
+  roll: S.roll + (S.ride ? S.ride.ang : 0),
 });
 /**
  * @param {DOMMatrix} m
@@ -2667,6 +2878,10 @@ function initEffects() {
   on('score', (d) => {
     popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
   });
+  on('ride-exit', (d) => {
+    if (d.result === 'fail') return; // срыв — попап покажет crash
+    popup(d.ok ? 'ПЕТЛЯ!' : 'НЕ ДОТЯНУЛ!', d.ok ? 'trick' : 'pts');
+  });
 }
 
 function drawPops() {
@@ -2735,6 +2950,11 @@ function enterCrash(reason) {
   if (S.mode === 'crash') return;
   // колёса снимаем до смены режима — поза с вибрацией, как на кадре крэша
   const w = wheelsScreen();
+  // с конструкции — сразу: угол дуги уходит в roll, чтобы поза не прыгнула
+  if (S.ride) {
+    S.roll += S.ride.ang;
+    S.ride = null;
+  }
   S.mode = 'crash';
   S.crash = {
     reason,
@@ -2770,6 +2990,95 @@ function enterCrash(reason) {
   emit('crash', { reason, score: S.score, wheels: w });
 }
 
+// ---------------------------------------------------------------- ride
+// Режим катания по конструкции (карта, этап 5, петля по gameplay-ux-plan §B):
+// спека задаёт траекторию path(s) и интегрирует step(); двигатель только
+// вешает позу на точку пути и ведёт камеру. Мир при этом прокручивается
+// вслед за коровой — camX держит доску на экранном якоре.
+
+/** @returns {number} секунды до конца текущей траектории ride */
+function rideTimeLeft() {
+  const ride = S.ride;
+  if (!ride) return 0;
+  const rs = FEATURE_TYPES[ride.feat.type].ride;
+  return rs ? (rs.length(ride.feat) - ride.s) / Math.max(1, ride.v) : 0;
+}
+
+/** @param {import('./types').AnyFeature} feat конструкция с ride-спекой */
+function enterRide(feat) {
+  if (S.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
+  S.mode = 'ride';
+  S.ride = { feat, s: 0, v: S.speed, ang: 0, autoDone: false };
+  S.onRamp = false;
+  S.tilt = 0;
+  S.tiltV = 0;
+  S.h = 0;
+  S.hV = 0;
+  S.jumps = 1;
+  S.trick = null;
+  S.trickQ = null;
+  S.airTricks = [];
+  S.airBonus = 0;
+  emit('ride-enter', { type: feat.type });
+}
+
+/**
+ * Сход с траектории: exit — угол дуги переходит в roll, скорость вдоль
+ * траектории становится скоростью заезда; высокий выход — в воздух по
+ * касательной. fail — срыв с конструкции.
+ * @param {import('./types').RideState} ride
+ * @param {import('./types').PathPoint} p точка пути на момент схода
+ * @param {import('./types').RideStep} res результат последнего шага спеки
+ */
+function exitRide(ride, p, res) {
+  const v = ride.v,
+    feat = ride.feat;
+  S.roll += ride.ang;
+  S.ride = null;
+  emit('ride-exit', { type: feat.type, result: res, ok: v > 0 });
+  if (res === 'fail') {
+    enterCrash('stall');
+    return;
+  }
+  S.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
+  if (Math.abs(p.h) < 0.06) {
+    if (v > 0) S.airBonus += 150; // прошёл конструкцию
+    S.hV = 0;
+    enterGround(0, 0);
+  } else {
+    S.hV = clamp(-v * Math.sin(p.angle), 0, 9);
+    S.airT = 0;
+    S.jumps = 1;
+    S.airDur = timeToLand();
+    enterAir('launch');
+  }
+}
+
+/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+function rideStep(dt) {
+  const ride = /** @type {import('./types').RideState} */ (S.ride),
+    rs = FEATURE_TYPES[ride.feat.type].ride;
+  if (!rs) {
+    exitRide(ride, { X: boardX(), h: 0, angle: 0 }, 'exit');
+    return;
+  }
+  stepTrick(dt);
+  // демо-автопилот делает один трюк на дуге — показывает, что можно
+  if (!playerMode() && rs.tricks && !ride.autoDone && S.trick === null) {
+    const left = rs.length(ride.feat);
+    if (ride.s > left * 0.25 && ride.s < left * 0.75) {
+      ride.autoDone = true;
+      startTrick(pick(['spin', 'kick']), rideTimeLeft());
+    }
+  }
+  const res = rs.step(ride.feat, ride, dt);
+  const p = rs.path(ride.feat, ride.s);
+  S.camX = p.X - (G.ox + 200 * G.s - G.vx);
+  S.h = Math.max(0, p.h);
+  ride.ang = p.angle;
+  if (res !== 'ride') exitRide(ride, p, res);
+}
+
 /** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 function jump() {
   if (!ready() || S.mode === 'crash') return false;
@@ -2799,13 +3108,16 @@ function jump() {
   S.airDur = S.airT + timeToLand();
   return true;
 }
-/** @param {import('./types').TrickKind} kind */
-function startTrick(kind) {
+/**
+ * @param {import('./types').TrickKind} kind
+ * @param {number} [tl] секунд до конца окна трюка (в воздухе — до земли)
+ */
+function startTrick(kind, tl = timeToLand()) {
   const T = TRICKS[kind];
   S.trick = {
     kind,
     t: 0,
-    dur: clamp(timeToLand() - 0.06, 0.28, T.dur),
+    dur: clamp(tl - 0.06, 0.28, T.dur),
     dir: /** @type {1 | -1} */ (Math.random() < 0.5 ? 1 : -1),
   };
   S.earV -= 1.5;
@@ -2814,6 +3126,17 @@ function startTrick(kind) {
 /** @param {import('./types').TrickKind} kind */
 function trick(kind) {
   if (!ready() || S.mode === 'crash') return;
+  // на конструкции трюки без прыжка — доска прижата к траектории
+  if (S.mode === 'ride') {
+    const rs = S.ride && FEATURE_TYPES[S.ride.feat.type].ride;
+    if (!rs || !rs.tricks) return;
+    if (S.trick) {
+      S.trickQ = kind;
+      return;
+    }
+    startTrick(kind, rideTimeLeft());
+    return;
+  }
   if (S.mode !== 'air' && !jump()) return;
   if (S.trick) {
     S.trickQ = kind;
@@ -2829,12 +3152,14 @@ function finishTrick() {
   S.kick = 0;
   S.kickDrop = 0;
   S.airTricks.push(tr.kind);
+  if (S.mode === 'ride') S.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
   S.trick = null;
   if (S.trickQ) {
     const q = S.trickQ;
     S.trickQ = null;
-    if (timeToLand() > 0.3) startTrick(q);
+    const tl = S.mode === 'ride' ? rideTimeLeft() : timeToLand();
+    if (tl > 0.3) startTrick(q, tl);
   }
 }
 function stepTrick(dt) {
@@ -3103,6 +3428,10 @@ function physicsStep(dt, g) {
     crashStep(dt);
     return;
   }
+  if (S.mode === 'ride') {
+    rideStep(dt);
+    return;
+  }
   if (S.mode === 'air') {
     S.airT += dt;
     S.hV -= GRAV * dt;
@@ -3233,6 +3562,20 @@ function groundInfo(X) {
     if (gi) return gi;
   }
   return { h: 0, slope: 0 };
+}
+/**
+ * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, S).
+ * Вызывается после stepGround — доска на поверхности, режим актуален.
+ */
+function checkRideEntry() {
+  if (S.mode !== 'ground') return;
+  for (const f of feats) {
+    const rs = FEATURE_TYPES[f.type].ride;
+    if (rs && rs.canEnter(f, S)) {
+      enterRide(f);
+      return;
+    }
+  }
 }
 function checkObstacles() {
   const Xb = boardX();
@@ -4111,6 +4454,7 @@ function update(dt) {
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);
+  checkRideEntry();
   stepPhysics(dt, gi);
   stepHistory(dt);
   stepCracks();

@@ -83,8 +83,8 @@
         {
           "label": "flip",
           "frame": 903,
-          "scene": "f0c965b6910783c46d2e5a31310e0e8382a1e06b429f1f8db495041a109e1757",
-          "bloom": "96992f9624648caa4a35867b160160b17917c50bd9fb0709e5fe5bdc38c5e3b3",
+          "scene": "95239692fdfcae570e2e3d6b62246c499e8dfba2172c99c6bf3ed4cdc0ccb76c",
+          "bloom": "c9e573bbaaf5acb00342a73435df87c1d667047bd394bfaf323d04ed6f54248a",
           "hud": {
             "score": "150",
             "best": "150",
@@ -101,17 +101,17 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "d8e7f9b45a9388d0a40594783919a087277b6a12829a19bafa5a2613ad83484e",
-          "bloom": "be4ef1989e0ead556e8200e1fb28f36d1fc9e88ea5dd0f828938509521b1200f",
+          "scene": "cc6d189870758fff407c0085a0981cf66785e695264aee816ee3f0f3508c3192",
+          "bloom": "dc0a1037eb6b09b4bf0c0f5ca24caf8c6bef02470414e382250aaaf30662a362",
           "hud": {
-            "score": "0",
+            "score": "150",
             "best": "150",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim"
           }
@@ -119,17 +119,17 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "dd22df43c188ce36a76f7e1b8f346ebc673af96683d8344d05e9eea44a12a40f",
-          "bloom": "162760de784e412e1b4b2e482b37b287b9f48c912447e940857c463c3e6f2cc4",
+          "scene": "08b15d904fa441d420ce055155f54e537bc05b338e89451cb60e46be1161f11e",
+          "bloom": "c6fd5bf317ccdd66637f770eacd28b05b235871791fa80d9c4405f97caf3a49d",
           "hud": {
-            "score": "0",
+            "score": "150",
             "best": "150",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 150</b><span>рекорд 150</span>",
+            "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim"
           }
@@ -235,8 +235,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "ba7727cf618c7e5ed5e4a25c8cdab17862ba961631a2b2deda1ca3253d691e4e",
-          "bloom": "89de9cd4aedd8e5358f1189a0c674597fca8be40f7ed4462e1f30c2b8eb63986",
+          "scene": "f4cf59721781d68469252cb1b79629d3f742f3d2e7e5f16bc6a1fd864134890a",
+          "bloom": "62366717b529fe64f809ee3d70b8ea2d815b3ccd43dec8c4dba37650344025b5",
           "hud": {
             "score": "190",
             "best": "190",
@@ -253,8 +253,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "131ae267a3b21d337502d4ee16a30416830e32ce4e3c6c905931331188b85647",
-          "bloom": "526a521ea26f921c18fd75ca79ba6e24905c34b1fcdd4692d39799a4aec6fb47",
+          "scene": "1fc6d8db7b295f5a4d509185108ce7bf01c25d664f802d972a669a02b9e28691",
+          "bloom": "3d1f0c79684062609969c70bb797f014a1ce1030a6d28f1420556be85aa19830",
           "hud": {
             "score": "190",
             "best": "190",

@@ -36,7 +36,8 @@ export const curPose = () => ({
   tilt: S.tilt,
   sq: S.sq,
   spin: S.spin,
-  roll: S.roll,
+  // на ride-конструкции к кувырку добавляется угол касательной дуги
+  roll: S.roll + (S.ride ? S.ride.ang : 0),
 });
 /**
  * @param {DOMMatrix} m

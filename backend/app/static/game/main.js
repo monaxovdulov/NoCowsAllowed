@@ -14,6 +14,7 @@ import { autopilot, physicsStep, stepGround, stepHistory } from './player.js';
 import { stepCamera } from './camera.js';
 import {
   checkObstacles,
+  checkRideEntry,
   groundInfo,
   initFeatures,
   spawnFeatures,
@@ -96,6 +97,7 @@ function update(dt) {
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);
+  checkRideEntry();
   stepPhysics(dt, gi);
   stepHistory(dt);
   stepCracks();

@@ -181,6 +181,7 @@ export interface GameState {
   airTricks: AirMove[];
   airBonus: number;
   crash: CrashState | null;
+  ride: RideState | null;
   invuln: number;
   shake: number;
   lift: number;
@@ -330,11 +331,15 @@ export interface ObstacleData {
 
 export type RampFeature = TrackFeature<'ramp', RampData>;
 export type ObstacleFeature = TrackFeature<'ob', ObstacleData>;
-export type AnyFeature = RampFeature | ObstacleFeature;
+export type LoopFeature = TrackFeature<'loop', LoopData>;
+export type AnyFeature = RampFeature | ObstacleFeature | LoopFeature;
 
 export interface LoopData {
+  // радиус петли и дистанция от x0 до точки входа (низ круга), cowH
   r: number;
   entry: number;
+  // попытка уже была: повторный заезд в ту же петлю не предлагаем
+  tried: boolean;
 }
 
 export interface RailData {
@@ -351,8 +356,13 @@ export interface PathPoint {
 
 export interface RideState {
   feat: TrackFeature;
+  // пройденная длина дуги и скорость вдоль неё (cowH и cowH/с)
   s: number;
   v: number;
+  // текущий угол касательной для позы (рад, canvas-знак)
+  ang: number;
+  // демо-автопилот уже исполнил трюк на дуге
+  autoDone: boolean;
 }
 
 export interface SpawnContext {
@@ -375,13 +385,13 @@ export type CollideResult = 'clear' | 'over' | 'hit';
 export type RideStep = 'ride' | 'exit' | 'fail';
 
 // Катание по конструкции как по одной степени свободы s ∈ [0, length].
-export interface RideSpec<TData> {
+export interface RideSpec<TData, TType extends string = string> {
   tricks: boolean;
-  canEnter(feat: TrackFeature<string, TData>, state: GameState): boolean;
-  length(feat: TrackFeature<string, TData>): number;
-  path(feat: TrackFeature<string, TData>, s: number): PathPoint;
+  canEnter(feat: TrackFeature<TType, TData>, state: GameState): boolean;
+  length(feat: TrackFeature<TType, TData>): number;
+  path(feat: TrackFeature<TType, TData>, s: number): PathPoint;
   step(
-    feat: TrackFeature<string, TData>,
+    feat: TrackFeature<TType, TData>,
     ride: RideState,
     dtS: number,
   ): RideStep;
@@ -424,7 +434,7 @@ export interface FeatureTypeSpec<
     X: number,
     h: number,
   ): CollideResult;
-  ride?: RideSpec<TData>;
+  ride?: RideSpec<TData, TType>;
   // кадровый апдейт фичи (например, сбитый обломок в полёте)
   step?(feat: TrackFeature<TType, TData>, dt: number): void;
   marker?(feat: TrackFeature<TType, TData>): MarkerSpec | null;
@@ -454,8 +464,11 @@ export interface GameEventMap {
   }>;
   // очки начислены: points — уже с множителем, total — счёт после начисления
   score: CustomEvent<{ points: number; mult: number; total: number }>;
+  // заезд на траекторию ride-конструкции (петля и т.п.)
   'ride-enter': CustomEvent<{ type: string }>;
-  'ride-exit': CustomEvent<{ type: string; result: RideStep }>;
+  // сход с траектории: result 'exit' — доехал; ok=false — откатился назад
+  // (недобор скорости без крэша); result 'fail' — срыв → будет crash
+  'ride-exit': CustomEvent<{ type: string; result: RideStep; ok: boolean }>;
 }
 
 // Тип полезной нагрузки события по его имени (для emit/on в events.js).
