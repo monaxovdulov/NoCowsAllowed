@@ -156,9 +156,9 @@ export const state = {
   best: 0,
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
-  coachStage: 0,
   coachText: null,
-  coachUntil: 0, // микро-обучение в первом заезде
+  coachUntil: 0, // короткие советы тренера (обучение — гейты tutorial.js)
+  isPaused: false, // открыта карточка туториала: мир заморожен (tutorial.js)
   resultUntil: 0, // карточка результата после крэша
 };
 try {

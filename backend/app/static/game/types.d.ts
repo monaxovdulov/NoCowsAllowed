@@ -199,9 +199,10 @@ export interface GameState {
   best: number;
   isTouched0: boolean;
   playT0: number;
-  coachStage: 0 | 1 | 2 | 3;
   coachText: string | null;
   coachUntil: number;
+  // открыта карточка туториал-гейта: frame() пропускает update/render
+  isPaused: boolean;
   resultUntil: number;
 }
 

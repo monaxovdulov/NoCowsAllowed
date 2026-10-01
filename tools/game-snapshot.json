@@ -23,14 +23,16 @@
             "coachClass": "coach ui dim",
             "resultHtml": "",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui"
+            "hintClass": "hint ui",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "jump",
           "frame": 460,
-          "scene": "13b54a499db84b28fe44419e37599a328c7cc9b6a902d6d26824de014ea835b2",
-          "bloom": "fe233fc41c2203f1447b01b8374af74e2f3e4748fea6025ca732e76b1a8bef7c",
+          "scene": "a17816e7a9e4182383b7d6f6fc65e9b0eda542f7f2644c0a53e7fc4967768d81",
+          "bloom": "ee0c3855fca558d4cd7e5428b475a123d6e746c34f5e235b16d2481f2ba8df10",
           "hud": {
             "score": "0",
             "best": "0",
@@ -41,7 +43,9 @@
             "coachClass": "coach ui",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -59,7 +63,9 @@
             "coachClass": "coach ui",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -77,14 +83,16 @@
             "coachClass": "coach ui",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "flip",
           "frame": 903,
-          "scene": "95239692fdfcae570e2e3d6b62246c499e8dfba2172c99c6bf3ed4cdc0ccb76c",
-          "bloom": "c9e573bbaaf5acb00342a73435df87c1d667047bd394bfaf323d04ed6f54248a",
+          "scene": "d7e99af6019783acbe0e6b838904350ac1470473d348ec5464538f9c9433e92e",
+          "bloom": "9bcb971ed0c49b9a44c9feaa0283e021f803bddd85ce673e75c69757989e4068",
           "hud": {
             "score": "150",
             "best": "150",
@@ -95,7 +103,9 @@
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -113,13 +123,15 @@
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "08b15d904fa441d420ce055155f54e537bc05b338e89451cb60e46be1161f11e",
+          "scene": "c5791669b4236f8390d7ef34aedaa7192b2fc7069dcde98165b742150d38b342",
           "bloom": "c6fd5bf317ccdd66637f770eacd28b05b235871791fa80d9c4405f97caf3a49d",
           "hud": {
             "score": "150",
@@ -131,7 +143,9 @@
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         }
       ]
@@ -145,8 +159,8 @@
         {
           "label": "demo",
           "frame": 360,
-          "scene": "1d8835018f373a4ee6ff2ce69d7148b0b789672da4500fab6c88593b787988b2",
-          "bloom": "ffae09b262cb8ae471c04d869e942da4dc07ae4b940aae75e029560c2552b264",
+          "scene": "ae8da096252a97183b14328b8ea793f59af64de8f5ea3bf3d30d971fe6e09a3f",
+          "bloom": "61309470c7e2b2310638cb35eba62f33963f1582e32b5eba25da2ac49e148692",
           "hud": {
             "score": "0",
             "best": "0",
@@ -157,7 +171,9 @@
             "coachClass": "coach ui dim",
             "resultHtml": "",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui"
+            "hintClass": "hint ui",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -175,25 +191,29 @@
             "coachClass": "coach ui",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "double-360",
           "frame": 603,
-          "scene": "728f38e0d10eeb4cd8cbcbb2ad0feb049d36984c9c1a4b289244976f0c9c0e19",
-          "bloom": "8ba1d97db952928e3820222d75f409c9111f74857072d671c40d3909a8d644fd",
+          "scene": "03be7b57b477f4f28fa7fc86e7413ed85c45e0b4277e0f86b45dc0810b33aa40",
+          "bloom": "f8133603c80b454e6407e515eb7c759c4b112346163f01a4d3920a58c9e6773a",
           "hud": {
             "score": "100",
             "best": "100",
             "autoHidden": true,
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
-            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
-            "coachClass": "coach ui",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 0</b><span>рекорд 0</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -207,29 +227,33 @@
             "autoHidden": true,
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
-            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "flip",
           "frame": 903,
-          "scene": "4f605edb8e5c125fa8cae45d90f64d15d7866d73629bd3413dd455edea222509",
-          "bloom": "dcfa0b7be246b1e92234a35efa96a997be80271ebd971bbaeb8f6b4e235f7e1b",
+          "scene": "623f3fef68b8e02187ab60900910ff117491d0f3ac507ea1020ff92c0c47a2dd",
+          "bloom": "f5c7fe35e3e310116d92e1527bba80ce568f785bd4725638696b5001848831e5",
           "hud": {
             "score": "150",
             "best": "150",
             "autoHidden": true,
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
-            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
@@ -243,29 +267,121 @@
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
-            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
           }
         },
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "1fc6d8db7b295f5a4d509185108ce7bf01c25d664f802d972a669a02b9e28691",
-          "bloom": "3d1f0c79684062609969c70bb797f014a1ce1030a6d28f1420556be85aa19830",
+          "scene": "771041a443bf3546d819e8e594572303456841e60a5f3101fa254fc0596989ab",
+          "bloom": "37209d723fa111dabbcdc848dc908673ee7e6a1a43de9ad882cdb75a0b5d52ed",
           "hud": {
             "score": "190",
             "best": "190",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
-            "coachText": "КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
             "resultHtml": "<b>Заезд: 100</b><span>рекорд 100</span>",
             "resultClass": "result ui dim",
-            "hintClass": "hint ui dim"
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": ""
+          }
+        }
+      ]
+    },
+    "tutorial-390x780": {
+      "canvas": {
+        "w": 780,
+        "h": 1560
+      },
+      "checkpoints": [
+        {
+          "label": "gate-start",
+          "frame": 230,
+          "scene": "6aec0a8d92af9b79d04cce55a6272409a247efaacaf0873912e7f28c20a80c2b",
+          "bloom": "9453dbce42e2fe74be9470814bdda4c2da9327b8d2a0454e7ecf2025ab9e976d",
+          "hud": {
+            "score": "180",
+            "best": "180",
+            "autoHidden": true,
+            "hudClass": "hud ui",
+            "ctaClass": "cta ui dim",
+            "coachText": "",
+            "coachClass": "coach ui dim",
+            "resultHtml": "",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui on",
+            "tutorTitle": "Корова на скейте"
+          }
+        },
+        {
+          "label": "mid",
+          "frame": 1820,
+          "scene": "98434dd40f945f8f051770ffeed3df8f94aab9a0183240b733fec4639937b843",
+          "bloom": "a38ce863ea377f02ad66fad92090e5f9832280d2db4c6457393e99f1113faeef",
+          "hud": {
+            "score": "0",
+            "best": "220",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": "Трамплин!"
+          }
+        },
+        {
+          "label": "gate-open",
+          "frame": 2220,
+          "scene": "bd1cecfbdc40bcc519c9d0b90fd1f65971b7c3febd5ddf2878d42b73d1725c54",
+          "bloom": "f75e9456cc37ac4d5472eabd8bffb4bcc2dd127ff5674d645d7b7ef08c97ee1c",
+          "hud": {
+            "score": "0",
+            "best": "220",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": "Трамплин!"
+          }
+        },
+        {
+          "label": "end",
+          "frame": 2920,
+          "scene": "655605dabcaa07ffb4a46cc2719cfc747db3ca969ed4dee0ed90ced3087b831c",
+          "bloom": "fc6b60f558d3315bb134c0a68a047b88d2959b956b5793a2c37fb60bd8236bfa",
+          "hud": {
+            "score": "0",
+            "best": "220",
+            "autoHidden": false,
+            "hudClass": "hud ui dim",
+            "ctaClass": "cta ui dim",
+            "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
+            "coachClass": "coach ui dim",
+            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultClass": "result ui dim",
+            "hintClass": "hint ui dim",
+            "tutorClass": "tutor ui",
+            "tutorTitle": "Трамплин!"
           }
         }
       ]

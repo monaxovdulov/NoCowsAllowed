@@ -202,6 +202,8 @@
         text-align: center;
         pointer-events: none;
         transition: opacity 0.45s ease;
+        /* свой слой заранее — появление не ждёт промоушна на занятом кадре */
+        will-change: opacity;
       }
       .cta {
         top: 30%;
@@ -212,6 +214,10 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--gold);
+      }
+      /* пульс крутится только у видимых надписей — скрытая анимация
+         всё равно держит композитор */
+      .cta:not(.dim) b {
         animation: ctaPulse 1.15s ease-in-out infinite;
       }
       .cta span,
@@ -240,6 +246,8 @@
         font-size: 13px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
+      }
+      .coach:not(.dim) {
         animation: ctaPulse 0.85s ease-in-out infinite;
       }
       .result {
@@ -254,6 +262,107 @@
       .coach.dim,
       .result.dim {
         opacity: 0;
+      }
+
+      /* карточка туториал-гейта: игра на паузе, читаем спокойно */
+      .tutor {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        margin: 0;
+        background: rgba(5, 8, 15, 0.62);
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.18s ease,
+          visibility 0s linear 0.18s;
+      }
+      .tutor.on {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.18s ease;
+      }
+      .tutorCard {
+        box-sizing: border-box;
+        width: min(360px, 100%);
+        padding: 20px 18px 16px;
+        border-radius: 18px;
+        background: rgba(10, 14, 26, 0.94);
+        border: 1px solid var(--line);
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+        text-align: center;
+        transform: translateY(8px) scale(0.97);
+        transition: transform 0.18s ease;
+      }
+      .tutor.on .tutorCard {
+        transform: none;
+      }
+      .tutorCard b {
+        font-weight: 800;
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+      .tutorCard p {
+        margin: 0;
+        font-weight: 500;
+        font-size: 12px;
+        line-height: 1.65;
+        letter-spacing: 0.04em;
+        opacity: 0.92;
+      }
+      .tutorBtns {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 4px;
+      }
+      .tutorBtns button {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        padding: 11px 18px;
+        color: var(--ink);
+        background: rgba(24, 32, 56, 0.78);
+        font:
+          700 12px/1 'Unbounded',
+          ui-rounded,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition:
+          transform 0.12s ease,
+          background 0.12s ease,
+          border-color 0.12s ease;
+      }
+      .tutorBtns button:active {
+        transform: scale(0.95);
+      }
+      .tutorBtns button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      #tutorOk {
+        background: rgba(255, 216, 74, 0.22);
+        border-color: rgba(255, 216, 74, 0.6);
+        color: var(--gold);
+      }
+      #tutorSkip {
+        opacity: 0.72;
+        font-size: 10px;
       }
 
       .pad {
@@ -388,6 +497,16 @@
     </div>
     <div class="coach ui dim" id="coach"></div>
     <div class="result ui dim" id="result"></div>
+    <div class="tutor ui" id="tutor" role="dialog" aria-modal="true">
+      <div class="tutorCard">
+        <b id="tutorTitle"></b>
+        <p id="tutorText"></p>
+        <div class="tutorBtns">
+          <button type="button" id="tutorOk">Понял</button>
+          <button type="button" id="tutorSkip">Пропустить всё</button>
+        </div>
+      </div>
+    </div>
     <nav class="pad" aria-label="Трюки">
       <button type="button" data-act="jump">Прыжок<kbd>Пробел</kbd></button>
       <button type="button" data-act="spin">360<kbd>Q</kbd></button>
@@ -723,9 +842,9 @@ const state = {
   best: 0,
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
-  coachStage: 0,
   coachText: null,
-  coachUntil: 0, // микро-обучение в первом заезде
+  coachUntil: 0, // короткие советы тренера (обучение — гейты tutorial.js)
+  isPaused: false, // открыта карточка туториала: мир заморожен (tutorial.js)
   resultUntil: 0, // карточка результата после крэша
 };
 try {
@@ -1768,6 +1887,57 @@ function initAssets(loaded) {
 }
 function initShadow() {
   shadowImg = makeShadow();
+}
+
+// ---------------------------------------------------------------- text sprites
+// Надписи кадра («+50», «!», имена трюков) растеризуются один раз и дальше
+// идут через drawImage: strokeText/fillText на каждом кадре — заметная
+// доля бюджета на слабом железе, плюс строка ctx.font аллоцируется заново.
+// Ключ — текст + размер + стили: повторяющиеся надписи («+50», «360»…)
+// переиспользуются и между появлениями, и между drawPops/drawMarkers.
+/** @type {Map<string, HTMLCanvasElement>} */
+const textCache = new Map();
+/** @type {CanvasRenderingContext2D | null} */
+let textMeasure = null;
+/**
+ * @param {string} text
+ * @param {number} px размер шрифта в пикселях буфера (как в ctx.font)
+ * @param {string} fill цвет заливки
+ * @param {string | null} [stroke] цвет обводки (нет — без обводки)
+ * @param {number} [lw] толщина обводки в пикселях
+ * @returns {HTMLCanvasElement} спрайт с текстом по центру
+ */
+function textSprite(text, px, fill, stroke, lw = 0) {
+  px = Math.round(px * 10) / 10;
+  const key = `${text}|${px}|${fill}|${stroke || ''}|${lw}`;
+  const cached = textCache.get(key);
+  if (cached) return cached;
+  const font = `800 ${px}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
+  if (!textMeasure) textMeasure = mk(2, 2).getContext('2d');
+  const mg = /** @type {CanvasRenderingContext2D} */ (textMeasure);
+  mg.font = font;
+  const tw = mg.measureText(text).width;
+  const padX = lw + px * 0.16 + 2,
+    padY = lw + px * 0.34 + 2;
+  const spr = mk(tw + padX * 2, px + padY * 2),
+    g = /** @type {CanvasRenderingContext2D} */ (spr.getContext('2d'));
+  g.font = font;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  if (stroke && lw > 0) {
+    g.strokeStyle = stroke;
+    g.lineWidth = lw;
+    g.strokeText(text, spr.width / 2, spr.height / 2);
+  }
+  g.fillStyle = fill;
+  g.fillText(text, spr.width / 2, spr.height / 2);
+  // кэш ограничен: старейшую запись вытесняем — при resize размеры
+  // пересобираются под новый масштаб сами
+  if (textCache.size >= 64)
+    textCache.delete(/** @type {string} */ (textCache.keys().next().value));
+  textCache.set(key, spr);
+  return spr;
 }
 
 // ---- game/events.js
@@ -2924,9 +3094,6 @@ function initEffects() {
 
 function drawPops() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
   const lh = 0.12 * geometry.cowH,
     top = H * 0.13 + lh * 0.5;
   for (const q of pops) {
@@ -2939,18 +3106,20 @@ function drawPops() {
     const y = q.right
       ? clamp(q.y, top, H * 0.45) + q.slot * lh
       : Math.max(top + q.slot * lh, q.y - q.slot * lh);
+    // текст — кэшированный спрайт: strokeText каждый кадр слишком дорогой
+    const spr = textSprite(
+      q.text,
+      size,
+      q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff',
+      'rgba(8,10,22,0.8)',
+      size * 0.17,
+    );
     ctx.save();
     ctx.translate(q.x, y - k * 0.06 * geometry.cowH);
     ctx.scale(sc, sc);
     ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
-    ctx.font = `800 ${size.toFixed(1)}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
     ctx.globalAlpha = a;
-    ctx.lineWidth = size * 0.17;
-    ctx.strokeStyle = 'rgba(8,10,22,0.8)';
-    ctx.strokeText(q.text, 0, 0);
-    ctx.fillStyle =
-      q.kind === 'crash' ? '#ff5a4a' : q.kind === 'pts' ? '#ffd84a' : '#ffffff';
-    ctx.fillText(q.text, 0, 0);
+    ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -3701,9 +3870,6 @@ function drawFlying() {
 // «×2» — длинные/высокие, где нужен двойной прыжок; краснеет к моменту прыжка
 function drawMarkers() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
   const V = Math.max(1, state.speed * geometry.cowH),
     Xb = boardX();
   for (const f of feats) {
@@ -3732,9 +3898,13 @@ function drawMarkers() {
     ctx.lineTo(p.x, p.y - bob);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(10,14,26,.92)';
-    ctx.font = `800 ${(s * 1.05).toFixed(1)}px Unbounded, "Arial Black", system-ui, sans-serif`;
-    ctx.fillText(mk.label, p.x, p.y - bob - s * 1.14);
+    // подпись — кэшированный спрайт, fillText каждый кадр не нужен
+    const spr = textSprite(mk.label, s * 1.05, 'rgba(10,14,26,.92)');
+    ctx.drawImage(
+      spr,
+      p.x - spr.width / 2,
+      p.y - bob - s * 1.14 - spr.height / 2,
+    );
   }
   ctx.globalAlpha = 1;
 }
@@ -3793,14 +3963,14 @@ function drawWarnings() {
       );
     }
     if (mk.label !== '!') {
-      ctx.font = `800 ${(r * 0.62).toFixed(1)}px Unbounded, "Arial Black", system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = r * 0.16;
-      ctx.strokeStyle = 'rgba(8,10,22,.85)';
-      ctx.fillStyle = '#ffd84a';
-      ctx.strokeText(mk.label, x - r * 1.75, y);
-      ctx.fillText(mk.label, x - r * 1.75, y);
+      const spr = textSprite(
+        mk.label,
+        r * 0.62,
+        '#ffd84a',
+        'rgba(8,10,22,.85)',
+        r * 0.16,
+      );
+      ctx.drawImage(spr, x - r * 1.75 - spr.width / 2, y - spr.height / 2);
     }
   }
   ctx.globalAlpha = 1;
@@ -3871,48 +4041,12 @@ function setCoach(text, durationS) {
   coachEl.classList.remove('dim');
   state.coachUntil = durationS ? state.t + durationS : Infinity;
 }
-// подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
+// Тикер-тренер сокращён до гашения по таймеру: пошаговое обучение
+// первого заезда — на пауза-гейтах (tutorial.js), здесь остаются только
+// короткие советы по событию (сейчас — после пустого крэша).
 function coachStep() {
-  if (
-    state.coachText &&
-    state.coachUntil !== Infinity &&
-    state.t > state.coachUntil
-  )
+  if (state.coachText && (state.t > state.coachUntil || !playerMode()))
     setCoach(null);
-  if (!playerMode()) {
-    if (state.coachText) setCoach(null);
-    return;
-  } // в демо подсказок нет
-  if (state.mode === 'crash' || state.coachStage > 2) return;
-  if (state.coachStage === 0) {
-    if (state.mode === 'air') {
-      state.coachStage = 1;
-      setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
-    } else {
-      const Xb = boardX(),
-        V = Math.max(1, state.speed * geometry.cowH);
-      // ближайшая прыгаемая конструкция — по подсказке её спеки
-      let jumpAt = Infinity;
-      for (const f of feats) {
-        const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
-        if (
-          hnt &&
-          (hnt.action === 'jump' || hnt.action === 'double') &&
-          hnt.at > Xb
-        ) {
-          jumpAt = hnt.at;
-          break;
-        }
-      }
-      if ((jumpAt - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
-      else if (state.coachText === 'ПРЫГАЙ!') setCoach(null);
-    }
-  } else if (state.coachStage === 1) {
-    if (state.mode !== 'air' || state.jumps >= 2) {
-      state.coachStage = 2;
-      setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
-    }
-  } else if (state.t > state.coachUntil) state.coachStage = 3;
 }
 
 // ---------------------------------------------------------------- подписки
@@ -3943,12 +4077,16 @@ function touched() {
 }
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
+  // пауза туториала: сцену не трогаем — резюм только кнопкой карточки,
+  // чтобы текст успели прочитать, а не промахнуть тапом
+  if (state.isPaused) return;
   touched();
   if (a === 'jump') jump();
   else trick(a);
 }
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (state.isPaused) return;
   act('jump');
   clearTimeout(holdTimer);
   holding = false;
@@ -3990,6 +4128,7 @@ addEventListener('keydown', (e) => {
   const t = /** @type {HTMLElement | null} */ (e.target);
   if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
+  if (state.isPaused) return;
   const keyAct = {
     Space: 'jump',
     ArrowUp: 'jump',
@@ -4476,6 +4615,209 @@ function render() {
   hud();
 }
 
+// ---- game/tutorial.js
+// Туториал-гейты (gameplay-ux-plan §A): вместо бегущих подсказок игра
+// встаёт на паузу — поверх замершей сцены карточка с объяснением и
+// кнопками «Понял» (продолжить) и «Пропустить всё». Показанные гейты
+// пишутся в localStorage и не всплывают снова — ни в этом заезде, ни в
+// следующих сессиях.
+//
+// Пауза — state.isPaused: frame() в main.js пропускает update/render
+// (canvas держит последний кадр), ввод глушится в ui.js. Условие гейта,
+// пойманное в воздухе или на конструкции, ждёт в очереди — карточка
+// открывается только на земле, чтобы застывший кадр выглядел естественно
+// и обсуждаемая конструкция была видна с маркером.
+
+const KEY = 'cow-skate-tut'; // localStorage: ids показанных гейтов
+const GAP_S = 0.9; // передышка между карточками — не стробить две подряд
+
+/** @type {HTMLElement | null} */
+const tutorEl = /** @type {HTMLElement | null} */ (
+  document.getElementById('tutor')
+);
+const tutorTitle = /** @type {HTMLElement | null} */ (
+  document.getElementById('tutorTitle')
+);
+const tutorText = /** @type {HTMLElement | null} */ (
+  document.getElementById('tutorText')
+);
+const tutorOk = /** @type {HTMLElement | null} */ (
+  document.getElementById('tutorOk')
+);
+const tutorSkip = /** @type {HTMLElement | null} */ (
+  document.getElementById('tutorSkip')
+);
+
+/**
+ * @typedef {object} Gate
+ * @property {string} id
+ * @property {string} title
+ * @property {string} text
+ * @property {((Xb: number, V: number) => boolean) | null} when условие
+ *   показа: мировой X доски и скорость px/с → true = поставить в очередь.
+ *   null — гейт ставит внешнее событие (enqueue из подписки).
+ */
+
+/**
+ * Впереди (ближе leadS секунд по ходу) конструкция, чья подсказка
+ * автопилота требует одно из перечисленных действий.
+ * @param {number} Xb мировой X доски
+ * @param {number} V скорость, px/с
+ * @param {string[]} actions допустимые action из AutopilotHint
+ * @param {number} leadS порог, секунды до конструкции
+ */
+function featAhead(Xb, V, actions, leadS) {
+  for (const f of feats) {
+    const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
+    if (
+      hnt &&
+      hnt.at > Xb &&
+      (hnt.at - Xb) / V < leadS &&
+      actions.includes(hnt.action)
+    )
+      return true;
+  }
+  return false;
+}
+
+/** @type {Gate[]} */
+const GATES = [
+  {
+    id: 'start',
+    title: 'Корова на скейте',
+    text: 'Корова едет сама — твоя работа прыгать и делать трюки. Тап по экрану или кнопка «Прыжок» внизу.',
+    when: () => true, // первый кадр, когда за рулём игрок
+  },
+  {
+    id: 'ob',
+    title: 'Препятствие!',
+    text: 'Смотри на «!» над ним — тапни заранее, чтобы перепрыгнуть. За взятое +50.',
+    when: (Xb, V) => featAhead(Xb, V, ['jump', 'double'], 1.7),
+  },
+  {
+    id: 'double',
+    title: 'Двойной прыжок',
+    text: 'В воздухе можно тапнуть ещё раз — так берутся высокие и длинные препятствия «×2».',
+    when: null, // встаёт в очередь по событию land — сразу после первого прыжка
+  },
+  {
+    id: 'ramp',
+    title: 'Трамплин!',
+    text: 'В большом вылете жми кнопки трюков внизу — серия трюков за один прыжок умножает очки.',
+    when: (Xb, V) => featAhead(Xb, V, ['none'], 2.6),
+  },
+  {
+    id: 'loop',
+    title: 'Мёртвая петля!',
+    text: 'Обычной скорости не хватит — зажми экран заранее и держи, чтобы разогнаться и проехать круг.',
+    when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
+  },
+];
+/** @type {Map<string, Gate>} */
+const byId = new Map(GATES.map((g) => [g.id, g]));
+
+/** @type {Set<string>} ids уже показанных гейтов */
+const shown = new Set();
+/** @type {Gate[]} сработавшие условия, ждут земли */
+const queue = [];
+/** @type {Gate | null} открытая сейчас карточка */
+let active = null,
+  cooldownUntil = 0;
+
+/** @returns {boolean} все гейты показаны — обучение завершено */
+const done = () => GATES.every((g) => shown.has(g.id));
+
+function persist() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify([...shown]));
+  } catch (e) {
+    /* хранилище недоступно — переучим в следующий заезд */
+  }
+}
+
+/** @param {string} id поставить гейт в очередь, если новый и ещё не ждёт */
+function enqueue(id) {
+  const g = byId.get(id);
+  if (g && !shown.has(id) && g !== active && !queue.includes(g)) queue.push(g);
+}
+
+/** @param {Gate} g открыть карточку и заморозить мир */
+function openGate(g) {
+  active = g;
+  shown.add(g.id);
+  persist();
+  // тикер-тренер под карточкой не нужен
+  coachEl.classList.add('dim');
+  state.coachText = null;
+  state.coachUntil = 0;
+  tutorTitle.textContent = g.title;
+  tutorText.textContent = g.text;
+  tutorEl.classList.add('on');
+  state.isPaused = true;
+  tutorOk.focus(); // Space/Enter теперь кликают «Понял», а не прыгают
+}
+
+function closeGate() {
+  active = null;
+  tutorEl.classList.remove('on');
+  state.isPaused = false;
+  cooldownUntil = state.t + GAP_S;
+  // фокус со скрытой кнопки убираем — иначе пробел «дожмёт» невидимую «Понял»
+  if (
+    document.activeElement === tutorOk ||
+    document.activeElement === tutorSkip
+  )
+    /** @type {HTMLElement} */ (document.activeElement).blur();
+}
+
+function skipAll() {
+  for (const g of GATES) shown.add(g.id);
+  queue.length = 0;
+  persist();
+  closeGate();
+}
+
+/** Кадровый шаг очереди гейтов — зовётся из update() рядом с тренером. */
+function tutorialStep() {
+  if (!tutorEl || done() || !playerMode() || state.isPaused) return;
+  const Xb = boardX(),
+    V = Math.max(1, state.speed * geometry.cowH);
+  for (const g of GATES) {
+    if (!g.when || shown.has(g.id) || g === active || queue.includes(g))
+      continue;
+    if (g.when(Xb, V)) queue.push(g);
+  }
+  if (!queue.length || state.mode !== 'ground' || state.t < cooldownUntil)
+    return;
+  openGate(/** @type {Gate} */ (queue.shift()));
+}
+
+/** Подписки и кнопки карточки (композиция — в main.js). */
+function initTutorial() {
+  if (!tutorEl) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+    if (Array.isArray(saved)) for (const id of saved) shown.add(id);
+  } catch (e) {
+    /* хранилище недоступно — учим заново */
+  }
+  // ?tut=reset — переиграть обучение (ручная проверка)
+  if (new URLSearchParams(location.search).get('tut') === 'reset') {
+    shown.clear();
+    persist();
+  }
+  tutorOk.addEventListener('click', closeGate);
+  tutorSkip.addEventListener('click', skipAll);
+  // Escape на открытом диалоге = «Понял»
+  addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' && active) closeGate();
+  });
+  // двойной прыжок учим в момент первого настоящего приземления
+  on('land', (d) => {
+    if (d.impact > 0.4 && playerMode()) enqueue('double');
+  });
+}
+
 // ---- game/main.js
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
 // исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
@@ -4483,6 +4825,7 @@ initFeatures();
 initEffects();
 initScore();
 initUi();
+initTutorial();
 
 // layout() только считает геометрию; буферы пересобираем здесь.
 function relayout() {
@@ -4538,6 +4881,7 @@ function stepPhysics(dt, gi) {
   checkObstacles();
   autopilot();
   coachStep();
+  tutorialStep();
 }
 
 /** @param {number} dt шаг кадра, секунды */
@@ -4569,6 +4913,13 @@ function frame(now) {
   let dt = last ? (now - last) / 1000 : 1 / 60;
   last = now;
   if (!(dt > 0)) dt = 1 / 60;
+  // туториал-гейт: update/render пропускаем — canvas держит последний
+  // кадр, state.t стоит → таймеры и спавн заморожены, а last=now выше
+  // не даёт поймать «долгий кадр» на выходе из паузы
+  if (state.isPaused) {
+    requestAnimationFrame(frame);
+    return;
+  }
   const t0 = performance.now();
   update(Math.min(dt, 1 / 20));
   render();
@@ -4599,6 +4950,15 @@ addEventListener('resize', () => {
     relayout();
   });
 });
+
+// Unbounded подгреваем сразу, не дожидаясь первой надписи: иначе тренер
+// и попапы в первые секунды рисуются фолбэком и мигают при подмене
+const warmFont = () => {
+  if (!document.fonts || !document.fonts.load) return;
+  for (const w of [500, 700, 800]) document.fonts.load(`${w} 16px Unbounded`);
+};
+warmFont();
+if (document.fonts) document.fonts.ready.then(warmFont);
 
 /*TEST_HOOK*/
 Promise.all([
