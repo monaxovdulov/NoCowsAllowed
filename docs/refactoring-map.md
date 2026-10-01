@@ -277,17 +277,35 @@ createRing`. Рисовальщики препятствий — таблица 
 
 ### Этап 6. Гигиена
 
-- Нейминг экспортируемого API (`js-conventions`): `S` → `state`,
-  `G` → `geometry`, булевы `isCleared`, `isOver`, единицы
-  `AUTO_DELAY_S`, `durationS`. Синхронно — `types.d.ts`.
-- `hist`, `cracks` → кольцевой буфер; удаление из `parts`/`pops`/
-  `feats` — компактизация; пул частиц — только если замер покажет
-  GC-паузы (skill `performance-optimization`).
-- `storage.js` (`readBest`/`writeBest`, одно `console.warn` при
-  недоступном `localStorage`), `.catch` на boot с сообщением на экране
-  (B3, B4), `catch (error)`.
-- `strict: true` помодульно от листьев: utils → constants → state →
-  layout → pose → track/\* → …
+Разбит на подэтапы (декомпозиция после паузы; порядок — отдельные
+коммиты, гейт на каждый):
+
+1. Нейминг экспортируемого API (`js-conventions`): `S` → `state`,
+   `G` → `geometry`, булевы `isOnRamp`, `isOver`, `isCleared`,
+   `isTried`, `isHit`, `isAutoDone`, `isTouched0`, единицы
+   `AUTO_DELAY_S`, `durationS`, `airDurationS`. Синхронно —
+   `types.d.ts`. **Частично** (коммит `22770e1`): переименования
+   сделаны, lint/typecheck/standalone/pytest зелёные, smoke-загрузка
+   без ошибок — **но полный снапшот-прогон прерван до проверки**;
+   первым делом при возобновлении прогнать `npm run snapshot`
+   (ожидается совпадение хэшей — чистый рефактор; при расхождении
+   искать повреждённые строковые литералы, урок: base64-ассеты не
+   проходить механическим `\bS\b`→`state`, `assets.js` исключать).
+2. `hist`, `cracks` → кольцевой буфер (`makeRing` в `utils.js`,
+   `at(0)` = старейший); удаление из `parts`/`pops`/`feats` —
+   компактизация на месте (сдвиг влево + `length`, для среза головы —
+   `copyWithin`) вместо `splice` в горячих циклах. Порядок элементов
+   и вызовов `Math.random` не менять. Пул частиц — только если замер
+   покажет GC-паузы (skill `performance-optimization`), без замера
+   не добавлять.
+3. `storage.js` (`readBest`/`writeBest`, одно `console.warn` при
+   недоступном `localStorage` — обернуть обращения в `state.js` и
+   `score.js`), `.catch` на boot с сообщением на экране (B3, B4),
+   `catch (error)` вместо безымянных.
+4. `strict: true` помодульно от листьев: utils → constants → state →
+   layout → pose → track/\* → эффекты/рендер/ui/main. Сначала
+   включить и оценить объём ошибок; если разрастётся — флаг
+   `// @ts-strict` постепенно (или список файлов в tsconfig).
 
 ## 5. Архитектура конструкций и рецепт добавления
 
