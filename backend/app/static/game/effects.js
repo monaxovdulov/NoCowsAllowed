@@ -1,4 +1,12 @@
-import { clamp, easeOutBack, lerp, pick, rand, TAU } from './utils.js';
+import {
+  clamp,
+  compactInPlace,
+  easeOutBack,
+  lerp,
+  pick,
+  rand,
+  TAU,
+} from './utils.js';
 import { TRICKS } from './constants.js';
 import { on } from './events.js';
 import {
@@ -184,16 +192,13 @@ export function stepDust(dt) {
     if (Math.random() < rate * dt)
       puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
+const MAX_PARTS = 460; // верхний предел живых частиц — старейшие срезаются
 /** Частицы и всплывающие подписи. @param {number} dt */
 export function stepParticles(dt) {
   const V = state.speed * geometry.cowH;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
+  compactInPlace(parts, (p) => {
     p.life += dt;
-    if (p.life >= p.max) {
-      parts.splice(i, 1);
-      continue;
-    }
+    if (p.life >= p.max) return false;
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
       p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
@@ -204,12 +209,17 @@ export function stepParticles(dt) {
     }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    return true;
+  });
+  if (parts.length > MAX_PARTS) {
+    // срез головы без аллокации: хвост массива сдвигаем в начало
+    parts.copyWithin(0, parts.length - MAX_PARTS);
+    parts.length = MAX_PARTS;
   }
-  if (parts.length > 460) parts.splice(0, parts.length - 460);
-  for (let i = pops.length - 1; i >= 0; i--) {
-    pops[i].t += dt;
-    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
-  }
+  compactInPlace(pops, (p) => {
+    p.t += dt;
+    return p.t < p.durationS;
+  });
 }
 /** Линии скорости. @param {number} dt */
 export function stepLines(dt) {

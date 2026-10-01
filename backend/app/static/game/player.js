@@ -417,8 +417,7 @@ export function stepHistory(dt) {
   state.histAcc += dt;
   while (state.histAcc >= 1 / 60) {
     state.histAcc -= 1 / 60;
-    state.hist.unshift(curPose());
-    if (state.hist.length > 14) state.hist.pop();
+    state.hist.push(curPose()); // кольцо само вытесняет самую старую позу
   }
 }
 

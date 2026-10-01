@@ -497,6 +497,79 @@ const nA = noise1(1),
  */
 const fbm = (n, x) =>
   n(x) * 0.6 + n(x * 2.13 + 17.3) * 0.28 + n(x * 4.37 + 41.1) * 0.12;
+
+// ---------------------------------------------------------------- структуры
+/**
+ * Кольцевой буфер фиксированной ёмкости (карта, этап 6.2): push в хвост
+ * и shift с головы — O(1), at(0) — старейший элемент. При переполнении
+ * затирается старейший — так hist держит 14 свежих поз без unshift/pop.
+ * @template T
+ * @param {number} cap ёмкость (> 0)
+ * @returns {import('./types').Ring<T>}
+ */
+function makeRing(cap) {
+  /** @type {unknown[]} */
+  const buf = new Array(cap);
+  let head = 0,
+    size = 0;
+  return {
+    get length() {
+      return size;
+    },
+    /** @param {number} i @returns {T | undefined} */
+    at(i) {
+      return i >= 0 && i < size
+        ? /** @type {T} */ (buf[(head + i) % cap])
+        : undefined;
+    },
+    /** @param {T} v */
+    push(v) {
+      if (size === cap) {
+        buf[head] = v;
+        head = (head + 1) % cap;
+      } else {
+        buf[(head + size) % cap] = v;
+        size++;
+      }
+    },
+    /** @returns {T | undefined} старейший элемент */
+    shift() {
+      let v;
+      if (size) {
+        v = /** @type {T} */ (buf[head]);
+        buf[head] = undefined;
+        head = (head + 1) % cap;
+        size--;
+      }
+      return v;
+    },
+    clear() {
+      buf.fill(undefined);
+      head = 0;
+      size = 0;
+    },
+    *[Symbol.iterator]() {
+      for (let i = 0; i < size; i++)
+        yield /** @type {T} */ (buf[(head + i) % cap]);
+    },
+  };
+}
+
+/**
+ * Удаление элементов из горячего массива без аллокаций (карта, этап 6.2):
+ * однопроходная компактизация сдвигом влево, порядок сохраняется.
+ * @template T
+ * @param {T[]} arr
+ * @param {(v: T, i: number) => boolean} keep false — выкинуть элемент
+ */
+function compactInPlace(arr, keep) {
+  let w = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if (keep(v, i)) arr[w++] = v;
+  }
+  arr.length = w;
+}
 // createImageBitmap декодирует картинку вне главного потока и рисуется быстрее
 /**
  * @param {string} src
@@ -710,7 +783,8 @@ const state = {
   shake: 0,
   lift: 0,
   zoomOut: 0,
-  hist: [],
+  // кольцо поз для призраков: at(0) — самая старая, ёмкость отрезает хвост
+  hist: /** @type {import('./types').PoseRing} */ (makeRing(14)),
   histAcc: 0,
   lastInput: -100,
   autoSeq: [],
@@ -742,8 +816,7 @@ const clouds = [];
 const parts = [];
 /** @type {import('./types').SpeedLine[]} */
 const lines = [];
-/** @type {import('./types').Crack[]} */
-const cracks = [];
+const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64)); // швов в кадре единицы — ёмкость с большим запасом
 /** @type {import('./types').AnyFeature[]} */
 const feats = [];
 /** @type {import('./types').Pop[]} */
@@ -847,7 +920,7 @@ function layout() {
       f.x1 *= k;
     }
   }
-  cracks.length = 0;
+  cracks.clear();
   if (!state.nextSpawnX)
     state.nextSpawnX = state.camX + (W * 1.05 - geometry.vx) + 4 * cowH;
 }
@@ -2745,16 +2818,13 @@ function stepDust(dt) {
     if (Math.random() < rate * dt)
       puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
+const MAX_PARTS = 460; // верхний предел живых частиц — старейшие срезаются
 /** Частицы и всплывающие подписи. @param {number} dt */
 function stepParticles(dt) {
   const V = state.speed * geometry.cowH;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
+  compactInPlace(parts, (p) => {
     p.life += dt;
-    if (p.life >= p.max) {
-      parts.splice(i, 1);
-      continue;
-    }
+    if (p.life >= p.max) return false;
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
       p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
@@ -2765,12 +2835,17 @@ function stepParticles(dt) {
     }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    return true;
+  });
+  if (parts.length > MAX_PARTS) {
+    // срез головы без аллокации: хвост массива сдвигаем в начало
+    parts.copyWithin(0, parts.length - MAX_PARTS);
+    parts.length = MAX_PARTS;
   }
-  if (parts.length > 460) parts.splice(0, parts.length - 460);
-  for (let i = pops.length - 1; i >= 0; i--) {
-    pops[i].t += dt;
-    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
-  }
+  compactInPlace(pops, (p) => {
+    p.t += dt;
+    return p.t < p.durationS;
+  });
 }
 /** Линии скорости. @param {number} dt */
 function stepLines(dt) {
@@ -3348,8 +3423,7 @@ function stepHistory(dt) {
   state.histAcc += dt;
   while (state.histAcc >= 1 / 60) {
     state.histAcc -= 1 / 60;
-    state.hist.unshift(curPose());
-    if (state.hist.length > 14) state.hist.pop();
+    state.hist.push(curPose()); // кольцо само вытесняет самую старую позу
   }
 }
 
@@ -3610,10 +3684,8 @@ function spawnFeatures() {
     );
     state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
-  for (let i = feats.length - 1; i >= 0; i--) {
-    const f = feats[i];
-    if (geometry.vx + (f.x1 - state.camX) < -W * 0.5) feats.splice(i, 1);
-  }
+  // ушедшие за левый край конструкции — компактизация на месте, без splice
+  compactInPlace(feats, (f) => geometry.vx + (f.x1 - state.camX) >= -W * 0.5);
 }
 /**
  * @param {number} X мировой X
@@ -3650,9 +3722,8 @@ function checkObstacles() {
 function stepCracks() {
   const zB = geometry.zBottom,
     farX = state.camX + (W * 1.3 - geometry.vx) * geometry.zEdge;
-  let last = cracks.length
-    ? cracks[cracks.length - 1].X
-    : state.camX + W * 0.6 * zB;
+  const tail = cracks.at(cracks.length - 1);
+  let last = tail ? tail.X : state.camX + W * 0.6 * zB;
   while (last < farX) {
     last += rand(5, 13) * geometry.cowH;
     cracks.push({
@@ -3660,8 +3731,11 @@ function stepCracks() {
       isHit: /** @type {[boolean, boolean]} */ ([false, false]),
     });
   }
-  while (cracks.length && xAt(cracks[0].X, geometry.zEdge) < -W * 0.3)
+  while (cracks.length) {
+    const first = cracks.at(0); // самый старый шов — левее всех
+    if (!first || xAt(first.X, geometry.zEdge) >= -W * 0.3) break;
     cracks.shift();
+  }
   const restM = poseMatrix({ y: state.bob, tilt: state.tilt, sq: state.sq });
   for (let i = 0; i < 2; i++) {
     const p = restM.transformPoint(
@@ -4330,8 +4404,10 @@ function drawStreaks(m, sp, busy) {
 function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
+  // hist — кольцо старых поз (at(0) — самая старая): i-тый призрак берёт
+  // позу на i*2 шагов назад, т.е. i*2-ю от свежего конца
   for (let i = GN; i >= 1; i--) {
-    const h = state.hist[Math.min(state.hist.length - 1, i * 2)];
+    const h = state.hist.at(Math.max(0, state.hist.length - 1 - i * 2));
     if (!h) continue;
     setT(poseMatrix({ ...h, x: -i * spacing }));
     ctx.globalAlpha =

@@ -88,6 +88,79 @@ export const nA = noise1(1),
  */
 export const fbm = (n, x) =>
   n(x) * 0.6 + n(x * 2.13 + 17.3) * 0.28 + n(x * 4.37 + 41.1) * 0.12;
+
+// ---------------------------------------------------------------- структуры
+/**
+ * Кольцевой буфер фиксированной ёмкости (карта, этап 6.2): push в хвост
+ * и shift с головы — O(1), at(0) — старейший элемент. При переполнении
+ * затирается старейший — так hist держит 14 свежих поз без unshift/pop.
+ * @template T
+ * @param {number} cap ёмкость (> 0)
+ * @returns {import('./types').Ring<T>}
+ */
+export function makeRing(cap) {
+  /** @type {unknown[]} */
+  const buf = new Array(cap);
+  let head = 0,
+    size = 0;
+  return {
+    get length() {
+      return size;
+    },
+    /** @param {number} i @returns {T | undefined} */
+    at(i) {
+      return i >= 0 && i < size
+        ? /** @type {T} */ (buf[(head + i) % cap])
+        : undefined;
+    },
+    /** @param {T} v */
+    push(v) {
+      if (size === cap) {
+        buf[head] = v;
+        head = (head + 1) % cap;
+      } else {
+        buf[(head + size) % cap] = v;
+        size++;
+      }
+    },
+    /** @returns {T | undefined} старейший элемент */
+    shift() {
+      let v;
+      if (size) {
+        v = /** @type {T} */ (buf[head]);
+        buf[head] = undefined;
+        head = (head + 1) % cap;
+        size--;
+      }
+      return v;
+    },
+    clear() {
+      buf.fill(undefined);
+      head = 0;
+      size = 0;
+    },
+    *[Symbol.iterator]() {
+      for (let i = 0; i < size; i++)
+        yield /** @type {T} */ (buf[(head + i) % cap]);
+    },
+  };
+}
+
+/**
+ * Удаление элементов из горячего массива без аллокаций (карта, этап 6.2):
+ * однопроходная компактизация сдвигом влево, порядок сохраняется.
+ * @template T
+ * @param {T[]} arr
+ * @param {(v: T, i: number) => boolean} keep false — выкинуть элемент
+ */
+export function compactInPlace(arr, keep) {
+  let w = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if (keep(v, i)) arr[w++] = v;
+  }
+  arr.length = w;
+}
 // createImageBitmap декодирует картинку вне главного потока и рисуется быстрее
 /**
  * @param {string} src

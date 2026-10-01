@@ -92,7 +92,7 @@ export function layout() {
       f.x1 *= k;
     }
   }
-  cracks.length = 0;
+  cracks.clear();
   if (!state.nextSpawnX)
     state.nextSpawnX = state.camX + (W * 1.05 - geometry.vx) + 4 * cowH;
 }

@@ -355,8 +355,10 @@ function drawStreaks(m, sp, busy) {
 function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
+  // hist — кольцо старых поз (at(0) — самая старая): i-тый призрак берёт
+  // позу на i*2 шагов назад, т.е. i*2-ю от свежего конца
   for (let i = GN; i >= 1; i--) {
-    const h = state.hist[Math.min(state.hist.length - 1, i * 2)];
+    const h = state.hist.at(Math.max(0, state.hist.length - 1 - i * 2));
     if (!h) continue;
     setT(poseMatrix({ ...h, x: -i * spacing }));
     ctx.globalAlpha =

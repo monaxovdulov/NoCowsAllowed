@@ -1,4 +1,4 @@
-import { clamp, rand, smooth, TAU } from './utils.js';
+import { clamp, compactInPlace, rand, smooth, TAU } from './utils.js';
 import { CLEAR_AFTER_LAND_COWH, SPECIAL_EVERY_COWH } from './constants.js';
 import { cracks, ctx, feats, geometry, state } from './state.js';
 import { CAM } from './camera.js';
@@ -109,10 +109,8 @@ export function spawnFeatures() {
     );
     state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
-  for (let i = feats.length - 1; i >= 0; i--) {
-    const f = feats[i];
-    if (geometry.vx + (f.x1 - state.camX) < -W * 0.5) feats.splice(i, 1);
-  }
+  // ушедшие за левый край конструкции — компактизация на месте, без splice
+  compactInPlace(feats, (f) => geometry.vx + (f.x1 - state.camX) >= -W * 0.5);
 }
 /**
  * @param {number} X мировой X
@@ -149,9 +147,8 @@ export function checkObstacles() {
 export function stepCracks() {
   const zB = geometry.zBottom,
     farX = state.camX + (W * 1.3 - geometry.vx) * geometry.zEdge;
-  let last = cracks.length
-    ? cracks[cracks.length - 1].X
-    : state.camX + W * 0.6 * zB;
+  const tail = cracks.at(cracks.length - 1);
+  let last = tail ? tail.X : state.camX + W * 0.6 * zB;
   while (last < farX) {
     last += rand(5, 13) * geometry.cowH;
     cracks.push({
@@ -159,8 +156,11 @@ export function stepCracks() {
       isHit: /** @type {[boolean, boolean]} */ ([false, false]),
     });
   }
-  while (cracks.length && xAt(cracks[0].X, geometry.zEdge) < -W * 0.3)
+  while (cracks.length) {
+    const first = cracks.at(0); // самый старый шов — левее всех
+    if (!first || xAt(first.X, geometry.zEdge) >= -W * 0.3) break;
     cracks.shift();
+  }
   const restM = poseMatrix({ y: state.bob, tilt: state.tilt, sq: state.sq });
   for (let i = 0; i < 2; i++) {
     const p = restM.transformPoint(

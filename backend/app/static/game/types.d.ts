@@ -186,7 +186,7 @@ export interface GameState {
   shake: number;
   lift: number;
   zoomOut: number;
-  hist: Pose[];
+  hist: PoseRing;
   histAcc: number;
   lastInput: number;
   autoSeq: TrickKind[];
@@ -224,6 +224,21 @@ export interface Crack {
   X: number;
   isHit: [boolean, boolean];
 }
+
+// Кольцевой буфер фиксированной ёмкости (utils.makeRing): FIFO,
+// at(0) — старейший элемент; переполнение затирает старейший.
+export interface Ring<T> extends Iterable<T> {
+  readonly length: number;
+  at(i: number): T | undefined;
+  push(v: T): void;
+  shift(): T | undefined;
+  clear(): void;
+}
+
+// Алиасы для callsite-приведений makeRing(...) — в одну строку
+// (переносы строки, начинающейся с `import(`, ломают build-standalone.py).
+export type PoseRing = Ring<Pose>;
+export type CrackRing = Ring<Crack>;
 
 // ---------------------------------------------------------------- effects
 

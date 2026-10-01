@@ -1,4 +1,5 @@
 import { AUTO_DELAY_S, CRUISE } from './constants.js';
+import { makeRing } from './utils.js';
 
 // ---------------------------------------------------------------- DOM, canvas
 /** @type {HTMLCanvasElement} */
@@ -143,7 +144,8 @@ export const state = {
   shake: 0,
   lift: 0,
   zoomOut: 0,
-  hist: [],
+  // кольцо поз для призраков: at(0) — самая старая, ёмкость отрезает хвост
+  hist: /** @type {import('./types').PoseRing} */ (makeRing(14)),
   histAcc: 0,
   lastInput: -100,
   autoSeq: [],
@@ -175,8 +177,7 @@ export const clouds = [];
 export const parts = [];
 /** @type {import('./types').SpeedLine[]} */
 export const lines = [];
-/** @type {import('./types').Crack[]} */
-export const cracks = [];
+export const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64)); // швов в кадре единицы — ёмкость с большим запасом
 /** @type {import('./types').AnyFeature[]} */
 export const feats = [];
 /** @type {import('./types').Pop[]} */
