@@ -233,6 +233,9 @@ detail)`; события — `GameEventMap`. `player` публикует `airbor
 
 ### Этап 5. Конструкции — data-driven (D3, D4)
 
+**Выполнено** (коммиты `73996b3`, `780b17d`, `1bf5ec9`, `dd02e1f`,
+`3e3a09c`).
+
 Сердце карты: после него новые конструкции — по рецепту раздела 5.
 
 1. **Move без изменения поведения.** `feats` хранит `TrackFeature`
@@ -260,14 +263,17 @@ detail)`; события — `GameEventMap`. `player` публикует `airbor
 6. Частицы (S2): единая форма и фабрики `createDust/createSpark/
 createRing`. Рисовальщики препятствий — таблица рядом с `OBS`.
 7. Режим `ride` (D5): `enterRide(feat)` → `S.mode = 'ride'`,
-   `S.ride = {feat, s, v}`; `stepRide` берёт позу из `spec.ride.path`,
-   трюки разрешены, если `spec.ride.tricks`; выход — `RideStep`:
-   `exit` → ground/air по углу, `fail` → `crash('stall'|'fall')`.
-   Проверяется первой ride-конструкцией (петля, план §B).
+   `S.ride = {feat, s, v, ang}`; `rideStep` внутри `physicsStep` берёт
+   позу из `spec.ride.path`, камера следует за точкой пути (`camX =
+   p.X − якорь`), трюки разрешены, если `spec.ride.tricks`; выход —
+   `RideStep`: `exit` → ground/air по углу, `fail` →
+   `crash('stall'|'fall')`. Проверено первой ride-конструкцией —
+   `track/loop.js` (план §B): честная гравитация + магнитная помощь
+   в верхней трети, недобор — откат с попапом «НЕ ДОТЯНУЛ».
 
 Критерий: `grep "type === 'ramp'"` вне `game/track/` — пусто; старые
 `Feature/Ramp/Obstacle` удалены из `types.d.ts`; снапшот совпадает
-(кроме шага 5 с новым эталоном).
+(поведенческие шаги 5 и 7 — с новыми эталонами).
 
 ### Этап 6. Гигиена
 
