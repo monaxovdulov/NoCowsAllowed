@@ -111,8 +111,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "cc6d189870758fff407c0085a0981cf66785e695264aee816ee3f0f3508c3192",
-          "bloom": "dc0a1037eb6b09b4bf0c0f5ca24caf8c6bef02470414e382250aaaf30662a362",
+          "scene": "3f1d0b5ebfea9c1a44e9936d822b89f0d5e2dd5e727f5c649bdb67efe21307e1",
+          "bloom": "5e46a6624d68aeaf8b07b1c8bd483d2ac3a7e0a9228a87619706e531a433d9f2",
           "hud": {
             "score": "150",
             "best": "150",
@@ -131,8 +131,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "c5791669b4236f8390d7ef34aedaa7192b2fc7069dcde98165b742150d38b342",
-          "bloom": "c6fd5bf317ccdd66637f770eacd28b05b235871791fa80d9c4405f97caf3a49d",
+          "scene": "3b43e4c02793e0d68d3d13849ccdb7b43526ccd7baa1f5105a1b5e7b1d62384c",
+          "bloom": "e6430060c630188b20ccda11e0bc9b6cde1cdfe7e24e6b6cd6759d7e346b3744",
           "hud": {
             "score": "150",
             "best": "150",
@@ -259,8 +259,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "f4cf59721781d68469252cb1b79629d3f742f3d2e7e5f16bc6a1fd864134890a",
-          "bloom": "62366717b529fe64f809ee3d70b8ea2d815b3ccd43dec8c4dba37650344025b5",
+          "scene": "d48645520ded886e1ac02e2e088dac3d3f267cdf023cea8c3da4c1c2752243e3",
+          "bloom": "98b5aa1b8ba924c200e9d89ac2d03a8d1aecaa3f46f3d827a83b0a2c1b71eb33",
           "hud": {
             "score": "190",
             "best": "190",
@@ -279,8 +279,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "771041a443bf3546d819e8e594572303456841e60a5f3101fa254fc0596989ab",
-          "bloom": "37209d723fa111dabbcdc848dc908673ee7e6a1a43de9ad882cdb75a0b5d52ed",
+          "scene": "7f5b11a1b3542ecb13ca80c1ba22d9b0766bdfeed298e7a0ca891a8cc5e9a4e4",
+          "bloom": "24421b50c23ef41fd104983cb7f893fde50a4bd9c0bd5547e89fde7a058ba862",
           "hud": {
             "score": "190",
             "best": "190",
@@ -327,61 +327,61 @@
         {
           "label": "mid",
           "frame": 1820,
-          "scene": "98434dd40f945f8f051770ffeed3df8f94aab9a0183240b733fec4639937b843",
-          "bloom": "a38ce863ea377f02ad66fad92090e5f9832280d2db4c6457393e99f1113faeef",
+          "scene": "aa179d27a2619351a1cc89518908e59db860a76a2e15fe633f9c59444fd8c6a0",
+          "bloom": "bb60e88929749e4bdc85efe4fbe60c0e2446361cf596634236451204ee3ae650",
           "hud": {
             "score": "0",
-            "best": "220",
+            "best": "180",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultHtml": "<b>Заезд: 180</b><span>рекорд 180</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Трамплин!"
+            "tutorTitle": "Мёртвая петля!"
           }
         },
         {
           "label": "gate-open",
           "frame": 2220,
-          "scene": "bd1cecfbdc40bcc519c9d0b90fd1f65971b7c3febd5ddf2878d42b73d1725c54",
-          "bloom": "f75e9456cc37ac4d5472eabd8bffb4bcc2dd127ff5674d645d7b7ef08c97ee1c",
+          "scene": "204a16fa6ba65d555244986500ce377305b07bd83a43c85cbbefc958638f973b",
+          "bloom": "5bff95232a6e2568eac8d0114732f4eea8fc88ad41f5a5f5fb11ba14c9be170c",
           "hud": {
             "score": "0",
-            "best": "220",
+            "best": "180",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultHtml": "<b>Заезд: 180</b><span>рекорд 180</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Трамплин!"
+            "tutorTitle": "Мёртвая петля!"
           }
         },
         {
           "label": "end",
           "frame": 2920,
-          "scene": "655605dabcaa07ffb4a46cc2719cfc747db3ca969ed4dee0ed90ced3087b831c",
-          "bloom": "fc6b60f558d3315bb134c0a68a047b88d2959b956b5793a2c37fb60bd8236bfa",
+          "scene": "f032f7c96a10e9aaba19de3a8cf744fb17b8aff668697f5324a4c68e5cdc5b28",
+          "bloom": "6be32d6ec4bc413a3cd63fbf0884ff02711b0dfb13f849664ac2abeb8a248e70",
           "hud": {
             "score": "0",
-            "best": "220",
+            "best": "180",
             "autoHidden": false,
             "hudClass": "hud ui dim",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 220</b><span>рекорд 220</span>",
+            "resultHtml": "<b>Заезд: 180</b><span>рекорд 180</span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Трамплин!"
+            "tutorTitle": "Мёртвая петля!"
           }
         }
       ]

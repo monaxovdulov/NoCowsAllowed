@@ -1,6 +1,13 @@
 import { SRC } from './assets.js';
 import { clamp, lerp, loadImg, smooth } from './utils.js';
-import { CRUISE, MAXSPD, MINSPD } from './constants.js';
+import {
+  CRUISE,
+  MAXSPD,
+  MINSPD,
+  TURBO_DRAIN,
+  TURBO_EXTRA,
+  TURBO_HOLD,
+} from './constants.js';
 import { geometry, grainEl, hintEl, lines, reduce, state } from './state.js';
 import { boardX, layout, perfScale, setPerfScale } from './layout.js';
 import {
@@ -51,7 +58,9 @@ function relayout() {
 // update() — оркестрация: шаги в прежнем порядке, по одной
 // ответственности (карта, этап 4). Владельцы шагов — доменные модули.
 
-/** Скорость и продвижение мира: разгон, крейсер, глушение после падения. */
+/** Скорость и продвижение мира: разгон, крейсер, глушение после падения.
+ * @param {number} dt шаг, секунды
+ */
 function stepSpeed(dt) {
   state.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
@@ -59,8 +68,13 @@ function stepSpeed(dt) {
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  const target =
-    state.mode === 'crash'
+  // турбо-запас: зажатый «ГАЗ» качает непрерывно, запас горит в добавку
+  if (state.gasHeld && state.mode !== 'crash')
+    state.turbo = Math.min(1, state.turbo + dt * TURBO_HOLD);
+  state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
+  const target = Math.min(
+    MAXSPD + TURBO_EXTRA,
+    (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
         ? MAXSPD
@@ -68,7 +82,9 @@ function stepSpeed(dt) {
           ? MINSPD
           : reduce
             ? 3.2
-            : cruise;
+            : cruise) +
+      state.turbo * TURBO_EXTRA,
+  );
   state.speed +=
     (target - state.speed) *
     (1 -
@@ -181,15 +197,23 @@ Promise.all([
   loadImg(SRC.board),
   loadImg(SRC.ear),
   loadImg(SRC.tag),
-]).then(([base, board, ear, tag]) => {
-  initAssets({ base, board, ear, tag });
-  initClouds();
-  relayout();
-  initShadow();
-  if (grainEl && grainTiles.length) {
-    grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
-  }
-  for (let i = 0; i < 26; i++) lines.push(newLine(true));
-  for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
-  requestAnimationFrame(frame);
-});
+])
+  .then(([base, board, ear, tag]) => {
+    initAssets({ base, board, ear, tag });
+    initClouds();
+    relayout();
+    initShadow();
+    if (grainEl && grainTiles.length) {
+      grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
+    }
+    for (let i = 0; i < 26; i++) lines.push(newLine(true));
+    for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
+    requestAnimationFrame(frame);
+  })
+  .catch((error) => {
+    // B3: без обработчика ошибка загрузки давала чёрный экран без слов
+    console.error('boot:', error);
+    hintEl.textContent =
+      'Не удалось загрузить картинки — обнови страницу или проверь сеть';
+    hintEl.classList.remove('dim');
+  });

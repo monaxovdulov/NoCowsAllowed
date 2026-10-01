@@ -1,5 +1,5 @@
 import { META } from './assets.js';
-import { clamp, lerp, mk, rand, rng, rr, smooth, TAU } from './utils.js';
+import { clamp, ctx2d, lerp, mk, rand, rng, rr, smooth, TAU } from './utils.js';
 import { OBS } from './constants.js';
 import { bloomEl, bloomG, clouds, cssPost, ctx, geometry } from './state.js';
 import { DPR, H, W } from './layout.js';
@@ -9,9 +9,9 @@ import { DPR, H, W } from './layout.js';
 export const RT = { w: 2048, h: 256 };
 /** @type {import('./types').TextureSize} */
 export const FT = { w: 2048, h: 256 };
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 export let roadPat;
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 export let fieldPat;
 
 /**
@@ -24,7 +24,7 @@ export let fieldPat;
  */
 function toCanvas(w, h, R, Gc, B) {
   const c = mk(w, h),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     img = g.createImageData(w, h),
     d = img.data;
   for (let i = 0, j = 0; i < w * h; i++, j += 4) {
@@ -145,9 +145,10 @@ function makeFieldTex() {
 function makeCloud(seed, w, h, n, flat) {
   const r = rng(seed),
     c = mk(w, h),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const base = h * (flat ? 0.7 : 0.86);
   const nb = flat ? 4 : 2 + ((r() * 2) | 0),
+    /** @type {{x: number, s: number, a: number}[]} */
     bumps = [];
   for (let i = 0; i < nb; i++) {
     bumps.push({
@@ -157,6 +158,7 @@ function makeCloud(seed, w, h, n, flat) {
     });
   }
   const cap = flat ? 0.34 : 0.8;
+  /** @param {number} u */
   const top = (u) => {
     let v = 0;
     for (const b of bumps)
@@ -212,9 +214,9 @@ function makeCloud(seed, w, h, n, flat) {
   g.fillStyle = sh;
   g.fillRect(0, 0, w, h);
   const small = mk(w / 4, h / 4);
-  small.getContext('2d').drawImage(c, 0, 0, small.width, small.height);
+  ctx2d(small).drawImage(c, 0, 0, small.width, small.height);
   const out = mk(w, h),
-    og = out.getContext('2d');
+    og = ctx2d(out);
   og.imageSmoothingQuality = 'high';
   og.globalAlpha = 0.92;
   og.drawImage(small, 0, 0, w, h);
@@ -230,7 +232,7 @@ function makeCloud(seed, w, h, n, flat) {
  */
 function softDot(color, size = 64) {
   const c = mk(size, size),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     h = size / 2;
   const gr = g.createRadialGradient(h, h, 0, h, h, h);
   gr.addColorStop(0, color);
@@ -243,7 +245,7 @@ function softDot(color, size = 64) {
 /** @returns {HTMLCanvasElement} */
 function lineStrip() {
   const c = mk(256, 4),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     gr = g.createLinearGradient(0, 0, 256, 0);
   gr.addColorStop(0, 'rgba(236,243,255,0)');
   gr.addColorStop(0.12, 'rgba(236,243,255,1)');
@@ -269,7 +271,7 @@ function sprite(w, h, draw) {
   const c = /** @type {import('./types').ObstacleSprite} */ (
     mk(w * OBR + pad * 2, h * OBR + pad * 2)
   );
-  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  const g = ctx2d(c);
   g.translate(pad, pad);
   draw(g, w * OBR, h * OBR);
   c.pad = pad;
@@ -447,6 +449,7 @@ const OB_PAINT = {
     g.fill();
   },
   can: (g, w, h) => {
+    /** @param {number} x0 @param {number} x1 */
     const metal = (x0, x1) => {
       const lg = g.createLinearGradient(x0, 0, x1, 0);
       lg.addColorStop(0, '#89939f');
@@ -564,19 +567,19 @@ function buildObSprites() {
 // ---------------------------------------------------------------- size-dependent buffers
 /** @type {HTMLCanvasElement} */
 export let skyCv;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-посте (cssPost) */
 export let vigCv;
 /** @type {HTMLCanvasElement} */
 export let bA;
 /** @type {HTMLCanvasElement} */
 export let bB;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-слое bloomEl */
 export let bC;
 /** @type {CanvasRenderingContext2D} */
 export let bAg;
 /** @type {CanvasRenderingContext2D} */
 export let bBg;
-/** @type {CanvasRenderingContext2D} */
+/** @type {CanvasRenderingContext2D | null} null при DOM-слое bloomEl */
 export let bCg;
 /** @type {CanvasPattern[]} */
 export let grainPats = [];
@@ -589,10 +592,11 @@ function buildSky() {
   const oY = geometry.skyOff;
   const sh = Math.max(4, Math.ceil(geometry.horizon + oY + 6 * DPR));
   skyCv = mk(W * 1.24, sh);
-  const g = skyCv.getContext('2d'),
+  const g = ctx2d(skyCv),
     sw = skyCv.width;
-  const total = oY + geometry.horizon,
-    f = (y) => clamp(y / total, 0, 1);
+  const total = oY + geometry.horizon;
+  /** @param {number} y */
+  const f = (y) => clamp(y / total, 0, 1);
   const lg = g.createLinearGradient(0, 0, 0, total);
   lg.addColorStop(0, '#244a9a');
   lg.addColorStop(f(oY), '#4673c6');
@@ -653,7 +657,7 @@ function buildVignette() {
     return;
   }
   vigCv = mk(W, H);
-  const v = vigCv.getContext('2d'),
+  const v = ctx2d(vigCv),
     R = Math.hypot(W, H) * 0.5;
   const rg = v.createRadialGradient(
     W * 0.47,
@@ -684,8 +688,8 @@ function buildVignette() {
 function buildGlowBuffers() {
   bA = mk(W / 4, H / 4);
   bB = mk(W / 16, H / 16);
-  bAg = bA.getContext('2d');
-  bBg = bB.getContext('2d');
+  bAg = ctx2d(bA);
+  bBg = ctx2d(bB);
   if (bloomG) {
     bloomEl.width = Math.max(1, W >> 2);
     bloomEl.height = Math.max(1, H >> 2);
@@ -694,7 +698,7 @@ function buildGlowBuffers() {
     bCg = null;
   } else {
     bC = mk(W / 4, H / 4);
-    bCg = bC.getContext('2d');
+    bCg = ctx2d(bC);
     bCg.imageSmoothingQuality = 'high';
   }
 }
@@ -731,7 +735,7 @@ function buildGrain() {
   grainTiles = [];
   for (let k = 0; k < 3; k++) {
     const c = mk(160, 160),
-      gg = c.getContext('2d'),
+      gg = ctx2d(c),
       img = gg.createImageData(160, 160),
       d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -741,7 +745,8 @@ function buildGrain() {
     }
     gg.putImageData(img, 0, 0);
     grainTiles.push(c);
-    grainPats.push(ctx.createPattern(c, 'repeat'));
+    const pat = ctx.createPattern(c, 'repeat');
+    if (pat) grainPats.push(pat);
   }
 }
 
@@ -771,12 +776,14 @@ export let lineImg;
 export let shadowImg;
 /** @type {HTMLCanvasElement} */
 export let glowImg;
+/** @type {HTMLCanvasElement} */
+export let fireImg;
 
 // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
 /** @returns {HTMLCanvasElement} */
 function makeShadow() {
   const c = mk(128, 128),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, 'rgba(3,4,9,1)');
   gr.addColorStop(0.55, 'rgba(3,4,9,0.55)');
@@ -790,7 +797,7 @@ export const GHOST_BLUR = 40;
 function buildCowCaches() {
   const b = META.base;
   const full = mk(b.w, b.h),
-    g = full.getContext('2d');
+    g = ctx2d(full);
   g.drawImage(imgs.board, META.board.x - b.x, META.board.y - b.y);
   g.drawImage(imgs.base, 0, 0);
   g.drawImage(imgs.ear, META.ear.x - b.x, META.ear.y - b.y);
@@ -798,7 +805,7 @@ function buildCowCaches() {
 
   // размытая копия для призрачного шлейфа (смаз только назад)
   ghostCv = mk(b.w + GHOST_BLUR, b.h);
-  const gg = ghostCv.getContext('2d'),
+  const gg = ctx2d(ghostCv),
     n = 12;
   gg.globalCompositeOperation = 'lighter';
   gg.globalAlpha = 1 / n;
@@ -843,7 +850,7 @@ function buildCowCaches() {
       });
     }
     streakCv = mk(128, streaks.length * 4);
-    const sg = streakCv.getContext('2d');
+    const sg = ctx2d(streakCv);
     streaks.forEach((s, i) => {
       const [r, gg2, bb] = s.c;
       const lg = sg.createLinearGradient(0, 0, 128, 0);
@@ -853,7 +860,9 @@ function buildCowCaches() {
       sg.fillStyle = lg;
       sg.fillRect(0, i * 4, 128, 4);
     });
-  } catch (e) {
+  } catch (error) {
+    // B4: getImageData может кинуть (tainted canvas) — не глотаем молча
+    console.warn('полосы смаза отключены:', error);
     streaks = [];
   }
 }
@@ -908,6 +917,7 @@ export function initAssets(loaded) {
   dustImg = softDot('rgba(170,166,164,1)');
   woodImg = softDot('rgba(186,140,86,1)');
   glowImg = softDot('rgba(255,214,90,1)');
+  fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
   buildCowCaches();

@@ -1,4 +1,6 @@
 import { AUTO_DELAY_S, CRUISE } from './constants.js';
+import { readBest } from './storage.js';
+import { makeRing } from './utils.js';
 
 // ---------------------------------------------------------------- DOM, canvas
 /** @type {HTMLCanvasElement} */
@@ -62,6 +64,18 @@ export const coachEl = /** @type {HTMLElement} */ (
 export const resultEl = /** @type {HTMLElement} */ (
   document.getElementById('result')
 );
+/** @type {HTMLElement} временная кнопка+шкала турбо у boost-конструкций */
+export const boostEl = /** @type {HTMLElement} */ (
+  document.getElementById('boost')
+);
+/** @type {HTMLButtonElement} */
+export const gasEl = /** @type {HTMLButtonElement} */ (
+  document.getElementById('gas')
+);
+/** @type {HTMLElement} заполнение шкалы турбо */
+export const turboBarEl = /** @type {HTMLElement} */ (
+  document.getElementById('turboBar')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 export let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -109,6 +123,8 @@ export const state = {
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
   throttle: 0,
+  turbo: 0,
+  gasHeld: false,
   boost: 0,
   spdN: 1,
   bob: 0,
@@ -143,7 +159,8 @@ export const state = {
   shake: 0,
   lift: 0,
   zoomOut: 0,
-  hist: [],
+  // кольцо поз для призраков: at(0) — самая старая, ёмкость отрезает хвост
+  hist: /** @type {import('./types').PoseRing} */ (makeRing(14)),
   histAcc: 0,
   lastInput: -100,
   autoSeq: [],
@@ -161,22 +178,14 @@ export const state = {
   isPaused: false, // открыта карточка туториала: мир заморожен (tutorial.js)
   resultUntil: 0, // карточка результата после крэша
 };
-try {
-  state.best = Math.max(
-    0,
-    parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
-  );
-} catch (e) {
-  /* без рекорда */
-}
+state.best = readBest();
 /** @type {import('./types').Cloud[]} */
 export const clouds = [];
 /** @type {import('./types').Particle[]} */
 export const parts = [];
 /** @type {import('./types').SpeedLine[]} */
 export const lines = [];
-/** @type {import('./types').Crack[]} */
-export const cracks = [];
+export const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64)); // швов в кадре единицы — ёмкость с большим запасом
 /** @type {import('./types').AnyFeature[]} */
 export const feats = [];
 /** @type {import('./types').Pop[]} */

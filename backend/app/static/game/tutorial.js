@@ -12,9 +12,9 @@
 import { on } from './events.js';
 import { boardX } from './layout.js';
 import { coachEl, feats, geometry, playerMode, state } from './state.js';
+import { readTutored, writeTutored } from './storage.js';
 import { FEATURE_TYPES } from './track/index.js';
 
-const KEY = 'cow-skate-tut'; // localStorage: ids показанных гейтов
 const GAP_S = 0.9; // передышка между карточками — не стробить две подряд
 
 /** @type {HTMLElement | null} */
@@ -95,7 +95,7 @@ const GATES = [
   {
     id: 'loop',
     title: 'Мёртвая петля!',
-    text: 'Обычной скорости не хватит — зажми экран заранее и держи, чтобы разогнаться и проехать круг.',
+    text: 'Обычной скорости не хватит — качай кнопку «ГАЗ» заранее и держи зажатой, чтобы разогнаться и проехать круг.',
     when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
   },
 ];
@@ -113,13 +113,7 @@ let active = null,
 /** @returns {boolean} все гейты показаны — обучение завершено */
 const done = () => GATES.every((g) => shown.has(g.id));
 
-function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...shown]));
-  } catch (e) {
-    /* хранилище недоступно — переучим в следующий заезд */
-  }
-}
+const persist = () => writeTutored(shown);
 
 /** @param {string} id поставить гейт в очередь, если новый и ещё не ждёт */
 function enqueue(id) {
@@ -181,12 +175,7 @@ export function tutorialStep() {
 /** Подписки и кнопки карточки (композиция — в main.js). */
 export function initTutorial() {
   if (!tutorEl) return;
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
-    if (Array.isArray(saved)) for (const id of saved) shown.add(id);
-  } catch (e) {
-    /* хранилище недоступно — учим заново */
-  }
+  for (const id of readTutored()) shown.add(id);
   // ?tut=reset — переиграть обучение (ручная проверка)
   if (new URLSearchParams(location.search).get('tut') === 'reset') {
     shown.clear();

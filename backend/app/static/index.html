@@ -469,6 +469,85 @@
           font-size: 26px;
         }
       }
+      /* временный блок турбо: кнопка «ГАЗ» + шкала запаса, только у
+         boost-конструкций (петля) — ui.js гоняет класс .dim */
+      .boost {
+        position: fixed;
+        left: calc(18px + env(safe-area-inset-left, 0px));
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        transition: opacity 0.25s ease;
+        z-index: 6;
+      }
+      .boost.dim {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boost .turbo {
+        width: 10px;
+        height: 66px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--glass);
+        display: flex;
+        align-items: flex-end;
+        overflow: hidden;
+      }
+      .boost .turbo i {
+        display: block;
+        width: 100%;
+        height: 0;
+        background: linear-gradient(180deg, var(--gold), #ff7a2a);
+        transition: height 0.08s linear;
+      }
+      .boost button {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 154, 60, 0.75);
+        background: radial-gradient(
+          circle at 50% 32%,
+          rgba(255, 122, 42, 0.95),
+          rgba(158, 44, 10, 0.95)
+        );
+        color: #fff;
+        font:
+          800 17px/1 'Unbounded',
+          ui-rounded,
+          sans-serif;
+        letter-spacing: 0.07em;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 6px 26px rgba(255, 110, 30, 0.35);
+        transition:
+          transform 0.08s ease,
+          box-shadow 0.08s ease;
+      }
+      .boost button:active,
+      .boost button.on {
+        transform: scale(0.92);
+        box-shadow: 0 2px 12px rgba(255, 110, 30, 0.5);
+      }
+      .boost button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      @media (max-width: 520px) {
+        .boost {
+          bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+        }
+        .boost button {
+          width: 74px;
+          height: 74px;
+          font-size: 15px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         .auto::before {
           animation: none;
@@ -501,6 +580,12 @@
     </div>
     <div class="coach ui dim" id="coach"></div>
     <div class="result ui dim" id="result"></div>
+    <div class="boost ui dim" id="boost">
+      <div class="turbo"><i id="turboBar"></i></div>
+      <button type="button" id="gas" aria-label="Газ — жми часто для турбо">
+        ГАЗ
+      </button>
+    </div>
     <div class="tutor ui" id="tutor" role="dialog" aria-modal="true">
       <div class="tutorCard">
         <b id="tutorTitle"></b>

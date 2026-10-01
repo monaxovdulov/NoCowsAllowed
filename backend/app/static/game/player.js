@@ -96,6 +96,8 @@ export function enterCrash(reason) {
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
+  state.turbo = 0; // заезд кончился — турбо-запас сгорает
+  state.gasHeld = false;
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
   state.sqV -= 2;
@@ -166,7 +168,9 @@ function exitRide(ride, p, res) {
   }
 }
 
-/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+/** Кадр катания по траектории: спека двигает s, поза — по path(s).
+ * @param {number} dt шаг, секунды
+ */
 function rideStep(dt) {
   const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
@@ -274,6 +278,7 @@ function finishTrick() {
     if (tl > 0.3) startTrick(q, tl);
   }
 }
+/** @param {number} dt шаг, секунды */
 function stepTrick(dt) {
   const tr = state.trick;
   if (!tr) return;
@@ -343,7 +348,7 @@ function land(g) {
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = state.crash;
+  const c = /** @type {import('./types').CrashState} */ (state.crash);
   c.t += dt;
   // корова: подброс и кувырок вперёд
   state.hV -= GRAV * dt;
@@ -417,8 +422,7 @@ export function stepHistory(dt) {
   state.histAcc += dt;
   while (state.histAcc >= 1 / 60) {
     state.histAcc -= 1 / 60;
-    state.hist.unshift(curPose());
-    if (state.hist.length > 14) state.hist.pop();
+    state.hist.push(curPose()); // кольцо само вытесняет самую старую позу
   }
 }
 
@@ -439,8 +443,10 @@ export function autopilot() {
       state.autoSeq.length &&
       state.airT > 0.05 &&
       timeToLand() > 0.36
-    )
-      startTrick(state.autoSeq.shift());
+    ) {
+      const tk = state.autoSeq.shift();
+      if (tk) startTrick(tk);
+    }
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота
@@ -448,6 +454,7 @@ export function autopilot() {
   const Xb = boardX(),
     V = state.speed * geometry.cowH;
   state.throttle = 0; // в демо газом владеет автопилот
+  state.gasHeld = false;
   // ближайшая конструкция с подсказкой: спека знает свою актуальность
   /** @type {import('./types').AutopilotHint | null} */
   let hint = null;
@@ -468,7 +475,10 @@ export function autopilot() {
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else state.throttle = 1; // hold — зажать разгон
+      } else {
+        state.throttle = 1; // hold — зажать разгон
+        state.gasHeld = true; // демо держит «ГАЗ» — качает как игрок
+      }
       return;
     }
   }

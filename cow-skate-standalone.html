@@ -465,6 +465,85 @@
           font-size: 26px;
         }
       }
+      /* временный блок турбо: кнопка «ГАЗ» + шкала запаса, только у
+         boost-конструкций (петля) — ui.js гоняет класс .dim */
+      .boost {
+        position: fixed;
+        left: calc(18px + env(safe-area-inset-left, 0px));
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        transition: opacity 0.25s ease;
+        z-index: 6;
+      }
+      .boost.dim {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boost .turbo {
+        width: 10px;
+        height: 66px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--glass);
+        display: flex;
+        align-items: flex-end;
+        overflow: hidden;
+      }
+      .boost .turbo i {
+        display: block;
+        width: 100%;
+        height: 0;
+        background: linear-gradient(180deg, var(--gold), #ff7a2a);
+        transition: height 0.08s linear;
+      }
+      .boost button {
+        appearance: none;
+        -webkit-appearance: none;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 154, 60, 0.75);
+        background: radial-gradient(
+          circle at 50% 32%,
+          rgba(255, 122, 42, 0.95),
+          rgba(158, 44, 10, 0.95)
+        );
+        color: #fff;
+        font:
+          800 17px/1 'Unbounded',
+          ui-rounded,
+          sans-serif;
+        letter-spacing: 0.07em;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 6px 26px rgba(255, 110, 30, 0.35);
+        transition:
+          transform 0.08s ease,
+          box-shadow 0.08s ease;
+      }
+      .boost button:active,
+      .boost button.on {
+        transform: scale(0.92);
+        box-shadow: 0 2px 12px rgba(255, 110, 30, 0.5);
+      }
+      .boost button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      @media (max-width: 520px) {
+        .boost {
+          bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+        }
+        .boost button {
+          width: 74px;
+          height: 74px;
+          font-size: 15px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         .auto::before {
           animation: none;
@@ -497,6 +576,12 @@
     </div>
     <div class="coach ui dim" id="coach"></div>
     <div class="result ui dim" id="result"></div>
+    <div class="boost ui dim" id="boost">
+      <div class="turbo"><i id="turboBar"></i></div>
+      <button type="button" id="gas" aria-label="Газ — жми часто для турбо">
+        ГАЗ
+      </button>
+    </div>
     <div class="tutor ui" id="tutor" role="dialog" aria-modal="true">
       <div class="tutorCard">
         <b id="tutorTitle"></b>
@@ -588,6 +673,18 @@ function mk(w, h) {
   return c;
 }
 /**
+ * 2d-контекст канваса. Браузер без canvas2d для игры фатален — падаем
+ * явно (раньше это был бы TypeError на первой же команде рисования).
+ * @param {HTMLCanvasElement} cv
+ * @param {CanvasRenderingContext2DSettings} [opts]
+ * @returns {CanvasRenderingContext2D}
+ */
+function ctx2d(cv, opts) {
+  const g = cv.getContext('2d', opts);
+  if (!g) throw new Error('canvas 2d недоступен');
+  return g;
+}
+/**
  * @param {number} seed
  * @returns {(x: number) => number}
  */
@@ -616,6 +713,79 @@ const nA = noise1(1),
  */
 const fbm = (n, x) =>
   n(x) * 0.6 + n(x * 2.13 + 17.3) * 0.28 + n(x * 4.37 + 41.1) * 0.12;
+
+// ---------------------------------------------------------------- структуры
+/**
+ * Кольцевой буфер фиксированной ёмкости (карта, этап 6.2): push в хвост
+ * и shift с головы — O(1), at(0) — старейший элемент. При переполнении
+ * затирается старейший — так hist держит 14 свежих поз без unshift/pop.
+ * @template T
+ * @param {number} cap ёмкость (> 0)
+ * @returns {import('./types').Ring<T>}
+ */
+function makeRing(cap) {
+  /** @type {unknown[]} */
+  const buf = new Array(cap);
+  let head = 0,
+    size = 0;
+  return {
+    get length() {
+      return size;
+    },
+    /** @param {number} i @returns {T | undefined} */
+    at(i) {
+      return i >= 0 && i < size
+        ? /** @type {T} */ (buf[(head + i) % cap])
+        : undefined;
+    },
+    /** @param {T} v */
+    push(v) {
+      if (size === cap) {
+        buf[head] = v;
+        head = (head + 1) % cap;
+      } else {
+        buf[(head + size) % cap] = v;
+        size++;
+      }
+    },
+    /** @returns {T | undefined} старейший элемент */
+    shift() {
+      let v;
+      if (size) {
+        v = /** @type {T} */ (buf[head]);
+        buf[head] = undefined;
+        head = (head + 1) % cap;
+        size--;
+      }
+      return v;
+    },
+    clear() {
+      buf.fill(undefined);
+      head = 0;
+      size = 0;
+    },
+    *[Symbol.iterator]() {
+      for (let i = 0; i < size; i++)
+        yield /** @type {T} */ (buf[(head + i) % cap]);
+    },
+  };
+}
+
+/**
+ * Удаление элементов из горячего массива без аллокаций (карта, этап 6.2):
+ * однопроходная компактизация сдвигом влево, порядок сохраняется.
+ * @template T
+ * @param {T[]} arr
+ * @param {(v: T, i: number) => boolean} keep false — выкинуть элемент
+ */
+function compactInPlace(arr, keep) {
+  let w = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if (keep(v, i)) arr[w++] = v;
+  }
+  arr.length = w;
+}
 // createImageBitmap декодирует картинку вне главного потока и рисуется быстрее
 /**
  * @param {string} src
@@ -665,6 +835,13 @@ const CRUISE = 4.2,
 const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
+// Турбо-машинг: тап по кнопке «ГАЗ» качает запас turbo (0..1), запас горит
+// в добавку к целевой скорости и в тангенциальное ускорение на ride-дуге.
+const TURBO_PUMP = 0.16, // запаса за один тап
+  TURBO_HOLD = 0.9, // запаса в секунду при зажатой кнопке/клавише
+  TURBO_DRAIN = 0.34, // расход запаса в секунду (полная шкала ≈ 3 с буста)
+  TURBO_EXTRA = 2.6, // +cowH/с к целевой скорости при полной шкале
+  TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
@@ -684,6 +861,62 @@ const OBS = {
   barrier: { w: 0.46, h: 0.31, wt: 1.4, tall: true },
   cones: { w: 0.85, h: 0.24, wt: 1.4, long: true },
 };
+
+// ---- game/storage.js
+// ---------------------------------------------------------------- storage
+// Доступ к localStorage (карта, этап 6.3, B4): в приватных режимах и
+// части WebView он недоступен — бросает SecurityError. Предупреждаем
+// один раз за сессию и живём без персистентности рекорда.
+
+const BEST_KEY = 'cow-skate-best';
+let warned = false;
+/** @param {unknown} error */
+function warnStorage(error) {
+  if (warned) return;
+  warned = true;
+  console.warn('localStorage недоступен — рекорд не сохраняется:', error);
+}
+
+/** @returns {number} сохранённый рекорд (0, если пусто или недоступен) */
+function readBest() {
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    return Math.max(0, parseInt(raw ?? '', 10) || 0);
+  } catch (error) {
+    warnStorage(error);
+    return 0;
+  }
+}
+
+/** @param {number} v рекорд для сохранения */
+function writeBest(v) {
+  try {
+    localStorage.setItem(BEST_KEY, String(v));
+  } catch (error) {
+    warnStorage(error);
+  }
+}
+
+const TUT_KEY = 'cow-skate-tut';
+/** @returns {Set<string>} ids уже показанных туториал-гейтов */
+function readTutored() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TUT_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved : []);
+  } catch (error) {
+    warnStorage(error);
+    return new Set();
+  }
+}
+
+/** @param {Iterable<string>} ids показанные гейты */
+function writeTutored(ids) {
+  try {
+    localStorage.setItem(TUT_KEY, JSON.stringify([...ids]));
+  } catch (error) {
+    warnStorage(error);
+  }
+}
 
 // ---- game/state.js
 // ---------------------------------------------------------------- DOM, canvas
@@ -748,6 +981,18 @@ const coachEl = /** @type {HTMLElement} */ (
 const resultEl = /** @type {HTMLElement} */ (
   document.getElementById('result')
 );
+/** @type {HTMLElement} временная кнопка+шкала турбо у boost-конструкций */
+const boostEl = /** @type {HTMLElement} */ (
+  document.getElementById('boost')
+);
+/** @type {HTMLButtonElement} */
+const gasEl = /** @type {HTMLButtonElement} */ (
+  document.getElementById('gas')
+);
+/** @type {HTMLElement} заполнение шкалы турбо */
+const turboBarEl = /** @type {HTMLElement} */ (
+  document.getElementById('turboBar')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -795,6 +1040,8 @@ const state = {
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
   throttle: 0,
+  turbo: 0,
+  gasHeld: false,
   boost: 0,
   spdN: 1,
   bob: 0,
@@ -829,7 +1076,8 @@ const state = {
   shake: 0,
   lift: 0,
   zoomOut: 0,
-  hist: [],
+  // кольцо поз для призраков: at(0) — самая старая, ёмкость отрезает хвост
+  hist: /** @type {import('./types').PoseRing} */ (makeRing(14)),
   histAcc: 0,
   lastInput: -100,
   autoSeq: [],
@@ -847,22 +1095,14 @@ const state = {
   isPaused: false, // открыта карточка туториала: мир заморожен (tutorial.js)
   resultUntil: 0, // карточка результата после крэша
 };
-try {
-  state.best = Math.max(
-    0,
-    parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
-  );
-} catch (e) {
-  /* без рекорда */
-}
+state.best = readBest();
 /** @type {import('./types').Cloud[]} */
 const clouds = [];
 /** @type {import('./types').Particle[]} */
 const parts = [];
 /** @type {import('./types').SpeedLine[]} */
 const lines = [];
-/** @type {import('./types').Crack[]} */
-const cracks = [];
+const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64)); // швов в кадре единицы — ёмкость с большим запасом
 /** @type {import('./types').AnyFeature[]} */
 const feats = [];
 /** @type {import('./types').Pop[]} */
@@ -966,7 +1206,7 @@ function layout() {
       f.x1 *= k;
     }
   }
-  cracks.length = 0;
+  cracks.clear();
   if (!state.nextSpawnX)
     state.nextSpawnX = state.camX + (W * 1.05 - geometry.vx) + 4 * cowH;
 }
@@ -982,9 +1222,9 @@ const X1 = () => W * 1.12;
 const RT = { w: 2048, h: 256 };
 /** @type {import('./types').TextureSize} */
 const FT = { w: 2048, h: 256 };
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 let roadPat;
-/** @type {CanvasPattern} */
+/** @type {CanvasPattern | null} */
 let fieldPat;
 
 /**
@@ -997,7 +1237,7 @@ let fieldPat;
  */
 function toCanvas(w, h, R, Gc, B) {
   const c = mk(w, h),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     img = g.createImageData(w, h),
     d = img.data;
   for (let i = 0, j = 0; i < w * h; i++, j += 4) {
@@ -1118,9 +1358,10 @@ function makeFieldTex() {
 function makeCloud(seed, w, h, n, flat) {
   const r = rng(seed),
     c = mk(w, h),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const base = h * (flat ? 0.7 : 0.86);
   const nb = flat ? 4 : 2 + ((r() * 2) | 0),
+    /** @type {{x: number, s: number, a: number}[]} */
     bumps = [];
   for (let i = 0; i < nb; i++) {
     bumps.push({
@@ -1130,6 +1371,7 @@ function makeCloud(seed, w, h, n, flat) {
     });
   }
   const cap = flat ? 0.34 : 0.8;
+  /** @param {number} u */
   const top = (u) => {
     let v = 0;
     for (const b of bumps)
@@ -1185,9 +1427,9 @@ function makeCloud(seed, w, h, n, flat) {
   g.fillStyle = sh;
   g.fillRect(0, 0, w, h);
   const small = mk(w / 4, h / 4);
-  small.getContext('2d').drawImage(c, 0, 0, small.width, small.height);
+  ctx2d(small).drawImage(c, 0, 0, small.width, small.height);
   const out = mk(w, h),
-    og = out.getContext('2d');
+    og = ctx2d(out);
   og.imageSmoothingQuality = 'high';
   og.globalAlpha = 0.92;
   og.drawImage(small, 0, 0, w, h);
@@ -1203,7 +1445,7 @@ function makeCloud(seed, w, h, n, flat) {
  */
 function softDot(color, size = 64) {
   const c = mk(size, size),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     h = size / 2;
   const gr = g.createRadialGradient(h, h, 0, h, h, h);
   gr.addColorStop(0, color);
@@ -1216,7 +1458,7 @@ function softDot(color, size = 64) {
 /** @returns {HTMLCanvasElement} */
 function lineStrip() {
   const c = mk(256, 4),
-    g = c.getContext('2d'),
+    g = ctx2d(c),
     gr = g.createLinearGradient(0, 0, 256, 0);
   gr.addColorStop(0, 'rgba(236,243,255,0)');
   gr.addColorStop(0.12, 'rgba(236,243,255,1)');
@@ -1242,7 +1484,7 @@ function sprite(w, h, draw) {
   const c = /** @type {import('./types').ObstacleSprite} */ (
     mk(w * OBR + pad * 2, h * OBR + pad * 2)
   );
-  const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+  const g = ctx2d(c);
   g.translate(pad, pad);
   draw(g, w * OBR, h * OBR);
   c.pad = pad;
@@ -1420,6 +1662,7 @@ const OB_PAINT = {
     g.fill();
   },
   can: (g, w, h) => {
+    /** @param {number} x0 @param {number} x1 */
     const metal = (x0, x1) => {
       const lg = g.createLinearGradient(x0, 0, x1, 0);
       lg.addColorStop(0, '#89939f');
@@ -1537,19 +1780,19 @@ function buildObSprites() {
 // ---------------------------------------------------------------- size-dependent buffers
 /** @type {HTMLCanvasElement} */
 let skyCv;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-посте (cssPost) */
 let vigCv;
 /** @type {HTMLCanvasElement} */
 let bA;
 /** @type {HTMLCanvasElement} */
 let bB;
-/** @type {HTMLCanvasElement} */
+/** @type {HTMLCanvasElement | null} null при DOM-слое bloomEl */
 let bC;
 /** @type {CanvasRenderingContext2D} */
 let bAg;
 /** @type {CanvasRenderingContext2D} */
 let bBg;
-/** @type {CanvasRenderingContext2D} */
+/** @type {CanvasRenderingContext2D | null} null при DOM-слое bloomEl */
 let bCg;
 /** @type {CanvasPattern[]} */
 let grainPats = [];
@@ -1562,10 +1805,11 @@ function buildSky() {
   const oY = geometry.skyOff;
   const sh = Math.max(4, Math.ceil(geometry.horizon + oY + 6 * DPR));
   skyCv = mk(W * 1.24, sh);
-  const g = skyCv.getContext('2d'),
+  const g = ctx2d(skyCv),
     sw = skyCv.width;
-  const total = oY + geometry.horizon,
-    f = (y) => clamp(y / total, 0, 1);
+  const total = oY + geometry.horizon;
+  /** @param {number} y */
+  const f = (y) => clamp(y / total, 0, 1);
   const lg = g.createLinearGradient(0, 0, 0, total);
   lg.addColorStop(0, '#244a9a');
   lg.addColorStop(f(oY), '#4673c6');
@@ -1626,7 +1870,7 @@ function buildVignette() {
     return;
   }
   vigCv = mk(W, H);
-  const v = vigCv.getContext('2d'),
+  const v = ctx2d(vigCv),
     R = Math.hypot(W, H) * 0.5;
   const rg = v.createRadialGradient(
     W * 0.47,
@@ -1657,8 +1901,8 @@ function buildVignette() {
 function buildGlowBuffers() {
   bA = mk(W / 4, H / 4);
   bB = mk(W / 16, H / 16);
-  bAg = bA.getContext('2d');
-  bBg = bB.getContext('2d');
+  bAg = ctx2d(bA);
+  bBg = ctx2d(bB);
   if (bloomG) {
     bloomEl.width = Math.max(1, W >> 2);
     bloomEl.height = Math.max(1, H >> 2);
@@ -1667,7 +1911,7 @@ function buildGlowBuffers() {
     bCg = null;
   } else {
     bC = mk(W / 4, H / 4);
-    bCg = bC.getContext('2d');
+    bCg = ctx2d(bC);
     bCg.imageSmoothingQuality = 'high';
   }
 }
@@ -1704,7 +1948,7 @@ function buildGrain() {
   grainTiles = [];
   for (let k = 0; k < 3; k++) {
     const c = mk(160, 160),
-      gg = c.getContext('2d'),
+      gg = ctx2d(c),
       img = gg.createImageData(160, 160),
       d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -1714,7 +1958,8 @@ function buildGrain() {
     }
     gg.putImageData(img, 0, 0);
     grainTiles.push(c);
-    grainPats.push(ctx.createPattern(c, 'repeat'));
+    const pat = ctx.createPattern(c, 'repeat');
+    if (pat) grainPats.push(pat);
   }
 }
 
@@ -1744,12 +1989,14 @@ let lineImg;
 let shadowImg;
 /** @type {HTMLCanvasElement} */
 let glowImg;
+/** @type {HTMLCanvasElement} */
+let fireImg;
 
 // мягкая тень — один спрайт вместо радиального градиента на каждый кадр
 /** @returns {HTMLCanvasElement} */
 function makeShadow() {
   const c = mk(128, 128),
-    g = c.getContext('2d');
+    g = ctx2d(c);
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, 'rgba(3,4,9,1)');
   gr.addColorStop(0.55, 'rgba(3,4,9,0.55)');
@@ -1763,7 +2010,7 @@ const GHOST_BLUR = 40;
 function buildCowCaches() {
   const b = META.base;
   const full = mk(b.w, b.h),
-    g = full.getContext('2d');
+    g = ctx2d(full);
   g.drawImage(imgs.board, META.board.x - b.x, META.board.y - b.y);
   g.drawImage(imgs.base, 0, 0);
   g.drawImage(imgs.ear, META.ear.x - b.x, META.ear.y - b.y);
@@ -1771,7 +2018,7 @@ function buildCowCaches() {
 
   // размытая копия для призрачного шлейфа (смаз только назад)
   ghostCv = mk(b.w + GHOST_BLUR, b.h);
-  const gg = ghostCv.getContext('2d'),
+  const gg = ctx2d(ghostCv),
     n = 12;
   gg.globalCompositeOperation = 'lighter';
   gg.globalAlpha = 1 / n;
@@ -1816,7 +2063,7 @@ function buildCowCaches() {
       });
     }
     streakCv = mk(128, streaks.length * 4);
-    const sg = streakCv.getContext('2d');
+    const sg = ctx2d(streakCv);
     streaks.forEach((s, i) => {
       const [r, gg2, bb] = s.c;
       const lg = sg.createLinearGradient(0, 0, 128, 0);
@@ -1826,7 +2073,9 @@ function buildCowCaches() {
       sg.fillStyle = lg;
       sg.fillRect(0, i * 4, 128, 4);
     });
-  } catch (e) {
+  } catch (error) {
+    // B4: getImageData может кинуть (tainted canvas) — не глотаем молча
+    console.warn('полосы смаза отключены:', error);
     streaks = [];
   }
 }
@@ -1881,6 +2130,7 @@ function initAssets(loaded) {
   dustImg = softDot('rgba(170,166,164,1)');
   woodImg = softDot('rgba(186,140,86,1)');
   glowImg = softDot('rgba(255,214,90,1)');
+  fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
   buildCowCaches();
@@ -2008,6 +2258,7 @@ function drawRamp(f, blur) {
   const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
   if (fa <= 0.02) return;
   const shadowLen = 0.35 * geometry.cowH;
+  /** @param {number} dx сдвиг по x @param {number} alpha прозрачность */
   const shape = (dx, alpha) => {
     ctx.globalAlpha = alpha;
     fillPoly(
@@ -2109,11 +2360,7 @@ function addScore(pts, mult = 1) {
 function endRun() {
   if (state.score > state.best) {
     state.best = state.score;
-    try {
-      localStorage.setItem('cow-skate-best', String(state.best));
-    } catch (e) {
-      /* ок */
-    }
+    writeBest(state.best);
     document.dispatchEvent(
       new CustomEvent('cowskate:run-end', {
         detail: { score: state.score, best: state.best },
@@ -2183,7 +2430,9 @@ function knock(f, power) {
  * @param {number} [al]
  */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
-  const spr = obSprites[kind],
+  const spr = /** @type {import('../types').ObstacleSprite} */ (
+      obSprites[kind]
+    ),
     sc = (geometry.cowH * (zs || 1)) / OBR,
     a = al === undefined ? 1 : al;
   const w = spr.width * sc,
@@ -2417,6 +2666,7 @@ function drawLoop(f, blur) {
     q = obZ(Xc - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q;
+  /** @param {number} th @param {number} z @param {number} k */
   const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
   // отсечение: вся конструкция за кадром
   if (
@@ -2499,7 +2749,9 @@ function drawLoop(f, blur) {
   ctx.globalAlpha = 1;
 }
 
-/** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
+/** Ближний рельс поверх коровы — она едет внутри кольца, за ним.
+ * @param {import('../types').LoopFeature} f
+ */
 function drawLoopFront(f) {
   const Xc = entryX(f),
     rPx = f.data.r * geometry.cowH,
@@ -2509,6 +2761,7 @@ function drawLoopFront(f) {
     geometry.vx + (Xc - rPx - state.camX) / zn > X1() + 60
   )
     return;
+  /** @param {number} th */
   const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
   ctx.strokeStyle = '#a5713b';
   ctx.lineWidth = Math.max(1.4, 4.6 * geometry.u);
@@ -2525,9 +2778,9 @@ function drawLoopFront(f) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').LoopData, 'loop'>} */
 const loopSpec = {
   type: 'loop',
-  weight: 6,
+  weight: 16, // не special: иначе петля делила редкий слот с рампой 6:24
   minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
-  special: true,
+  needsBoost: true, // вход требует скорости выше крейсерской — ui покажет «ГАЗ»
   plan(ctx) {
     return {
       data: { r: R, entry: R + PAD, isTried: false },
@@ -2560,6 +2813,8 @@ const loopSpec = {
     step(feat, ride, dt) {
       const th = ride.s / feat.data.r,
         g = GRAV * (th > TOP0 && th < TOP1 ? ASSIST : 1);
+      // турбо-машинг докручивает и внутри петли — жми «ГАЗ» на подъёме
+      ride.v += TURBO_RIDE_ACC * state.turbo * dt;
       ride.v -= g * Math.sin(th) * dt;
       ride.s += ride.v * dt;
       // прошёл круг или откатился назад через вход — конструкция «used»
@@ -2829,6 +3084,31 @@ function createSpark(x, y, z) {
   };
 }
 /**
+ * Турбо-пламя за кормой коровы: короткоживущий оранжевый блоб,
+ * уносится назад потоком. Спавнится кадрами, пока turbo > 0.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z глубина точки спавна
+ * @returns {import('./types').Particle}
+ */
+function createFlame(x, y, z) {
+  const V = state.speed * geometry.cowH;
+  return {
+    kind: 'flame',
+    img: fireImg,
+    x: x + rand(-5, 5) * geometry.u,
+    y: y + rand(-5, 3) * geometry.u,
+    z,
+    vx: (-rand(0.55, 0.95) * V) / z - rand(20, 60) * geometry.u,
+    vy: -rand(0.1, 0.55) * geometry.cowH,
+    life: 0,
+    max: rand(0.14, 0.3),
+    r0: ((rand(9, 16) * geometry.u) / z) * (0.55 + 0.75 * state.turbo),
+    r1: 0,
+    a: rand(0.5, 0.85),
+  };
+}
+/**
  * @param {number} x
  * @param {number} y
  * @returns {import('./types').Particle}
@@ -2915,16 +3195,24 @@ function stepDust(dt) {
     if (Math.random() < rate * dt)
       puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
+const MAX_PARTS = 460; // верхний предел живых частиц — старейшие срезаются
 /** Частицы и всплывающие подписи. @param {number} dt */
 function stepParticles(dt) {
   const V = state.speed * geometry.cowH;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
+  // турбо-жжение: огонь из-под кормы, пока запас turbo расходуется
+  if (state.turbo > 0.05 && state.mode !== 'crash' && !reduce) {
+    const w = wheelsScreen();
+    parts.push(
+      createFlame(
+        w[0].x - 0.22 * geometry.cowH,
+        w[0].y - 0.35 * geometry.cowH,
+        w[0].z * 0.95,
+      ),
+    );
+  }
+  compactInPlace(parts, (p) => {
     p.life += dt;
-    if (p.life >= p.max) {
-      parts.splice(i, 1);
-      continue;
-    }
+    if (p.life >= p.max) return false;
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
       p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
@@ -2935,12 +3223,17 @@ function stepParticles(dt) {
     }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    return true;
+  });
+  if (parts.length > MAX_PARTS) {
+    // срез головы без аллокации: хвост массива сдвигаем в начало
+    parts.copyWithin(0, parts.length - MAX_PARTS);
+    parts.length = MAX_PARTS;
   }
-  if (parts.length > 460) parts.splice(0, parts.length - 460);
-  for (let i = pops.length - 1; i >= 0; i--) {
-    pops[i].t += dt;
-    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
-  }
+  compactInPlace(pops, (p) => {
+    p.t += dt;
+    return p.t < p.durationS;
+  });
 }
 /** Линии скорости. @param {number} dt */
 function stepLines(dt) {
@@ -3031,8 +3324,16 @@ function drawParticles() {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   for (const p of parts) {
-    if (p.kind !== 'spark') continue;
     const t = p.life / p.max;
+    if (p.kind === 'flame') {
+      // огонь затухает и сжимается к концу жизни
+      if (!p.img) continue;
+      const r = p.r0 * (1 - t) ** 0.6;
+      ctx.globalAlpha = p.a * (1 - t);
+      ctx.drawImage(p.img, p.x - r, p.y - r, r * 2, r * 2);
+      continue;
+    }
+    if (p.kind !== 'spark') continue;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
@@ -3196,6 +3497,8 @@ function enterCrash(reason) {
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
+  state.turbo = 0; // заезд кончился — турбо-запас сгорает
+  state.gasHeld = false;
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
   state.sqV -= 2;
@@ -3266,7 +3569,9 @@ function exitRide(ride, p, res) {
   }
 }
 
-/** Кадр катания по траектории: спека двигает s, поза — по path(s). */
+/** Кадр катания по траектории: спека двигает s, поза — по path(s).
+ * @param {number} dt шаг, секунды
+ */
 function rideStep(dt) {
   const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
@@ -3374,6 +3679,7 @@ function finishTrick() {
     if (tl > 0.3) startTrick(q, tl);
   }
 }
+/** @param {number} dt шаг, секунды */
 function stepTrick(dt) {
   const tr = state.trick;
   if (!tr) return;
@@ -3443,7 +3749,7 @@ function land(g) {
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = state.crash;
+  const c = /** @type {import('./types').CrashState} */ (state.crash);
   c.t += dt;
   // корова: подброс и кувырок вперёд
   state.hV -= GRAV * dt;
@@ -3517,8 +3823,7 @@ function stepHistory(dt) {
   state.histAcc += dt;
   while (state.histAcc >= 1 / 60) {
     state.histAcc -= 1 / 60;
-    state.hist.unshift(curPose());
-    if (state.hist.length > 14) state.hist.pop();
+    state.hist.push(curPose()); // кольцо само вытесняет самую старую позу
   }
 }
 
@@ -3539,8 +3844,10 @@ function autopilot() {
       state.autoSeq.length &&
       state.airT > 0.05 &&
       timeToLand() > 0.36
-    )
-      startTrick(state.autoSeq.shift());
+    ) {
+      const tk = state.autoSeq.shift();
+      if (tk) startTrick(tk);
+    }
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота
@@ -3548,6 +3855,7 @@ function autopilot() {
   const Xb = boardX(),
     V = state.speed * geometry.cowH;
   state.throttle = 0; // в демо газом владеет автопилот
+  state.gasHeld = false;
   // ближайшая конструкция с подсказкой: спека знает свою актуальность
   /** @type {import('./types').AutopilotHint | null} */
   let hint = null;
@@ -3568,7 +3876,10 @@ function autopilot() {
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else state.throttle = 1; // hold — зажать разгон
+      } else {
+        state.throttle = 1; // hold — зажать разгон
+        state.gasHeld = true; // демо держит «ГАЗ» — качает как игрок
+      }
       return;
     }
   }
@@ -3779,10 +4090,8 @@ function spawnFeatures() {
     );
     state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
-  for (let i = feats.length - 1; i >= 0; i--) {
-    const f = feats[i];
-    if (geometry.vx + (f.x1 - state.camX) < -W * 0.5) feats.splice(i, 1);
-  }
+  // ушедшие за левый край конструкции — компактизация на месте, без splice
+  compactInPlace(feats, (f) => geometry.vx + (f.x1 - state.camX) >= -W * 0.5);
 }
 /**
  * @param {number} X мировой X
@@ -3819,9 +4128,8 @@ function checkObstacles() {
 function stepCracks() {
   const zB = geometry.zBottom,
     farX = state.camX + (W * 1.3 - geometry.vx) * geometry.zEdge;
-  let last = cracks.length
-    ? cracks[cracks.length - 1].X
-    : state.camX + W * 0.6 * zB;
+  const tail = cracks.at(cracks.length - 1);
+  let last = tail ? tail.X : state.camX + W * 0.6 * zB;
   while (last < farX) {
     last += rand(5, 13) * geometry.cowH;
     cracks.push({
@@ -3829,8 +4137,11 @@ function stepCracks() {
       isHit: /** @type {[boolean, boolean]} */ ([false, false]),
     });
   }
-  while (cracks.length && xAt(cracks[0].X, geometry.zEdge) < -W * 0.3)
+  while (cracks.length) {
+    const first = cracks.at(0); // самый старый шов — левее всех
+    if (!first || xAt(first.X, geometry.zEdge) >= -W * 0.3) break;
     cracks.shift();
+  }
   const restM = poseMatrix({ y: state.bob, tilt: state.tilt, sq: state.sq });
   for (let i = 0; i < 2; i++) {
     const p = restM.transformPoint(
@@ -3985,7 +4296,15 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
+/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+const shown = {
+  score: -1,
+  best: -1,
+  auto: null,
+  cta: null,
+  res: null,
+  boost: null,
+};
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
   if (state.score !== shown.score) {
@@ -4012,6 +4331,32 @@ function hud() {
     resultEl.classList.toggle('dim', !res);
     shown.res = res;
   }
+  // временный блок «ГАЗ»+шкала: на подходе к boost-конструкции и внутри неё
+  let boost = false;
+  const rf = state.ride?.feat;
+  if (rf && FEATURE_TYPES[rf.type].needsBoost) boost = true;
+  else if (state.mode !== 'crash') {
+    const V = Math.max(1, state.speed * geometry.cowH),
+      Xb = boardX();
+    for (const f of feats) {
+      const spec = FEATURE_TYPES[f.type];
+      // marker() != null уже значит «конструкция ждёт действия» (не isTried)
+      if (!spec.needsBoost || !spec.marker?.(f)) continue;
+      const t = (f.x0 - Xb) / V;
+      // запас по хвосту: x0 — край конструкции, вход петли глубже
+      if (t > -0.6 && t < 4) {
+        boost = true;
+        break;
+      }
+    }
+  }
+  if (state.mode === 'crash') boost = false;
+  if (boost !== shown.boost) {
+    boostEl.classList.toggle('dim', !boost);
+    if (!boost) state.turbo = 0; // блок скрылся — запас «исчезает»
+    shown.boost = boost;
+  }
+  turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
@@ -4062,7 +4407,9 @@ function initUi() {
 
 // ---------------------------------------------------------------- input
 let holdTimer = 0,
-  holding = false;
+  holding = false,
+  holdPid = -1, // pointerId касания на canvas — чужие пальцы не снимают холд
+  gasPid = -1;
 function touched() {
   if (!playerMode()) {
     state.score = 0;
@@ -4073,8 +4420,31 @@ function touched() {
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
+  state.gasHeld = false; // если автопилот держал «ГАЗ» — перехват снимает
   hintEl.classList.add('dim');
 }
+/** Тап по «ГАЗ»: мгновенная подкачка; удержание качает в stepSpeed. */
+function pumpTurbo() {
+  touched();
+  state.turbo = Math.min(1, state.turbo + TURBO_PUMP);
+}
+gasEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  gasPid = e.pointerId;
+  gasEl.setPointerCapture(e.pointerId); // pointerup придёт на кнопку
+  pumpTurbo();
+  state.gasHeld = true; // после pumpTurbo: touched() сбрасывает флаг
+  gasEl.classList.add('on');
+});
+/** @param {PointerEvent} e отпуск/отмена пальца на кнопке «ГАЗ» */
+const gasOff = (e) => {
+  if (e.pointerId !== gasPid) return;
+  gasPid = -1;
+  state.gasHeld = false;
+  gasEl.classList.remove('on');
+};
+gasEl.addEventListener('pointerup', gasOff);
+gasEl.addEventListener('pointercancel', gasOff);
 /** @param {import('./types').Action} a действие кнопки/клавиши */
 function act(a) {
   // пауза туториала: сцену не трогаем — резюм только кнопкой карточки,
@@ -4087,6 +4457,7 @@ function act(a) {
 cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (state.isPaused) return;
+  holdPid = e.pointerId;
   act('jump');
   clearTimeout(holdTimer);
   holding = false;
@@ -4095,7 +4466,10 @@ cv.addEventListener('pointerdown', (e) => {
     state.throttle = 1;
   }, 280);
 });
-const release = () => {
+/** @param {PointerEvent} [e] отпуск пальца; чужой pointerId игнорируем */
+const release = (e) => {
+  if (e && holdPid >= 0 && e.pointerId !== holdPid) return;
+  holdPid = -1;
   clearTimeout(holdTimer);
   if (holding) {
     holding = false;
@@ -4129,24 +4503,27 @@ addEventListener('keydown', (e) => {
   if (t && t.closest && t.closest('button') && (k === 'Space' || k === 'Enter'))
     return;
   if (state.isPaused) return;
-  const keyAct = {
-    Space: 'jump',
-    ArrowUp: 'jump',
-    KeyW: 'jump',
-    KeyQ: 'spin',
-    Digit1: 'spin',
-    KeyE: 'flip',
-    Digit2: 'flip',
-    KeyR: 'kick',
-    Digit3: 'kick',
-  }[k];
+  const keyAct =
+    /** @type {Record<string, import('./types').Action | undefined>} */ ({
+      Space: 'jump',
+      ArrowUp: 'jump',
+      KeyW: 'jump',
+      KeyQ: 'spin',
+      Digit1: 'spin',
+      KeyE: 'flip',
+      Digit2: 'flip',
+      KeyR: 'kick',
+      Digit3: 'kick',
+    })[k];
   if (keyAct) {
     e.preventDefault();
     if (!e.repeat) act(keyAct);
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
     state.throttle = 1;
-    touched();
+    if (!e.repeat) pumpTurbo();
+    else touched();
+    state.gasHeld = true; // зажатый газ качает турбо в stepSpeed
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
     state.throttle = -1;
@@ -4155,13 +4532,16 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => {
   const k = e.code;
-  if ((k === 'ArrowRight' || k === 'KeyD') && state.throttle > 0)
-    state.throttle = 0;
+  if (k === 'ArrowRight' || k === 'KeyD') {
+    state.gasHeld = false;
+    if (state.throttle > 0) state.throttle = 0;
+  }
   if ((k === 'ArrowLeft' || k === 'KeyA') && state.throttle < 0)
     state.throttle = 0;
 });
 
 // ---- game/render.js
+/** @param {DOMMatrix} m */
 function setT(m) {
   const c = CAM.multiply(m);
   ctx.setTransform(c.a, c.b, c.c, c.d, c.e, c.f);
@@ -4212,6 +4592,15 @@ function drawSky() {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * @param {string | CanvasGradient | CanvasPattern} color
+ * @param {number} par параллакс
+ * @param {number} amp0
+ * @param {number} amp1
+ * @param {number} freq
+ * @param {(x: number) => number} seedFn шум
+ * @param {number} offY
+ */
 function ridge(color, par, amp0, amp1, freq, seedFn, offY) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -4276,9 +4665,11 @@ function drawGround() {
     PM.d = d;
     PM.e = geometry.vx - u0 * a;
     PM.f = y - d * (vA % T.h);
-    pat.setTransform(PM);
-    ctx.fillStyle = pat;
-    ctx.fillRect(x0, y, x1 - x0, bnd);
+    if (pat) {
+      pat.setTransform(PM);
+      ctx.fillStyle = pat;
+      ctx.fillRect(x0, y, x1 - x0, bnd);
+    }
     y += bnd;
   }
 }
@@ -4290,10 +4681,14 @@ function drawGroundOverlays() {
     w = x1 - x0,
     yEnd = H * 1.2;
   const fh = geometry.edgeY - hz;
-  ctx.fillStyle = geometry.hg;
-  ctx.fillRect(x0, hz - 1, w, fh + 2);
-  ctx.fillStyle = geometry.rg;
-  ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  if (geometry.hg) {
+    ctx.fillStyle = geometry.hg;
+    ctx.fillRect(x0, hz - 1, w, fh + 2);
+  }
+  if (geometry.rg) {
+    ctx.fillStyle = geometry.rg;
+    ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  }
   const zE = geometry.zEdge;
   const yS0 = yAt(zE * 1.07),
     yS1 = geometry.edgeY;
@@ -4305,6 +4700,12 @@ function drawGroundOverlays() {
   ctx.fillRect(x0, yL - th / 2, w, th);
 }
 
+/**
+ * @param {number} z
+ * @param {number} P период, мировые пиксели
+ * @param {number} off сдвиг фазы
+ * @param {(k: number, x: number) => void} fn
+ */
 function repeatAt(z, P, off, fn) {
   const k0 = Math.floor((state.camX + (X0() - geometry.vx) * z - off) / P) - 1;
   const k1 = Math.ceil((state.camX + (X1() - geometry.vx) * z - off) / P) + 1;
@@ -4345,6 +4746,7 @@ function drawPoles() {
     sag = (0.1 * geometry.cowH) / z;
   ctx.strokeStyle = 'rgba(38,48,66,0.5)';
   ctx.lineWidth = Math.max(1, 0.8 * DPR);
+  /** @type {number[]} */
   const xs = [];
   repeatAt(z, P, P * 0.37, (k, x) => xs.push(x));
   for (let j = 0; j < 2; j++) {
@@ -4412,6 +4814,7 @@ function drawShadow() {
   const len = Math.hypot(b.x - a.x, b.y - a.y) * 0.62,
     wid = 0.05 * geometry.cowH;
   const k = 1 - clamp((state.h - g) / 0.5, 0, 0.7);
+  /** @param {number} sx @param {number} sy @param {number} al */
   const draw = (sx, sy, al) => {
     ctx.save();
     ctx.translate(cx, cy);
@@ -4426,6 +4829,7 @@ function drawShadow() {
   draw(len * k, wid * k, 0.7 * k);
 }
 
+/** @param {number} x @param {number} y @param {number} r */
 function star(x, y, r) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -4439,6 +4843,7 @@ function star(x, y, r) {
 }
 
 // полосы смаза
+/** @param {DOMMatrix} m @param {number} sp @param {boolean} busy */
 function drawStreaks(m, sp, busy) {
   if (!streaks.length || !streakCv) return;
   setT(m);
@@ -4466,11 +4871,14 @@ function drawStreaks(m, sp, busy) {
   }
 }
 // призраки
+/** @param {number} sp @param {boolean} busy */
 function drawGhosts(sp, busy) {
   const GN = 4,
     spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
+  // hist — кольцо старых поз (at(0) — самая старая): i-тый призрак берёт
+  // позу на i*2 шагов назад, т.е. i*2-ю от свежего конца
   for (let i = GN; i >= 1; i--) {
-    const h = state.hist[Math.min(state.hist.length - 1, i * 2)];
+    const h = state.hist.at(Math.max(0, state.hist.length - 1 - i * 2));
     if (!h) continue;
     setT(poseMatrix({ ...h, x: -i * spacing }));
     ctx.globalAlpha =
@@ -4509,7 +4917,7 @@ function drawCow() {
     m = poseMatrix(pose);
   const sp = clamp(state.spdN, 0.5, 2);
   const busy =
-    state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
+    !!state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
   drawStreaks(m, sp, busy);
   drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
@@ -4558,14 +4966,16 @@ function post() {
     return;
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  bCg.globalCompositeOperation = 'copy';
-  bCg.drawImage(bB, 0, 0, bC.width, bC.height);
-  ctx.globalCompositeOperation = 'screen';
-  ctx.globalAlpha = 0.42;
-  ctx.drawImage(bC, 0, 0, W, H);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
-  ctx.drawImage(vigCv, 0, 0);
+  if (bC && bCg) {
+    bCg.globalCompositeOperation = 'copy';
+    bCg.drawImage(bB, 0, 0, bC.width, bC.height);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.42;
+    ctx.drawImage(bC, 0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+  if (vigCv) ctx.drawImage(vigCv, 0, 0);
   const pat = grainPats[((state.t * 24) | 0) % grainPats.length];
   if (pat && canPatternTransform) {
     PM.a = 1;
@@ -4628,7 +5038,6 @@ function render() {
 // открывается только на земле, чтобы застывший кадр выглядел естественно
 // и обсуждаемая конструкция была видна с маркером.
 
-const KEY = 'cow-skate-tut'; // localStorage: ids показанных гейтов
 const GAP_S = 0.9; // передышка между карточками — не стробить две подряд
 
 /** @type {HTMLElement | null} */
@@ -4709,7 +5118,7 @@ const GATES = [
   {
     id: 'loop',
     title: 'Мёртвая петля!',
-    text: 'Обычной скорости не хватит — зажми экран заранее и держи, чтобы разогнаться и проехать круг.',
+    text: 'Обычной скорости не хватит — качай кнопку «ГАЗ» заранее и держи зажатой, чтобы разогнаться и проехать круг.',
     when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
   },
 ];
@@ -4727,13 +5136,7 @@ let active = null,
 /** @returns {boolean} все гейты показаны — обучение завершено */
 const done = () => GATES.every((g) => shown.has(g.id));
 
-function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...shown]));
-  } catch (e) {
-    /* хранилище недоступно — переучим в следующий заезд */
-  }
-}
+const persist = () => writeTutored(shown);
 
 /** @param {string} id поставить гейт в очередь, если новый и ещё не ждёт */
 function enqueue(id) {
@@ -4795,12 +5198,7 @@ function tutorialStep() {
 /** Подписки и кнопки карточки (композиция — в main.js). */
 function initTutorial() {
   if (!tutorEl) return;
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
-    if (Array.isArray(saved)) for (const id of saved) shown.add(id);
-  } catch (e) {
-    /* хранилище недоступно — учим заново */
-  }
+  for (const id of readTutored()) shown.add(id);
   // ?tut=reset — переиграть обучение (ручная проверка)
   if (new URLSearchParams(location.search).get('tut') === 'reset') {
     shown.clear();
@@ -4836,7 +5234,9 @@ function relayout() {
 // update() — оркестрация: шаги в прежнем порядке, по одной
 // ответственности (карта, этап 4). Владельцы шагов — доменные модули.
 
-/** Скорость и продвижение мира: разгон, крейсер, глушение после падения. */
+/** Скорость и продвижение мира: разгон, крейсер, глушение после падения.
+ * @param {number} dt шаг, секунды
+ */
 function stepSpeed(dt) {
   state.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
@@ -4844,8 +5244,13 @@ function stepSpeed(dt) {
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
-  const target =
-    state.mode === 'crash'
+  // турбо-запас: зажатый «ГАЗ» качает непрерывно, запас горит в добавку
+  if (state.gasHeld && state.mode !== 'crash')
+    state.turbo = Math.min(1, state.turbo + dt * TURBO_HOLD);
+  state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
+  const target = Math.min(
+    MAXSPD + TURBO_EXTRA,
+    (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
         ? MAXSPD
@@ -4853,7 +5258,9 @@ function stepSpeed(dt) {
           ? MINSPD
           : reduce
             ? 3.2
-            : cruise;
+            : cruise) +
+      state.turbo * TURBO_EXTRA,
+  );
   state.speed +=
     (target - state.speed) *
     (1 -
@@ -4966,18 +5373,26 @@ Promise.all([
   loadImg(SRC.board),
   loadImg(SRC.ear),
   loadImg(SRC.tag),
-]).then(([base, board, ear, tag]) => {
-  initAssets({ base, board, ear, tag });
-  initClouds();
-  relayout();
-  initShadow();
-  if (grainEl && grainTiles.length) {
-    grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
-  }
-  for (let i = 0; i < 26; i++) lines.push(newLine(true));
-  for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
-  requestAnimationFrame(frame);
-});
+])
+  .then(([base, board, ear, tag]) => {
+    initAssets({ base, board, ear, tag });
+    initClouds();
+    relayout();
+    initShadow();
+    if (grainEl && grainTiles.length) {
+      grainEl.style.backgroundImage = `url("${grainTiles[0].toDataURL()}")`;
+    }
+    for (let i = 0; i < 26; i++) lines.push(newLine(true));
+    for (let i = 0; i < 60; i++) update(1 / 60); // прогрев: пыль и история уже есть
+    requestAnimationFrame(frame);
+  })
+  .catch((error) => {
+    // B3: без обработчика ошибка загрузки давала чёрный экран без слов
+    console.error('boot:', error);
+    hintEl.textContent =
+      'Не удалось загрузить картинки — обнови страницу или проверь сеть';
+    hintEl.classList.remove('dim');
+  });
 })();
 </script>
   </body>

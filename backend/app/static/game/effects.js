@@ -1,4 +1,12 @@
-import { clamp, easeOutBack, lerp, pick, rand, TAU } from './utils.js';
+import {
+  clamp,
+  compactInPlace,
+  easeOutBack,
+  lerp,
+  pick,
+  rand,
+  TAU,
+} from './utils.js';
 import { TRICKS } from './constants.js';
 import { on } from './events.js';
 import {
@@ -17,7 +25,7 @@ import {
 import { CAM } from './camera.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
 import { poseMatrix, wheelsScreen } from './pose.js';
-import { dustImg, lineImg, textSprite, woodImg } from './sprites.js';
+import { dustImg, fireImg, lineImg, textSprite, woodImg } from './sprites.js';
 
 /**
  * @param {boolean} init полоса по всему экрану (true) или справа за краем
@@ -95,6 +103,31 @@ export function createSpark(x, y, z) {
     r0: 0,
     r1: 0,
     a: 0,
+  };
+}
+/**
+ * Турбо-пламя за кормой коровы: короткоживущий оранжевый блоб,
+ * уносится назад потоком. Спавнится кадрами, пока turbo > 0.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z глубина точки спавна
+ * @returns {import('./types').Particle}
+ */
+function createFlame(x, y, z) {
+  const V = state.speed * geometry.cowH;
+  return {
+    kind: 'flame',
+    img: fireImg,
+    x: x + rand(-5, 5) * geometry.u,
+    y: y + rand(-5, 3) * geometry.u,
+    z,
+    vx: (-rand(0.55, 0.95) * V) / z - rand(20, 60) * geometry.u,
+    vy: -rand(0.1, 0.55) * geometry.cowH,
+    life: 0,
+    max: rand(0.14, 0.3),
+    r0: ((rand(9, 16) * geometry.u) / z) * (0.55 + 0.75 * state.turbo),
+    r1: 0,
+    a: rand(0.5, 0.85),
   };
 }
 /**
@@ -184,16 +217,24 @@ export function stepDust(dt) {
     if (Math.random() < rate * dt)
       puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
+const MAX_PARTS = 460; // верхний предел живых частиц — старейшие срезаются
 /** Частицы и всплывающие подписи. @param {number} dt */
 export function stepParticles(dt) {
   const V = state.speed * geometry.cowH;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
+  // турбо-жжение: огонь из-под кормы, пока запас turbo расходуется
+  if (state.turbo > 0.05 && state.mode !== 'crash' && !reduce) {
+    const w = wheelsScreen();
+    parts.push(
+      createFlame(
+        w[0].x - 0.22 * geometry.cowH,
+        w[0].y - 0.35 * geometry.cowH,
+        w[0].z * 0.95,
+      ),
+    );
+  }
+  compactInPlace(parts, (p) => {
     p.life += dt;
-    if (p.life >= p.max) {
-      parts.splice(i, 1);
-      continue;
-    }
+    if (p.life >= p.max) return false;
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
       p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
@@ -204,12 +245,17 @@ export function stepParticles(dt) {
     }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
+    return true;
+  });
+  if (parts.length > MAX_PARTS) {
+    // срез головы без аллокации: хвост массива сдвигаем в начало
+    parts.copyWithin(0, parts.length - MAX_PARTS);
+    parts.length = MAX_PARTS;
   }
-  if (parts.length > 460) parts.splice(0, parts.length - 460);
-  for (let i = pops.length - 1; i >= 0; i--) {
-    pops[i].t += dt;
-    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
-  }
+  compactInPlace(pops, (p) => {
+    p.t += dt;
+    return p.t < p.durationS;
+  });
 }
 /** Линии скорости. @param {number} dt */
 export function stepLines(dt) {
@@ -300,8 +346,16 @@ export function drawParticles() {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
   for (const p of parts) {
-    if (p.kind !== 'spark') continue;
     const t = p.life / p.max;
+    if (p.kind === 'flame') {
+      // огонь затухает и сжимается к концу жизни
+      if (!p.img) continue;
+      const r = p.r0 * (1 - t) ** 0.6;
+      ctx.globalAlpha = p.a * (1 - t);
+      ctx.drawImage(p.img, p.x - r, p.y - r, r * 2, r * 2);
+      continue;
+    }
+    if (p.kind !== 'spark') continue;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * geometry.u);

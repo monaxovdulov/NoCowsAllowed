@@ -86,8 +86,9 @@ export interface Geometry {
   obD: number;
   obL: number;
   skyOff: number;
-  hg: CanvasGradient;
-  rg: CanvasGradient;
+  // градиенты неба и дороги — строит sprites.buildSizeDependent при layout
+  hg: CanvasGradient | null;
+  rg: CanvasGradient | null;
 }
 
 export interface TextureSize {
@@ -150,6 +151,10 @@ export interface GameState {
   camX: number;
   speed: number;
   throttle: -1 | 0 | 1;
+  // турбо-запас 0..1: накачивается тапами по «ГАЗ», горит в ускорение
+  turbo: number;
+  // кнопка/клавиша «ГАЗ» зажата — непрерывная подкачка турбо
+  gasHeld: boolean;
   boost: number;
   spdN: number;
   bob: number;
@@ -186,7 +191,7 @@ export interface GameState {
   shake: number;
   lift: number;
   zoomOut: number;
-  hist: Pose[];
+  hist: PoseRing;
   histAcc: number;
   lastInput: number;
   autoSeq: TrickKind[];
@@ -226,9 +231,24 @@ export interface Crack {
   isHit: [boolean, boolean];
 }
 
+// Кольцевой буфер фиксированной ёмкости (utils.makeRing): FIFO,
+// at(0) — старейший элемент; переполнение затирает старейший.
+export interface Ring<T> extends Iterable<T> {
+  readonly length: number;
+  at(i: number): T | undefined;
+  push(v: T): void;
+  shift(): T | undefined;
+  clear(): void;
+}
+
+// Алиасы для callsite-приведений makeRing(...) — в одну строку
+// (переносы строки, начинающейся с `import(`, ломают build-standalone.py).
+export type PoseRing = Ring<Pose>;
+export type CrackRing = Ring<Crack>;
+
 // ---------------------------------------------------------------- effects
 
-export type ParticleKind = 'dust' | 'spark' | 'ring';
+export type ParticleKind = 'dust' | 'spark' | 'ring' | 'flame';
 
 // Единая мономорфная форма частицы (карта, этап 5, S2): все поля
 // присутствуют всегда — стабильная hidden class. Создаётся только
@@ -428,6 +448,8 @@ export interface FeatureTypeSpec<
   minGapBeforeCowH: number;
   // «спец-конструкция»: рейт-лимит SPECIAL_EVERY_COWH между такими
   special?: boolean;
+  // на подходе нужен разгон — ui показывает временную кнопку «ГАЗ»
+  needsBoost?: boolean;
   plan(ctx: SpawnContext): SpawnPlan<TData>;
   ground?(feat: TrackFeature<TType, TData>, X: number): GroundInfo | null;
   collide?(

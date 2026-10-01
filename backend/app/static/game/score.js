@@ -1,6 +1,7 @@
 import { TRICKS } from './constants.js';
 import { emit, on } from './events.js';
 import { playerMode, state } from './state.js';
+import { writeBest } from './storage.js';
 
 // ---------------------------------------------------------------- score
 // Модель счёта и рекорда (карта, этап 3): DOM — в ui.js, всплывашки —
@@ -20,11 +21,7 @@ export function addScore(pts, mult = 1) {
 export function endRun() {
   if (state.score > state.best) {
     state.best = state.score;
-    try {
-      localStorage.setItem('cow-skate-best', String(state.best));
-    } catch (e) {
-      /* ок */
-    }
+    writeBest(state.best);
     document.dispatchEvent(
       new CustomEvent('cowskate:run-end', {
         detail: { score: state.score, best: state.best },

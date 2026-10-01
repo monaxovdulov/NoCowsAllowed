@@ -5,7 +5,7 @@
 // держит доску. Не добрал скорость — откат назад и мягкий выход без
 // крэша (повторный заезд запрещён флагом data.isTried).
 import { clamp, TAU } from '../utils.js';
-import { GRAV } from '../constants.js';
+import { GRAV, TURBO_RIDE_ACC } from '../constants.js';
 import { ctx, geometry, state } from '../state.js';
 import { boardX, obZ, X0, X1, yAt } from '../layout.js';
 
@@ -42,6 +42,7 @@ function drawLoop(f, blur) {
     q = obZ(Xc - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q;
+  /** @param {number} th @param {number} z @param {number} k */
   const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
   // отсечение: вся конструкция за кадром
   if (
@@ -124,7 +125,9 @@ function drawLoop(f, blur) {
   ctx.globalAlpha = 1;
 }
 
-/** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
+/** Ближний рельс поверх коровы — она едет внутри кольца, за ним.
+ * @param {import('../types').LoopFeature} f
+ */
 function drawLoopFront(f) {
   const Xc = entryX(f),
     rPx = f.data.r * geometry.cowH,
@@ -134,6 +137,7 @@ function drawLoopFront(f) {
     geometry.vx + (Xc - rPx - state.camX) / zn > X1() + 60
   )
     return;
+  /** @param {number} th */
   const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
   ctx.strokeStyle = '#a5713b';
   ctx.lineWidth = Math.max(1.4, 4.6 * geometry.u);
@@ -150,9 +154,9 @@ function drawLoopFront(f) {
 /** @type {import('../types').FeatureTypeSpec<import('../types').LoopData, 'loop'>} */
 export const loopSpec = {
   type: 'loop',
-  weight: 6,
+  weight: 16, // не special: иначе петля делила редкий слот с рампой 6:24
   minGapBeforeCowH: 15, // разбег перед петлёй без конструкций
-  special: true,
+  needsBoost: true, // вход требует скорости выше крейсерской — ui покажет «ГАЗ»
   plan(ctx) {
     return {
       data: { r: R, entry: R + PAD, isTried: false },
@@ -185,6 +189,8 @@ export const loopSpec = {
     step(feat, ride, dt) {
       const th = ride.s / feat.data.r,
         g = GRAV * (th > TOP0 && th < TOP1 ? ASSIST : 1);
+      // турбо-машинг докручивает и внутри петли — жми «ГАЗ» на подъёме
+      ride.v += TURBO_RIDE_ACC * state.turbo * dt;
       ride.v -= g * Math.sin(th) * dt;
       ride.s += ride.v * dt;
       // прошёл круг или откатился назад через вход — конструкция «used»
