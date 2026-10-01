@@ -1,7 +1,7 @@
 import { META } from './assets.js';
 import { clamp, lerp, mk, rand, rng, rr, smooth, TAU } from './utils.js';
 import { OBS } from './constants.js';
-import { bloomEl, bloomG, clouds, cssPost, ctx, G } from './state.js';
+import { bloomEl, bloomG, clouds, cssPost, ctx, geometry } from './state.js';
 import { DPR, H, W } from './layout.js';
 
 // ---------------------------------------------------------------- textures
@@ -585,35 +585,40 @@ export let grainTiles = [];
 
 // небо уходит высоко вверх: камера поднимается за коровой на трамплинах
 function buildSky() {
-  G.skyOff = Math.ceil(H * 1.05);
-  const oY = G.skyOff;
-  const sh = Math.max(4, Math.ceil(G.horizon + oY + 6 * DPR));
+  geometry.skyOff = Math.ceil(H * 1.05);
+  const oY = geometry.skyOff;
+  const sh = Math.max(4, Math.ceil(geometry.horizon + oY + 6 * DPR));
   skyCv = mk(W * 1.24, sh);
   const g = skyCv.getContext('2d'),
     sw = skyCv.width;
-  const total = oY + G.horizon,
+  const total = oY + geometry.horizon,
     f = (y) => clamp(y / total, 0, 1);
   const lg = g.createLinearGradient(0, 0, 0, total);
   lg.addColorStop(0, '#244a9a');
   lg.addColorStop(f(oY), '#4673c6');
-  lg.addColorStop(f(oY + G.horizon * 0.45), '#6792d9');
-  lg.addColorStop(f(oY + G.horizon * 0.82), '#98b9e8');
+  lg.addColorStop(f(oY + geometry.horizon * 0.45), '#6792d9');
+  lg.addColorStop(f(oY + geometry.horizon * 0.82), '#98b9e8');
   lg.addColorStop(1, '#bcd0ec');
   g.fillStyle = lg;
   g.fillRect(0, 0, sw, sh);
   const sun = g.createRadialGradient(
     sw * 0.1,
-    oY - G.horizon * 0.25,
+    oY - geometry.horizon * 0.25,
     0,
     sw * 0.1,
-    oY - G.horizon * 0.25,
+    oY - geometry.horizon * 0.25,
     sw * 0.75,
   );
   sun.addColorStop(0, 'rgba(255,252,240,0.38)');
   sun.addColorStop(1, 'rgba(255,252,240,0)');
   g.fillStyle = sun;
   g.fillRect(0, 0, sw, sh);
-  const dark = g.createLinearGradient(sw, oY, sw * 0.45, oY + G.horizon * 0.6);
+  const dark = g.createLinearGradient(
+    sw,
+    oY,
+    sw * 0.45,
+    oY + geometry.horizon * 0.6,
+  );
   dark.addColorStop(0, 'rgba(22,40,92,0.3)');
   dark.addColorStop(1, 'rgba(22,40,92,0)');
   g.fillStyle = dark;
@@ -621,9 +626,12 @@ function buildSky() {
   const r = rng(5);
   for (let i = 0; i < 11; i++) {
     const x = r() * sw,
-      y = oY + G.horizon * (0.08 + r() * 0.55) - (i > 6 ? r() * oY * 0.8 : 0);
+      y =
+        oY +
+        geometry.horizon * (0.08 + r() * 0.55) -
+        (i > 6 ? r() * oY * 0.8 : 0);
     const rx = sw * (0.08 + r() * 0.16),
-      ry = G.horizon * (0.012 + r() * 0.02);
+      ry = geometry.horizon * (0.012 + r() * 0.02);
     g.save();
     g.translate(x, y);
     g.scale(rx, ry);
@@ -694,21 +702,27 @@ function buildGlowBuffers() {
 // статичные градиенты земли — зависят только от геометрии кадра
 function buildGroundGrads() {
   const yEnd = H * 1.2;
-  G.hg = ctx.createLinearGradient(0, G.horizon, 0, G.edgeY);
-  G.hg.addColorStop(0, 'rgba(160,180,210,0.86)');
-  G.hg.addColorStop(0.18, 'rgba(128,148,178,0.45)');
-  G.hg.addColorStop(0.6, 'rgba(90,106,130,0.12)');
-  G.hg.addColorStop(1, 'rgba(60,70,90,0)');
-  G.rg = ctx.createLinearGradient(0, G.edgeY, 0, yEnd);
+  geometry.hg = ctx.createLinearGradient(
+    0,
+    geometry.horizon,
+    0,
+    geometry.edgeY,
+  );
+  geometry.hg.addColorStop(0, 'rgba(160,180,210,0.86)');
+  geometry.hg.addColorStop(0.18, 'rgba(128,148,178,0.45)');
+  geometry.hg.addColorStop(0.6, 'rgba(90,106,130,0.12)');
+  geometry.hg.addColorStop(1, 'rgba(60,70,90,0)');
+  geometry.rg = ctx.createLinearGradient(0, geometry.edgeY, 0, yEnd);
   const mid = clamp(
-    (G.refY - G.cowH * 0.12 - G.edgeY) / (yEnd - G.edgeY),
+    (geometry.refY - geometry.cowH * 0.12 - geometry.edgeY) /
+      (yEnd - geometry.edgeY),
     0.05,
     0.95,
   );
-  G.rg.addColorStop(0, 'rgba(96,120,150,0.42)');
-  G.rg.addColorStop(mid * 0.7, 'rgba(60,76,100,0.14)');
-  G.rg.addColorStop(mid, 'rgba(0,0,0,0)');
-  G.rg.addColorStop(1, 'rgba(4,5,10,0.5)');
+  geometry.rg.addColorStop(0, 'rgba(96,120,150,0.42)');
+  geometry.rg.addColorStop(mid * 0.7, 'rgba(60,76,100,0.14)');
+  geometry.rg.addColorStop(mid, 'rgba(0,0,0,0)');
+  geometry.rg.addColorStop(1, 'rgba(4,5,10,0.5)');
 }
 
 // зерно

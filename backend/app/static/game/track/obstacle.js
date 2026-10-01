@@ -2,7 +2,7 @@
 // (`step`, `drawFlying`), маркер-подсказка над спрайтом и значок у края.
 import { clamp, rand } from '../utils.js';
 import { GRAV, OBS } from '../constants.js';
-import { ctx, G, playerMode, S } from '../state.js';
+import { ctx, geometry, playerMode, state } from '../state.js';
 import { boardX, obPos, X0, X1 } from '../layout.js';
 import { glowImg, OBR, obSprites, shadowImg } from '../sprites.js';
 import { addScore } from '../score.js';
@@ -28,7 +28,7 @@ function knock(f, power) {
     rot: 0,
     vr: rand(-13, 13) * power,
   };
-  S.shake = Math.min(1.8, S.shake + 0.4);
+  state.shake = Math.min(1.8, state.shake + 0.4);
 }
 
 /**
@@ -42,7 +42,7 @@ function knock(f, power) {
  */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
   const spr = obSprites[kind],
-    sc = (G.cowH * (zs || 1)) / OBR,
+    sc = (geometry.cowH * (zs || 1)) / OBR,
     a = al === undefined ? 1 : al;
   const w = spr.width * sc,
     h = spr.height * sc,
@@ -116,7 +116,7 @@ export const obstacleSpec = {
     }
     const o = OBS[kind];
     return {
-      data: { kind, over: false, cleared: false, fly: null },
+      data: { kind, isOver: false, isCleared: false, fly: null },
       lengthCowH: o.w,
       gapAfterCowH: ctx.rand(7.5, 13) * Math.max(1, 0.8 * ctx.spdN),
     };
@@ -124,10 +124,10 @@ export const obstacleSpec = {
   collide(feat, X, h) {
     const d = feat.data,
       o = OBS[d.kind],
-      hb = 0.2 * G.cowH;
+      hb = 0.2 * geometry.cowH;
     if (d.fly) return 'clear';
     if (X + hb > feat.x0 && X - hb < feat.x1) {
-      if (S.mode === 'crash' || S.invuln > 0) {
+      if (state.mode === 'crash' || state.invuln > 0) {
         if (h < o.h) knock(feat, 0.7);
         return 'clear';
       }
@@ -135,11 +135,11 @@ export const obstacleSpec = {
         knock(feat, 1);
         return 'hit';
       }
-      d.over = true;
+      d.isOver = true;
       return 'over';
     }
-    if (d.over && !d.cleared && X - hb >= feat.x1) {
-      d.cleared = true;
+    if (d.isOver && !d.isCleared && X - hb >= feat.x1) {
+      d.isCleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
       if (playerMode()) addScore(50);
     }
@@ -151,7 +151,7 @@ export const obstacleSpec = {
     q.vh -= GRAV * dt;
     q.h += q.vh * dt;
     q.rot += q.vr * dt;
-    const dX = q.vx * G.cowH * dt;
+    const dX = q.vx * geometry.cowH * dt;
     feat.x0 += dX;
     feat.x1 += dX;
     if (q.h <= 0) {
@@ -164,7 +164,7 @@ export const obstacleSpec = {
   autopilot(feat) {
     const o = OBS[feat.data.kind],
       Xb = boardX(),
-      hb = 0.2 * G.cowH,
+      hb = 0.2 * geometry.cowH,
       dbl = !!(o.long || o.tall);
     if (feat.data.fly || feat.x1 <= Xb - hb) return null;
     return {
@@ -175,7 +175,7 @@ export const obstacleSpec = {
   },
   marker(feat) {
     const d = feat.data;
-    if (d.fly || d.over) return null;
+    if (d.fly || d.isOver) return null;
     const o = OBS[d.kind],
       dbl = !!(o.long || o.tall);
     return {
@@ -191,22 +191,22 @@ export const obstacleSpec = {
     if (d.fly) return;
     const o = OBS[d.kind],
       [x, y, z] = obPos(mid(feat));
-    if (x < X0() - G.cowH || x > X1() + G.cowH) return;
-    const a = clamp((G.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
+    if (x < X0() - geometry.cowH || x > X1() + geometry.cowH) return;
+    const a = clamp((geometry.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
     if (a <= 0.02) return;
     ctx.globalAlpha = 1;
     groundGlow(
       x,
-      y - (0.01 * G.cowH) / z,
-      (o.w * G.cowH * 0.85) / z,
-      (0.09 * G.cowH) / z,
+      y - (0.01 * geometry.cowH) / z,
+      (o.w * geometry.cowH * 0.85) / z,
+      (0.09 * geometry.cowH) / z,
       0.2 * a,
     );
     groundShadow(
-      x + (0.03 * G.cowH) / z,
+      x + (0.03 * geometry.cowH) / z,
       y,
-      (o.w * G.cowH * 0.62) / z,
-      (0.035 * G.cowH) / z,
+      (o.w * geometry.cowH * 0.62) / z,
+      (0.035 * geometry.cowH) / z,
       0.55 * a,
     );
     drawObSprite(d.kind, x, y, 0, blur / z, 1 / z, a);
@@ -215,18 +215,18 @@ export const obstacleSpec = {
     const d = feat.data;
     if (!d.fly) return;
     const [x, y, z] = obPos(mid(feat));
-    if (x < X0() - G.cowH || x > X1() + G.cowH) return;
+    if (x < X0() - geometry.cowH || x > X1() + geometry.cowH) return;
     groundShadow(
       x,
       y,
-      (OBS[d.kind].w * G.cowH * 0.5) / (z * (1 + d.fly.h * 2)),
-      (0.03 * G.cowH) / z,
+      (OBS[d.kind].w * geometry.cowH * 0.5) / (z * (1 + d.fly.h * 2)),
+      (0.03 * geometry.cowH) / z,
       0.4,
     );
     drawObSprite(
       d.kind,
       x,
-      y - (d.fly.h * G.cowH) / z,
+      y - (d.fly.h * geometry.cowH) / z,
       d.fly.rot || 0.001,
       0,
       1 / z,

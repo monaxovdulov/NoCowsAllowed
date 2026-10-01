@@ -1,6 +1,6 @@
 import { clamp, rand, smooth, TAU } from './utils.js';
 import { CLEAR_AFTER_LAND_COWH, SPECIAL_EVERY_COWH } from './constants.js';
-import { cracks, ctx, feats, G, S } from './state.js';
+import { cracks, ctx, feats, geometry, state } from './state.js';
 import { CAM } from './camera.js';
 import { META } from './assets.js';
 import { on } from './events.js';
@@ -46,7 +46,7 @@ function pickSpec() {
 }
 /** x0 последней спец-конструкции (для рейт-лимита). */
 function lastSpecialX() {
-  const horizon = S.nextSpawnX - SPECIAL_EVERY_COWH * G.cowH;
+  const horizon = state.nextSpawnX - SPECIAL_EVERY_COWH * geometry.cowH;
   for (let i = feats.length - 1; i >= 0; i--) {
     const f = feats[i];
     if (FEATURE_TYPES[f.type].special) return f.x0;
@@ -58,16 +58,21 @@ function lastSpecialX() {
 export function initFeatures() {
   // чистая зона после приземления — ближние CLEAR_AFTER_LAND_COWH без конструкций
   on('land', () => {
-    S.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * G.cowH;
+    state.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * geometry.cowH;
   });
 }
 
 export function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
   const ahead =
-    S.camX + Math.max(W * 1.5 - G.vx, G.zEdge * 1.15 * (W - G.vx) + 2 * G.cowH);
-  while (S.nextSpawnX < ahead) {
-    if (S.nextSpawnX < S.clearSpawnX) S.nextSpawnX = S.clearSpawnX;
+    state.camX +
+    Math.max(
+      W * 1.5 - geometry.vx,
+      geometry.zEdge * 1.15 * (W - geometry.vx) + 2 * geometry.cowH,
+    );
+  while (state.nextSpawnX < ahead) {
+    if (state.nextSpawnX < state.clearSpawnX)
+      state.nextSpawnX = state.clearSpawnX;
     // форс-спавн через ?feat= обходит веса и рейт-лимиты
     const forced = feat0pending
       ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
@@ -75,32 +80,38 @@ export function spawnFeatures() {
     feat0pending = false;
     let spec = forced || pickSpec();
     const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
-    let X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+    let X = Math.max(
+      state.nextSpawnX,
+      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+    );
     // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
     if (
       !forced &&
       spec.special &&
-      X - lastSpecialX() < SPECIAL_EVERY_COWH * G.cowH
+      X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
     ) {
       spec = FALLBACK;
-      X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+      X = Math.max(
+        state.nextSpawnX,
+        prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+      );
     }
-    const plan = spec.plan({ X, cowH: G.cowH, spdN: S.spdN, rand });
+    const plan = spec.plan({ X, cowH: geometry.cowH, spdN: state.spdN, rand });
     const f = createFeature(
       spec.type,
       X,
-      X + plan.lengthCowH * G.cowH,
+      X + plan.lengthCowH * geometry.cowH,
       plan.data,
     );
     // реестр стирает вид: на границе спавна приводим к известному объединению
     feats.push(
       /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
     );
-    S.nextSpawnX = f.x1 + plan.gapAfterCowH * G.cowH;
+    state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
   for (let i = feats.length - 1; i >= 0; i--) {
     const f = feats[i];
-    if (G.vx + (f.x1 - S.camX) < -W * 0.5) feats.splice(i, 1);
+    if (geometry.vx + (f.x1 - state.camX) < -W * 0.5) feats.splice(i, 1);
   }
 }
 /**
@@ -115,14 +126,14 @@ export function groundInfo(X) {
   return { h: 0, slope: 0 };
 }
 /**
- * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, S).
+ * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, state).
  * Вызывается после stepGround — доска на поверхности, режим актуален.
  */
 export function checkRideEntry() {
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   for (const f of feats) {
     const rs = FEATURE_TYPES[f.type].ride;
-    if (rs && rs.canEnter(f, S)) {
+    if (rs && rs.canEnter(f, state)) {
       enterRide(f);
       return;
     }
@@ -131,33 +142,34 @@ export function checkRideEntry() {
 export function checkObstacles() {
   const Xb = boardX();
   for (const f of feats)
-    if (FEATURE_TYPES[f.type].collide?.(f, Xb, S.h) === 'hit')
+    if (FEATURE_TYPES[f.type].collide?.(f, Xb, state.h) === 'hit')
       enterCrash('hit');
 }
 /** Швы на асфальте → удары по колёсам. */
 export function stepCracks() {
-  const zB = G.zBottom,
-    farX = S.camX + (W * 1.3 - G.vx) * G.zEdge;
+  const zB = geometry.zBottom,
+    farX = state.camX + (W * 1.3 - geometry.vx) * geometry.zEdge;
   let last = cracks.length
     ? cracks[cracks.length - 1].X
-    : S.camX + W * 0.6 * zB;
+    : state.camX + W * 0.6 * zB;
   while (last < farX) {
-    last += rand(5, 13) * G.cowH;
+    last += rand(5, 13) * geometry.cowH;
     cracks.push({
       X: last,
-      hit: /** @type {[boolean, boolean]} */ ([false, false]),
+      isHit: /** @type {[boolean, boolean]} */ ([false, false]),
     });
   }
-  while (cracks.length && xAt(cracks[0].X, G.zEdge) < -W * 0.3) cracks.shift();
-  const restM = poseMatrix({ y: S.bob, tilt: S.tilt, sq: S.sq });
+  while (cracks.length && xAt(cracks[0].X, geometry.zEdge) < -W * 0.3)
+    cracks.shift();
+  const restM = poseMatrix({ y: state.bob, tilt: state.tilt, sq: state.sq });
   for (let i = 0; i < 2; i++) {
     const p = restM.transformPoint(
       new DOMPoint(META.contact[i][0], META.contact[i][1]),
     );
-    const Xw = S.camX + (p.x - G.vx) * zAt(p.y);
+    const Xw = state.camX + (p.x - geometry.vx) * zAt(p.y);
     for (const c of cracks)
-      if (!c.hit[i] && Xw >= c.X) {
-        c.hit[i] = true;
+      if (!c.isHit[i] && Xw >= c.X) {
+        c.isHit[i] = true;
         bumpAt(i, rand(0.6, 1));
       }
   }
@@ -168,7 +180,7 @@ export function stepFlying(dt) {
 }
 
 export function drawFeatures() {
-  const blur = (S.speed * G.cowH) / 45;
+  const blur = (state.speed * geometry.cowH) / 45;
   /** @type {{z: number, f: import('./types').AnyFeature}[]} */
   const items = []; // дальние рисуем первыми
   for (const f of feats) {
@@ -191,7 +203,7 @@ export function drawMarkers() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  const V = Math.max(1, S.speed * G.cowH),
+  const V = Math.max(1, state.speed * geometry.cowH),
     Xb = boardX();
   for (const f of feats) {
     const mk = FEATURE_TYPES[f.type].marker?.(f);
@@ -199,18 +211,18 @@ export function drawMarkers() {
     const mid = (f.x0 + f.x1) / 2,
       t = (mid - Xb) / V;
     if (t <= 0 || t > 2.6) continue;
-    const z = obZ(mid - S.camX);
+    const z = obZ(mid - state.camX);
     const p = CAM.transformPoint(
       new DOMPoint(
-        G.vx + (mid - S.camX) / z,
-        yAt(z) - (mk.heightCowH * G.cowH) / z,
+        geometry.vx + (mid - state.camX) / z,
+        yAt(z) - (mk.heightCowH * geometry.cowH) / z,
       ),
     );
     if (p.x < -24 * DPR || p.x > W + 24 * DPR) continue;
     const urgent = t < mk.leadS + 0.35;
     const a = smooth(clamp((2.6 - t) / 0.9, 0, 1));
     const s = (urgent ? 15 : 12) * DPR;
-    const bob = (0.5 + 0.5 * Math.sin(S.t * (urgent ? 13 : 7))) * s * 0.35;
+    const bob = (0.5 + 0.5 * Math.sin(state.t * (urgent ? 13 : 7))) * s * 0.35;
     ctx.globalAlpha = a;
     ctx.fillStyle = urgent ? '#ff5a4a' : '#ffd84a';
     ctx.beginPath();
@@ -229,18 +241,18 @@ export function drawMarkers() {
 // значок у правого края: конструкция ещё за кадром, кольцо заполняется к моменту прыжка
 export function drawWarnings() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     Xb = boardX(),
-    r = Math.max(14 * DPR, 0.06 * G.cowH);
+    r = Math.max(14 * DPR, 0.06 * geometry.cowH);
   for (const f of feats) {
     const mk = FEATURE_TYPES[f.type].marker?.(f);
     if (!mk) continue;
     const mid = (f.x0 + f.x1) / 2,
       t = (mid - Xb) / V,
       lead = mk.leadS;
-    const z = obZ(mid - S.camX);
+    const z = obZ(mid - state.camX);
     const edge = CAM.transformPoint(
-      new DOMPoint(G.vx + (f.x0 - S.camX) / z, yAt(z)),
+      new DOMPoint(geometry.vx + (f.x0 - state.camX) / z, yAt(z)),
     );
     if (t > lead + 1.3 || t < 0) continue;
     const fadeIn = smooth(clamp((lead + 1.3 - t) / 0.35, 0, 1)); // появился заранее
@@ -249,7 +261,9 @@ export function drawWarnings() {
     const a = fadeIn * fadeOut * seen;
     if (a <= 0.01) continue;
     const x = W - r - 14 * DPR,
-      y = CAM.transformPoint(new DOMPoint(0, G.refY - 0.16 * G.cowH)).y;
+      y = CAM.transformPoint(
+        new DOMPoint(0, geometry.refY - 0.16 * geometry.cowH),
+      ).y;
     const prog = clamp(1 - (t - lead) / 1.3, 0, 1),
       now = t <= lead + 0.06;
     ctx.globalAlpha = a;

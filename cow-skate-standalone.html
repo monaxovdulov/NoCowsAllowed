@@ -546,14 +546,14 @@ const CRUISE = 4.2,
 const GRAV = 7.6,
   OLLIE_V = 2.35,
   DOUBLE_V = 2.05;
-const AUTO_DELAY = 4.5; // через столько секунд без касаний рулит автопилот
+const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */
 const TRICKS = {
-  spin: { name: '360', dur: 0.5, pts: 100 },
-  flip: { name: 'САЛЬТО', dur: 0.56, pts: 150 },
-  kick: { name: 'КИКФЛИП', dur: 0.4, pts: 120 },
+  spin: { name: '360', durationS: 0.5, pts: 100 },
+  flip: { name: 'САЛЬТО', durationS: 0.56, pts: 150 },
+  kick: { name: 'КИКФЛИП', durationS: 0.4, pts: 120 },
 };
 /** @type {import('./types').ObstacleTable} */
 const OBS = {
@@ -644,7 +644,7 @@ if (matchMedia('(pointer: coarse)').matches) {
 // Геометрия кадра: все поля создаются сразу (стабильная форма объекта),
 // значения пересчитывает layout() при resize.
 /** @type {import('./types').Geometry} */
-const G = {
+const geometry = {
   s: 0,
   cowH: 0,
   u: 0,
@@ -671,7 +671,7 @@ const canPatternTransform =
   'setTransform' in CanvasPattern.prototype;
 
 /** @type {import('./types').GameState} */
-const S = {
+const state = {
   t: 0,
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
@@ -686,9 +686,9 @@ const S = {
   hV: 0,
   mode: 'ground',
   airT: 0,
-  airDur: 0.6,
+  airDurationS: 0.6,
   jumps: 0,
-  onRamp: false,
+  isOnRamp: false,
   slope: 0,
   sq: 1,
   sqV: 0,
@@ -721,7 +721,7 @@ const S = {
   clearSpawnX: 0,
   score: 0,
   best: 0,
-  touched0: false,
+  isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachStage: 0,
   coachText: null,
@@ -729,7 +729,7 @@ const S = {
   resultUntil: 0, // карточка результата после крэша
 };
 try {
-  S.best = Math.max(
+  state.best = Math.max(
     0,
     parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
   );
@@ -749,11 +749,11 @@ const feats = [];
 /** @type {import('./types').Pop[]} */
 const pops = [];
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
-const playerMode = () => S.t - S.lastInput <= AUTO_DELAY;
+const playerMode = () => state.t - state.lastInput <= AUTO_DELAY_S;
 /** @returns {boolean} катимся по ровному асфальту (не по конструкции) */
-const onFlat = () => S.mode === 'ground' && !S.onRamp;
+const onFlat = () => state.mode === 'ground' && !state.isOnRamp;
 /** @returns {boolean} катимся по поверхности конструкции */
-const onFeature = () => S.mode === 'ground' && S.onRamp;
+const onFeature = () => state.mode === 'ground' && state.isOnRamp;
 
 // ---- game/layout.js
 // ---------------------------------------------------------------- layout
@@ -766,28 +766,30 @@ function setPerfScale(v) {
   perfScale = v;
 }
 /** @param {number} y @returns {number} глубина z по экранному y */
-const zAt = (y) => G.K / Math.max(1e-3, y - G.horizon);
+const zAt = (y) => geometry.K / Math.max(1e-3, y - geometry.horizon);
 /** @param {number} z @returns {number} экранный y по глубине z */
-const yAt = (z) => G.horizon + G.K / z;
+const yAt = (z) => geometry.horizon + geometry.K / z;
 /**
  * @param {number} X мировой X
  * @param {number} z
  * @returns {number} экранный x
  */
-const xAt = (X, z) => G.vx + (X - S.camX) / z;
+const xAt = (X, z) => geometry.vx + (X - state.camX) / z;
 /** @returns {number} центр доски в мире (глубина 1) */
-const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);
+const boardX = () =>
+  state.camX + (geometry.ox + 200 * geometry.s - geometry.vx);
 // препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
 /** @param {number} d расстояние до камеры @returns {number} глубина z */
-const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
+const obZ = (d) =>
+  clamp(1 + (d - geometry.obD) / geometry.obL, 0.8, geometry.zEdge * 1.12);
 /**
  * @param {number} X мировой X препятствия
  * @returns {import('./types').Vec3} экранные x, y и глубина z
  */
 const obPos = (X) => {
-  const d = X - S.camX,
+  const d = X - state.camX,
     z = obZ(d);
-  return [G.vx + d / z, yAt(z), z];
+  return [geometry.vx + d / z, yAt(z), z];
 };
 
 // Только геометрия кадра и мировой масштаб (карта, этап 3): пересборку
@@ -800,7 +802,7 @@ function layout() {
   const cap = 2.6e6;
   if (cssW * cssH * dpr * dpr > cap) dpr = Math.sqrt(cap / (cssW * cssH));
   DPR = Math.max(0.5, dpr);
-  const oldCowH = G.cowH;
+  const oldCowH = geometry.cowH;
   W = Math.round(cssW * DPR);
   H = Math.round(cssH * DPR);
   cv.width = W;
@@ -817,36 +819,37 @@ function layout() {
   );
   const top = bottom - cowH;
   const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.27 : 0.44); // впереди коровы — место, чтобы видеть препятствия
-  Object.assign(G, {
+  Object.assign(geometry, {
     s,
     cowH,
     u: cowH / 670,
     ox: cx - 312 * s,
     oy: top - 45 * s,
   });
-  G.horizon = G.oy + 200 * s; // линия горизонта как на фото
-  G.edgeY = G.oy + 329 * s; // дальний край дороги
-  G.refY = G.oy + 537 * s; // линия контакта доски = глубина 1
-  G.K = G.refY - G.horizon;
-  G.vx = W * 0.5;
-  G.zEdge = G.K / (G.edgeY - G.horizon);
-  G.zBottom = G.K / (H * 1.2 - G.horizon);
-  G.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
-  G.kF = 60 / cowH; // … поля
-  G.obD = G.ox + 200 * s - G.vx; // смещение доски от камеры — здесь z=1
-  G.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
+  geometry.horizon = geometry.oy + 200 * s; // линия горизонта как на фото
+  geometry.edgeY = geometry.oy + 329 * s; // дальний край дороги
+  geometry.refY = geometry.oy + 537 * s; // линия контакта доски = глубина 1
+  geometry.K = geometry.refY - geometry.horizon;
+  geometry.vx = W * 0.5;
+  geometry.zEdge = geometry.K / (geometry.edgeY - geometry.horizon);
+  geometry.zBottom = geometry.K / (H * 1.2 - geometry.horizon);
+  geometry.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
+  geometry.kF = 60 / cowH; // … поля
+  geometry.obD = geometry.ox + 200 * s - geometry.vx; // смещение доски от камеры — здесь z=1
+  geometry.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
   if (oldCowH) {
     // мир в пикселях — пересчитываем всё под новый масштаб
     const k = cowH / oldCowH;
-    S.camX *= k;
-    S.nextSpawnX *= k;
+    state.camX *= k;
+    state.nextSpawnX *= k;
     for (const f of feats) {
       f.x0 *= k;
       f.x1 *= k;
     }
   }
   cracks.length = 0;
-  if (!S.nextSpawnX) S.nextSpawnX = S.camX + (W * 1.05 - G.vx) + 4 * cowH;
+  if (!state.nextSpawnX)
+    state.nextSpawnX = state.camX + (W * 1.05 - geometry.vx) + 4 * cowH;
 }
 
 /** @returns {number} левый край видимого мира */
@@ -1436,35 +1439,40 @@ let grainTiles = [];
 
 // небо уходит высоко вверх: камера поднимается за коровой на трамплинах
 function buildSky() {
-  G.skyOff = Math.ceil(H * 1.05);
-  const oY = G.skyOff;
-  const sh = Math.max(4, Math.ceil(G.horizon + oY + 6 * DPR));
+  geometry.skyOff = Math.ceil(H * 1.05);
+  const oY = geometry.skyOff;
+  const sh = Math.max(4, Math.ceil(geometry.horizon + oY + 6 * DPR));
   skyCv = mk(W * 1.24, sh);
   const g = skyCv.getContext('2d'),
     sw = skyCv.width;
-  const total = oY + G.horizon,
+  const total = oY + geometry.horizon,
     f = (y) => clamp(y / total, 0, 1);
   const lg = g.createLinearGradient(0, 0, 0, total);
   lg.addColorStop(0, '#244a9a');
   lg.addColorStop(f(oY), '#4673c6');
-  lg.addColorStop(f(oY + G.horizon * 0.45), '#6792d9');
-  lg.addColorStop(f(oY + G.horizon * 0.82), '#98b9e8');
+  lg.addColorStop(f(oY + geometry.horizon * 0.45), '#6792d9');
+  lg.addColorStop(f(oY + geometry.horizon * 0.82), '#98b9e8');
   lg.addColorStop(1, '#bcd0ec');
   g.fillStyle = lg;
   g.fillRect(0, 0, sw, sh);
   const sun = g.createRadialGradient(
     sw * 0.1,
-    oY - G.horizon * 0.25,
+    oY - geometry.horizon * 0.25,
     0,
     sw * 0.1,
-    oY - G.horizon * 0.25,
+    oY - geometry.horizon * 0.25,
     sw * 0.75,
   );
   sun.addColorStop(0, 'rgba(255,252,240,0.38)');
   sun.addColorStop(1, 'rgba(255,252,240,0)');
   g.fillStyle = sun;
   g.fillRect(0, 0, sw, sh);
-  const dark = g.createLinearGradient(sw, oY, sw * 0.45, oY + G.horizon * 0.6);
+  const dark = g.createLinearGradient(
+    sw,
+    oY,
+    sw * 0.45,
+    oY + geometry.horizon * 0.6,
+  );
   dark.addColorStop(0, 'rgba(22,40,92,0.3)');
   dark.addColorStop(1, 'rgba(22,40,92,0)');
   g.fillStyle = dark;
@@ -1472,9 +1480,12 @@ function buildSky() {
   const r = rng(5);
   for (let i = 0; i < 11; i++) {
     const x = r() * sw,
-      y = oY + G.horizon * (0.08 + r() * 0.55) - (i > 6 ? r() * oY * 0.8 : 0);
+      y =
+        oY +
+        geometry.horizon * (0.08 + r() * 0.55) -
+        (i > 6 ? r() * oY * 0.8 : 0);
     const rx = sw * (0.08 + r() * 0.16),
-      ry = G.horizon * (0.012 + r() * 0.02);
+      ry = geometry.horizon * (0.012 + r() * 0.02);
     g.save();
     g.translate(x, y);
     g.scale(rx, ry);
@@ -1545,21 +1556,27 @@ function buildGlowBuffers() {
 // статичные градиенты земли — зависят только от геометрии кадра
 function buildGroundGrads() {
   const yEnd = H * 1.2;
-  G.hg = ctx.createLinearGradient(0, G.horizon, 0, G.edgeY);
-  G.hg.addColorStop(0, 'rgba(160,180,210,0.86)');
-  G.hg.addColorStop(0.18, 'rgba(128,148,178,0.45)');
-  G.hg.addColorStop(0.6, 'rgba(90,106,130,0.12)');
-  G.hg.addColorStop(1, 'rgba(60,70,90,0)');
-  G.rg = ctx.createLinearGradient(0, G.edgeY, 0, yEnd);
+  geometry.hg = ctx.createLinearGradient(
+    0,
+    geometry.horizon,
+    0,
+    geometry.edgeY,
+  );
+  geometry.hg.addColorStop(0, 'rgba(160,180,210,0.86)');
+  geometry.hg.addColorStop(0.18, 'rgba(128,148,178,0.45)');
+  geometry.hg.addColorStop(0.6, 'rgba(90,106,130,0.12)');
+  geometry.hg.addColorStop(1, 'rgba(60,70,90,0)');
+  geometry.rg = ctx.createLinearGradient(0, geometry.edgeY, 0, yEnd);
   const mid = clamp(
-    (G.refY - G.cowH * 0.12 - G.edgeY) / (yEnd - G.edgeY),
+    (geometry.refY - geometry.cowH * 0.12 - geometry.edgeY) /
+      (yEnd - geometry.edgeY),
     0.05,
     0.95,
   );
-  G.rg.addColorStop(0, 'rgba(96,120,150,0.42)');
-  G.rg.addColorStop(mid * 0.7, 'rgba(60,76,100,0.14)');
-  G.rg.addColorStop(mid, 'rgba(0,0,0,0)');
-  G.rg.addColorStop(1, 'rgba(4,5,10,0.5)');
+  geometry.rg.addColorStop(0, 'rgba(96,120,150,0.42)');
+  geometry.rg.addColorStop(mid * 0.7, 'rgba(60,76,100,0.14)');
+  geometry.rg.addColorStop(mid, 'rgba(0,0,0,0)');
+  geometry.rg.addColorStop(1, 'rgba(4,5,10,0.5)');
 }
 
 // зерно
@@ -1804,12 +1821,12 @@ function fillPoly(pts, style, dx) {
  * @param {number} blur смаз по x в пикселях
  */
 function drawRamp(f, blur) {
-  const q = obZ(f.x0 - S.camX),
+  const q = obZ(f.x0 - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q,
-    hh = f.data.hr * G.cowH;
+    hh = f.data.hr * geometry.cowH;
   /** @type {(X: number, h: number, z: number) => number[]} */
-  const P = (X, h, z) => [G.vx + (X - S.camX) / z, yAt(z) - h / z];
+  const P = (X, h, z) => [geometry.vx + (X - state.camX) / z, yAt(z) - h / z];
   const A = P(f.x0, 0, zn),
     B = P(f.x1, hh, zn),
     C = P(f.x1, hh, zf),
@@ -1818,9 +1835,9 @@ function drawRamp(f, blur) {
     Gp = P(f.x1, 0, zf);
   if (Math.max(B[0], F[0]) < X0() - 60 || Math.min(A[0], D[0]) > X1() + 60)
     return;
-  const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
+  const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
   if (fa <= 0.02) return;
-  const shadowLen = 0.35 * G.cowH;
+  const shadowLen = 0.35 * geometry.cowH;
   const shape = (dx, alpha) => {
     ctx.globalAlpha = alpha;
     fillPoly(
@@ -1834,7 +1851,7 @@ function drawRamp(f, blur) {
     tg.addColorStop(1, '#cc9655');
     fillPoly([A, B, C, D], tg, dx);
     ctx.strokeStyle = 'rgba(70,42,18,0.55)';
-    ctx.lineWidth = Math.max(1, 1.3 * G.u);
+    ctx.lineWidth = Math.max(1, 1.3 * geometry.u);
     ctx.beginPath();
     for (let i = 1; i < 6; i++) {
       const z = zn + ((zf - zn) * i) / 6,
@@ -1849,7 +1866,7 @@ function drawRamp(f, blur) {
     sg.addColorStop(1, '#4a2c12');
     fillPoly([A, F, B], sg, dx);
     ctx.strokeStyle = 'rgba(40,24,10,0.7)';
-    ctx.lineWidth = Math.max(1, 2.2 * G.u);
+    ctx.lineWidth = Math.max(1, 2.2 * geometry.u);
     ctx.beginPath();
     for (const k of [0.4, 0.72]) {
       const t = P(f.x0 + (f.x1 - f.x0) * k, hh * k, zn),
@@ -1859,7 +1876,7 @@ function drawRamp(f, blur) {
     }
     ctx.stroke();
     ctx.strokeStyle = '#dfe4ea';
-    ctx.lineWidth = Math.max(1.5, 3.2 * G.u);
+    ctx.lineWidth = Math.max(1.5, 3.2 * geometry.u);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(B[0] + dx, B[1]);
@@ -1889,7 +1906,7 @@ const rampSpec = {
     const k = (X - feat.x0) / (feat.x1 - feat.x0);
     return {
       h: feat.data.hr * k,
-      slope: (feat.data.hr * G.cowH) / (feat.x1 - feat.x0),
+      slope: (feat.data.hr * geometry.cowH) / (feat.x1 - feat.x0),
     };
   },
   autopilot(feat) {
@@ -1899,7 +1916,7 @@ const rampSpec = {
       ? { at: feat.x0, leadS: 0, action: 'none' }
       : null;
   },
-  depth: (feat) => obZ(feat.x0 - S.camX) * 1.06,
+  depth: (feat) => obZ(feat.x0 - state.camX) * 1.06,
   draw: drawRamp,
 };
 
@@ -1913,23 +1930,23 @@ const rampSpec = {
  * @param {number} [mult] множитель комбо — для показа «×N»
  */
 function addScore(pts, mult = 1) {
-  S.score += pts;
-  emit('score', { points: pts, mult, total: S.score });
-  if (S.score > S.best) endRun();
+  state.score += pts;
+  emit('score', { points: pts, mult, total: state.score });
+  if (state.score > state.best) endRun();
 }
 
 /** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
 function endRun() {
-  if (S.score > S.best) {
-    S.best = S.score;
+  if (state.score > state.best) {
+    state.best = state.score;
     try {
-      localStorage.setItem('cow-skate-best', String(S.best));
+      localStorage.setItem('cow-skate-best', String(state.best));
     } catch (e) {
       /* ок */
     }
     document.dispatchEvent(
       new CustomEvent('cowskate:run-end', {
-        detail: { score: S.score, best: S.best },
+        detail: { score: state.score, best: state.best },
       }),
     );
   }
@@ -1937,12 +1954,12 @@ function endRun() {
 
 /** Начисляет очки за трюки воздуха при приземлении. */
 function award() {
-  const list = S.airTricks,
+  const list = state.airTricks,
     tricks = list.filter((k) => k !== 'double');
-  let pts = S.airBonus;
+  let pts = state.airBonus;
   for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
-  S.airTricks = [];
-  S.airBonus = 0;
+  state.airTricks = [];
+  state.airBonus = 0;
   if (!pts || !playerMode()) return;
   const mult = Math.max(1, tricks.length);
   addScore(pts * mult, mult);
@@ -1954,7 +1971,7 @@ function initScore() {
   on('crash', () => {
     if (!playerMode()) return;
     endRun();
-    S.score = 0;
+    state.score = 0;
   });
 }
 
@@ -1983,7 +2000,7 @@ function knock(f, power) {
     rot: 0,
     vr: rand(-13, 13) * power,
   };
-  S.shake = Math.min(1.8, S.shake + 0.4);
+  state.shake = Math.min(1.8, state.shake + 0.4);
 }
 
 /**
@@ -1997,7 +2014,7 @@ function knock(f, power) {
  */
 function drawObSprite(kind, x, y, rot, blur, zs, al) {
   const spr = obSprites[kind],
-    sc = (G.cowH * (zs || 1)) / OBR,
+    sc = (geometry.cowH * (zs || 1)) / OBR,
     a = al === undefined ? 1 : al;
   const w = spr.width * sc,
     h = spr.height * sc,
@@ -2071,7 +2088,7 @@ const obstacleSpec = {
     }
     const o = OBS[kind];
     return {
-      data: { kind, over: false, cleared: false, fly: null },
+      data: { kind, isOver: false, isCleared: false, fly: null },
       lengthCowH: o.w,
       gapAfterCowH: ctx.rand(7.5, 13) * Math.max(1, 0.8 * ctx.spdN),
     };
@@ -2079,10 +2096,10 @@ const obstacleSpec = {
   collide(feat, X, h) {
     const d = feat.data,
       o = OBS[d.kind],
-      hb = 0.2 * G.cowH;
+      hb = 0.2 * geometry.cowH;
     if (d.fly) return 'clear';
     if (X + hb > feat.x0 && X - hb < feat.x1) {
-      if (S.mode === 'crash' || S.invuln > 0) {
+      if (state.mode === 'crash' || state.invuln > 0) {
         if (h < o.h) knock(feat, 0.7);
         return 'clear';
       }
@@ -2090,11 +2107,11 @@ const obstacleSpec = {
         knock(feat, 1);
         return 'hit';
       }
-      d.over = true;
+      d.isOver = true;
       return 'over';
     }
-    if (d.over && !d.cleared && X - hb >= feat.x1) {
-      d.cleared = true;
+    if (d.isOver && !d.isCleared && X - hb >= feat.x1) {
+      d.isCleared = true;
       // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
       if (playerMode()) addScore(50);
     }
@@ -2106,7 +2123,7 @@ const obstacleSpec = {
     q.vh -= GRAV * dt;
     q.h += q.vh * dt;
     q.rot += q.vr * dt;
-    const dX = q.vx * G.cowH * dt;
+    const dX = q.vx * geometry.cowH * dt;
     feat.x0 += dX;
     feat.x1 += dX;
     if (q.h <= 0) {
@@ -2119,7 +2136,7 @@ const obstacleSpec = {
   autopilot(feat) {
     const o = OBS[feat.data.kind],
       Xb = boardX(),
-      hb = 0.2 * G.cowH,
+      hb = 0.2 * geometry.cowH,
       dbl = !!(o.long || o.tall);
     if (feat.data.fly || feat.x1 <= Xb - hb) return null;
     return {
@@ -2130,7 +2147,7 @@ const obstacleSpec = {
   },
   marker(feat) {
     const d = feat.data;
-    if (d.fly || d.over) return null;
+    if (d.fly || d.isOver) return null;
     const o = OBS[d.kind],
       dbl = !!(o.long || o.tall);
     return {
@@ -2146,22 +2163,22 @@ const obstacleSpec = {
     if (d.fly) return;
     const o = OBS[d.kind],
       [x, y, z] = obPos(mid(feat));
-    if (x < X0() - G.cowH || x > X1() + G.cowH) return;
-    const a = clamp((G.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
+    if (x < X0() - geometry.cowH || x > X1() + geometry.cowH) return;
+    const a = clamp((geometry.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
     if (a <= 0.02) return;
     ctx.globalAlpha = 1;
     groundGlow(
       x,
-      y - (0.01 * G.cowH) / z,
-      (o.w * G.cowH * 0.85) / z,
-      (0.09 * G.cowH) / z,
+      y - (0.01 * geometry.cowH) / z,
+      (o.w * geometry.cowH * 0.85) / z,
+      (0.09 * geometry.cowH) / z,
       0.2 * a,
     );
     groundShadow(
-      x + (0.03 * G.cowH) / z,
+      x + (0.03 * geometry.cowH) / z,
       y,
-      (o.w * G.cowH * 0.62) / z,
-      (0.035 * G.cowH) / z,
+      (o.w * geometry.cowH * 0.62) / z,
+      (0.035 * geometry.cowH) / z,
       0.55 * a,
     );
     drawObSprite(d.kind, x, y, 0, blur / z, 1 / z, a);
@@ -2170,18 +2187,18 @@ const obstacleSpec = {
     const d = feat.data;
     if (!d.fly) return;
     const [x, y, z] = obPos(mid(feat));
-    if (x < X0() - G.cowH || x > X1() + G.cowH) return;
+    if (x < X0() - geometry.cowH || x > X1() + geometry.cowH) return;
     groundShadow(
       x,
       y,
-      (OBS[d.kind].w * G.cowH * 0.5) / (z * (1 + d.fly.h * 2)),
-      (0.03 * G.cowH) / z,
+      (OBS[d.kind].w * geometry.cowH * 0.5) / (z * (1 + d.fly.h * 2)),
+      (0.03 * geometry.cowH) / z,
       0.4,
     );
     drawObSprite(
       d.kind,
       x,
-      y - (d.fly.h * G.cowH) / z,
+      y - (d.fly.h * geometry.cowH) / z,
       d.fly.rot || 0.001,
       0,
       1 / z,
@@ -2195,7 +2212,7 @@ const obstacleSpec = {
 // [0, 2πR]; гравитация честная (тангенциальная составляющая −g·sinθ),
 // в верхней трети дуги действует магнитная помощь (ASSIST < 1) — рельс
 // держит доску. Не добрал скорость — откат назад и мягкий выход без
-// крэша (повторный заезд запрещён флагом data.tried).
+// крэша (повторный заезд запрещён флагом data.isTried).
 
 const R = 1.0; // радиус петли, cowH: кольцо 2 роста — читается, вход ~5.2 cowH/с
 const PAD = 0.5; // ровная полка до/после круга, cowH
@@ -2204,7 +2221,7 @@ const TOP0 = 2.05,
   TOP1 = TAU - 2.05; // дуга верхней трети (рад от нижней точки)
 
 /** @param {import('../types').LoopFeature} f @returns {number} мировой X входа (низ круга) */
-const entryX = (f) => f.x0 + f.data.entry * G.cowH;
+const entryX = (f) => f.x0 + f.data.entry * geometry.cowH;
 
 /**
  * Точка дуги в экранных координатах для стенки глубиной z и радиуса k·R.
@@ -2214,7 +2231,7 @@ const entryX = (f) => f.x0 + f.data.entry * G.cowH;
 const arcPt = (th, z, k, Xc, rPx) => {
   const r = (rPx * k) / z;
   return [
-    G.vx + (Xc - S.camX) / z + r * Math.sin(th),
+    geometry.vx + (Xc - state.camX) / z + r * Math.sin(th),
     yAt(z) - rPx / z - r * Math.cos(th),
   ];
 };
@@ -2226,18 +2243,18 @@ const arcPt = (th, z, k, Xc, rPx) => {
  */
 function drawLoop(f, blur) {
   const Xc = entryX(f),
-    rPx = f.data.r * G.cowH,
-    q = obZ(Xc - S.camX),
+    rPx = f.data.r * geometry.cowH,
+    q = obZ(Xc - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q;
   const a = (th, z, k) => arcPt(th, z, k, Xc, rPx);
   // отсечение: вся конструкция за кадром
   if (
-    G.vx + (Xc + rPx - S.camX) / zn < X0() - 80 ||
-    G.vx + (Xc - rPx - S.camX) / zf > X1() + 80
+    geometry.vx + (Xc + rPx - state.camX) / zn < X0() - 80 ||
+    geometry.vx + (Xc - rPx - state.camX) / zf > X1() + 80
   )
     return;
-  const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1);
+  const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1);
   if (fa <= 0.02) return;
   /** @param {number} dx @param {number} alpha */
   const shape = (dx, alpha) => {
@@ -2248,10 +2265,10 @@ function drawLoop(f, blur) {
     ctx.fillStyle = 'rgba(4,5,10,0.3)';
     ctx.beginPath();
     ctx.ellipse(
-      G.vx + (Xc - S.camX) / zn + dx,
+      geometry.vx + (Xc - state.camX) / zn + dx,
       yAt(zn),
       (rPx * 1.3) / zn,
-      0.09 * G.cowH,
+      0.09 * geometry.cowH,
       0,
       0,
       TAU,
@@ -2259,7 +2276,7 @@ function drawLoop(f, blur) {
     ctx.fill();
     // опоры: по две стойки на стенку под боковые точки дуги
     ctx.strokeStyle = '#4a2c12';
-    ctx.lineWidth = Math.max(1.2, 4 * G.u);
+    ctx.lineWidth = Math.max(1.2, 4 * geometry.u);
     ctx.beginPath();
     for (const z of [zn, zf])
       for (const th of [Math.PI * 0.62, Math.PI * 1.38]) {
@@ -2270,7 +2287,7 @@ function drawLoop(f, blur) {
     ctx.stroke();
     // шпалы: радиальные связи между стенками
     ctx.strokeStyle = 'rgba(70,42,18,0.8)';
-    ctx.lineWidth = Math.max(1, 2.6 * G.u);
+    ctx.lineWidth = Math.max(1, 2.6 * geometry.u);
     ctx.beginPath();
     for (let i = 0; i < 16; i++) {
       const th = (i / 16) * TAU,
@@ -2287,7 +2304,7 @@ function drawLoop(f, blur) {
     ]))
       for (const k of [1.08, 0.86]) {
         ctx.strokeStyle = shade;
-        ctx.lineWidth = Math.max(1.2, (k > 1 ? 4.6 : 3.6) * G.u);
+        ctx.lineWidth = Math.max(1.2, (k > 1 ? 4.6 : 3.6) * geometry.u);
         ctx.beginPath();
         for (let i = 0; i <= 40; i++) {
           const p = a((i / 40) * TAU, z, k);
@@ -2298,7 +2315,7 @@ function drawLoop(f, blur) {
       }
     // металлический бортик ближней стенки
     ctx.strokeStyle = '#dfe4ea';
-    ctx.lineWidth = Math.max(1.5, 3.4 * G.u);
+    ctx.lineWidth = Math.max(1.5, 3.4 * geometry.u);
     ctx.beginPath();
     for (let i = 0; i <= 40; i++) {
       const p = a((i / 40) * TAU, zn, 0.97);
@@ -2315,16 +2332,16 @@ function drawLoop(f, blur) {
 /** Ближний рельс поверх коровы — она едет внутри кольца, за ним. */
 function drawLoopFront(f) {
   const Xc = entryX(f),
-    rPx = f.data.r * G.cowH,
-    zn = 0.8 * obZ(Xc - S.camX);
+    rPx = f.data.r * geometry.cowH,
+    zn = 0.8 * obZ(Xc - state.camX);
   if (
-    G.vx + (Xc + rPx - S.camX) / zn < X0() - 60 ||
-    G.vx + (Xc - rPx - S.camX) / zn > X1() + 60
+    geometry.vx + (Xc + rPx - state.camX) / zn < X0() - 60 ||
+    geometry.vx + (Xc - rPx - state.camX) / zn > X1() + 60
   )
     return;
   const a = (th) => arcPt(th, zn, 1.08, Xc, rPx);
   ctx.strokeStyle = '#a5713b';
-  ctx.lineWidth = Math.max(1.4, 4.6 * G.u);
+  ctx.lineWidth = Math.max(1.4, 4.6 * geometry.u);
   ctx.lineCap = 'round';
   ctx.beginPath();
   for (let i = 0; i <= 40; i++) {
@@ -2343,7 +2360,7 @@ const loopSpec = {
   special: true,
   plan(ctx) {
     return {
-      data: { r: R, entry: R + PAD, tried: false },
+      data: { r: R, entry: R + PAD, isTried: false },
       lengthCowH: 2 * (R + PAD),
       // за выездом — чистая зона приземления
       gapAfterCowH: ctx.rand(18, 24) * Math.max(1, 0.8 * ctx.spdN),
@@ -2355,17 +2372,17 @@ const loopSpec = {
       const Xb = boardX();
       return (
         st.mode === 'ground' &&
-        !feat.data.tried &&
+        !feat.data.isTried &&
         Xb >= entryX(feat) &&
         // только в момент пересечения входа: приземлился позже — проехал мимо
-        Xb < entryX(feat) + 0.4 * G.cowH
+        Xb < entryX(feat) + 0.4 * geometry.cowH
       );
     },
     length: (feat) => TAU * feat.data.r,
     path(feat, s) {
       const th = s / feat.data.r;
       return {
-        X: entryX(feat) + feat.data.r * G.cowH * Math.sin(th),
+        X: entryX(feat) + feat.data.r * geometry.cowH * Math.sin(th),
         h: feat.data.r * (1 - Math.cos(th)),
         angle: -th, // касательная в canvas-угле: вверх — против часовой
       };
@@ -2377,22 +2394,22 @@ const loopSpec = {
       ride.s += ride.v * dt;
       // прошёл круг или откатился назад через вход — конструкция «used»
       if (ride.s >= TAU * feat.data.r || (ride.s < 0 && ride.v < 0)) {
-        feat.data.tried = true;
+        feat.data.isTried = true;
         return 'exit';
       }
       return 'ride';
     },
   },
   marker: (feat) =>
-    feat.data.tried || S.ride?.feat === feat
+    feat.data.isTried || state.ride?.feat === feat
       ? null
       : { label: 'ГАЗ', leadS: 1.5, heightCowH: 1.1 },
   autopilot(feat) {
-    if (feat.data.tried || boardX() > entryX(feat)) return null;
+    if (feat.data.isTried || boardX() > entryX(feat)) return null;
     // зажать разгон заранее — к входу нужна скорость выше крейсерской
     return { at: entryX(feat), leadS: 1.7, action: 'hold' };
   },
-  depth: (feat) => obZ(entryX(feat) - S.camX) * 1.06,
+  depth: (feat) => obZ(entryX(feat) - state.camX) * 1.06,
   draw: drawLoop,
   drawFlying: drawLoopFront,
 };
@@ -2422,11 +2439,11 @@ function poseMatrix(p) {
   const sqX = 1 + (1 - p.sq) * 0.55;
   const m = new DOMMatrix()
     .translate(
-      G.ox + PIV[0] * G.s + (p.x || 0),
-      G.oy + PIV[1] * G.s + p.y * G.cowH,
+      geometry.ox + PIV[0] * geometry.s + (p.x || 0),
+      geometry.oy + PIV[1] * geometry.s + p.y * geometry.cowH,
     )
     .rotate(p.tilt * DEG)
-    .scale(G.s * sqX, G.s * p.sq)
+    .scale(geometry.s * sqX, geometry.s * p.sq)
     .translate(CEN[0] - PIV[0], CEN[1] - PIV[1]);
   if (p.roll) m.rotateSelf(p.roll * DEG);
   if (p.spin) {
@@ -2438,12 +2455,12 @@ function poseMatrix(p) {
 }
 /** @returns {import('./types').Pose} текущая поза коровы */
 const curPose = () => ({
-  y: S.bob + vib() - S.h,
-  tilt: S.tilt,
-  sq: S.sq,
-  spin: S.spin,
+  y: state.bob + vib() - state.h,
+  tilt: state.tilt,
+  sq: state.sq,
+  spin: state.spin,
   // на ride-конструкции к кувырку добавляется угол касательной дуги
-  roll: S.roll + (S.ride ? S.ride.ang : 0),
+  roll: state.roll + (state.ride ? state.ride.ang : 0),
 });
 /**
  * @param {DOMMatrix} m
@@ -2468,20 +2485,27 @@ function kickT(m, ang, drop) {
 }
 /** @param {DOMMatrix} m @returns {DOMMatrix} */
 function boardMatrix(m) {
-  const c = S.crash;
+  const c = state.crash;
   if (c)
     return kickT(
-      poseMatrix({ x: c.bx * G.cowH, y: S.bob - c.bh, tilt: c.brot, sq: 1 }),
+      poseMatrix({
+        x: c.bx * geometry.cowH,
+        y: state.bob - c.bh,
+        tilt: c.brot,
+        sq: 1,
+      }),
       c.bkick,
       0,
     );
-  return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
+  return state.kick || state.kickDrop
+    ? kickT(m, state.kick, state.kickDrop)
+    : m;
 }
 /** @returns {number} вибрация подвески на ходу */
 function vib() {
   if (!onFlat()) return 0;
-  const t = S.t,
-    a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
+  const t = state.t,
+    a = (reduce ? 0.35 : 1) * 0.0016 * state.spdN;
   return (
     a *
     (Math.sin(t * 47.1) * 0.5 +
@@ -2491,10 +2515,14 @@ function vib() {
 }
 /** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
 function wheelsScreen() {
-  const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
+  const m = poseMatrix({
+    y: state.bob + vib() - state.h,
+    tilt: state.tilt,
+    sq: state.sq,
+  });
   return META.contact.map(([x, y]) => {
     const p = m.transformPoint(new DOMPoint(x, y));
-    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, G.horizon + 5)) };
+    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, geometry.horizon + 5)) };
   });
 }
 
@@ -2509,19 +2537,24 @@ let CAM = new DOMMatrix();
  * @param {number} dt шаг кадра, секунды
  */
 function stepCamera(dt) {
-  S.shake = Math.max(0, S.shake - dt * 2.4);
+  state.shake = Math.max(0, state.shake - dt * 2.4);
   const apex =
-    S.mode === 'air' && S.hV > 0 ? S.h + (S.hV * S.hV) / (2 * GRAV) : S.h;
-  const hT = S.mode === 'air' ? lerp(S.h, apex, 0.6) : S.h;
-  S.lift +=
-    (Math.max(0, hT - 0.18) * G.cowH - S.lift) * (1 - Math.exp(-dt * 6));
-  S.zoomOut +=
-    (clamp((hT - 0.35) / 0.8, 0, 1) * 0.09 - S.zoomOut) *
+    state.mode === 'air' && state.hV > 0
+      ? state.h + (state.hV * state.hV) / (2 * GRAV)
+      : state.h;
+  const hT = state.mode === 'air' ? lerp(state.h, apex, 0.6) : state.h;
+  state.lift +=
+    (Math.max(0, hT - 0.18) * geometry.cowH - state.lift) *
+    (1 - Math.exp(-dt * 6));
+  state.zoomOut +=
+    (clamp((hT - 0.35) / 0.8, 0, 1) * 0.09 - state.zoomOut) *
     (1 - Math.exp(-dt * 3));
   const mul = reduce ? 0.15 : 1;
   const amp =
-    mul * (0.0018 * S.spdN + 0.0016 * S.boost + S.shake * 0.011) * G.cowH;
-  const t = S.t;
+    mul *
+    (0.0018 * state.spdN + 0.0016 * state.boost + state.shake * 0.011) *
+    geometry.cowH;
+  const t = state.t;
   const sx =
     amp *
     (Math.sin(t * 21.3) * 0.45 +
@@ -2532,15 +2565,18 @@ function stepCamera(dt) {
       (Math.sin(t * 27.1 + 0.7) * 0.45 +
         Math.sin(t * 41.9 + 2.1) * 0.25 +
         nB(t * 9) * 0.5) +
-    0.004 * G.cowH * Math.sin(t * 0.9) * mul;
-  const rot = mul * (0.0011 * S.spdN + S.shake * 0.004) * nC(t * 3.1);
+    0.004 * geometry.cowH * Math.sin(t * 0.9) * mul;
+  const rot = mul * (0.0011 * state.spdN + state.shake * 0.004) * nC(t * 3.1);
   const zoom =
-    1.035 + 0.04 * smooth(S.boost) + 0.012 * S.shake * mul - S.zoomOut;
+    1.035 +
+    0.04 * smooth(state.boost) +
+    0.012 * state.shake * mul -
+    state.zoomOut;
   CAM = new DOMMatrix()
     .translate(W / 2, H / 2)
     .rotate(rot * DEG)
     .scale(zoom)
-    .translate(-W / 2 + sx, -H / 2 + sy + S.lift);
+    .translate(-W / 2 + sx, -H / 2 + sy + state.lift);
 }
 
 // ---- game/effects.js
@@ -2583,19 +2619,19 @@ function newLine(init) {
  * @returns {import('./types').Particle}
  */
 function createDust(x, y, z, strength, img) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   return {
     kind: 'dust',
     img: img || dustImg,
-    x: x + rand(-6, 6) * G.u,
-    y: y - rand(0, 8) * G.u,
+    x: x + rand(-6, 6) * geometry.u,
+    y: y - rand(0, 8) * geometry.u,
     z,
     vx: (-rand(0.05, 0.35) * V) / z,
-    vy: -rand(0.04, 0.26) * G.cowH * strength,
+    vy: -rand(0.04, 0.26) * geometry.cowH * strength,
     life: 0,
     max: rand(0.45, 1.1),
-    r0: (rand(3, 8) * G.u) / z,
-    r1: ((rand(24, 60) * G.u) / z) * (0.5 + strength * 0.5),
+    r0: (rand(3, 8) * geometry.u) / z,
+    r1: ((rand(24, 60) * geometry.u) / z) * (0.5 + strength * 0.5),
     a: rand(0.1, 0.24) * Math.min(1.4, 0.6 + strength * 0.4),
   };
 }
@@ -2606,15 +2642,15 @@ function createDust(x, y, z, strength, img) {
  * @returns {import('./types').Particle}
  */
 function createSpark(x, y, z) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   return {
     kind: 'spark',
     img: null,
     x,
-    y: y - 2 * G.u,
+    y: y - 2 * geometry.u,
     z,
-    vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * G.u,
-    vy: -rand(0.25, 1.5) * G.cowH,
+    vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * geometry.u,
+    vy: -rand(0.25, 1.5) * geometry.cowH,
     life: 0,
     max: rand(0.18, 0.45),
     r0: 0,
@@ -2677,11 +2713,11 @@ function ring(x, y) {
  * @param {import('./types').PopKind} kind
  */
 function popup(text, kind) {
-  if (!G.cowH) return;
-  const m = poseMatrix({ y: S.bob - S.h, tilt: 0, sq: 1 });
+  if (!geometry.cowH) return;
+  const m = poseMatrix({ y: state.bob - state.h, tilt: 0, sq: 1 });
   const nose = CAM.transformPoint(m.transformPoint(new DOMPoint(580, 120)));
   const head = CAM.transformPoint(m.transformPoint(new DOMPoint(400, 40)));
-  const right = W - nose.x > 0.5 * G.cowH; // справа от морды есть место — пишем там, иначе над головой
+  const right = W - nose.x > 0.5 * geometry.cowH; // справа от морды есть место — пишем там, иначе над головой
   const used = new Set(pops.map((q) => q.slot));
   let slot = 0;
   while (used.has(slot)) slot++;
@@ -2691,11 +2727,11 @@ function popup(text, kind) {
     slot,
     right,
     t: 0,
-    dur: kind === 'pts' ? 1.35 : 1.05,
+    durationS: kind === 'pts' ? 1.35 : 1.05,
     x: right
-      ? Math.min(nose.x + 0.36 * G.cowH, W - 0.3 * G.cowH)
+      ? Math.min(nose.x + 0.36 * geometry.cowH, W - 0.3 * geometry.cowH)
       : clamp(head.x, W * 0.3, W * 0.7),
-    y: right ? head.y + 0.05 * G.cowH : head.y - 0.12 * G.cowH,
+    y: right ? head.y + 0.05 * geometry.cowH : head.y - 0.12 * geometry.cowH,
   });
 }
 
@@ -2703,15 +2739,15 @@ function popup(text, kind) {
 /** Пыль из-под колёс на ровном ходу. @param {number} dt */
 function stepDust(dt) {
   if (!onFlat()) return;
-  const rate = 16 * S.spdN;
+  const rate = 16 * state.spdN;
   const w = wheelsScreen();
   for (let i = 0; i < 2; i++)
     if (Math.random() < rate * dt)
-      puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * S.boost);
+      puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
 /** Частицы и всплывающие подписи. @param {number} dt */
 function stepParticles(dt) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     p.life += dt;
@@ -2721,9 +2757,9 @@ function stepParticles(dt) {
     }
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
-      p.vy += (0.03 * G.cowH - p.vy) * (1 - Math.exp(-dt * 2));
+      p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
     } else if (p.kind === 'spark') {
-      p.vy += 6.5 * G.cowH * dt;
+      p.vy += 6.5 * geometry.cowH * dt;
     } else {
       p.vx = -V * 0.35;
     }
@@ -2733,35 +2769,36 @@ function stepParticles(dt) {
   if (parts.length > 460) parts.splice(0, parts.length - 460);
   for (let i = pops.length - 1; i >= 0; i--) {
     pops[i].t += dt;
-    if (pops[i].t >= pops[i].dur) pops.splice(i, 1);
+    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
   }
 }
 /** Линии скорости. @param {number} dt */
 function stepLines(dt) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   const nLines = reduce ? 10 : 26;
   while (lines.length < nLines) lines.push(newLine(true));
   for (const l of lines) {
-    l.x -= (V * l.sp * (0.55 + 0.9 * S.boost) * dt) / W;
+    l.x -= (V * l.sp * (0.55 + 0.9 * state.boost) * dt) / W;
     if (l.x + l.len < -0.05) Object.assign(l, newLine(false));
   }
 }
 /** Облака: параллакс плюс собственный дрейф. @param {number} dt */
 function stepClouds(dt) {
   for (const c of clouds) {
-    const w = c.img.width * c.scale * G.u * 1.05;
+    const w = c.img.width * c.scale * geometry.u * 1.05;
     c.x -=
-      ((c.drift + c.par * S.speed) * G.cowH * dt) / (W * 1.24 + w + c.gap * W);
+      ((c.drift + c.par * state.speed) * geometry.cowH * dt) /
+      (W * 1.24 + w + c.gap * W);
   }
 }
 
 function drawCracks() {
-  const V = S.speed * G.cowH,
-    zE = G.zEdge * 0.99,
-    zB = G.zBottom;
+  const V = state.speed * geometry.cowH,
+    zE = geometry.zEdge * 0.99,
+    zB = geometry.zBottom;
   const yE = yAt(zE),
     yB = yAt(zB);
-  const cw = 0.016 * G.cowH,
+  const cw = 0.016 * geometry.cowH,
     blur = V / 150;
   ctx.fillStyle = '#06070c';
   ctx.globalAlpha = (0.5 * cw) / (cw + blur);
@@ -2785,7 +2822,8 @@ function drawCracks() {
 /** @param {boolean} front передний (true) или задний план */
 function drawLines(front) {
   ctx.globalCompositeOperation = 'screen';
-  const k = (reduce ? 0.4 : 1) * (0.45 + 1.3 * S.boost) * (0.8 + 0.2 * S.spdN);
+  const k =
+    (reduce ? 0.4 : 1) * (0.45 + 1.3 * state.boost) * (0.8 + 0.2 * state.spdN);
   for (const l of lines) {
     if (l.front !== front) continue;
     ctx.globalAlpha = clamp(l.a * k, 0, 0.5);
@@ -2811,10 +2849,10 @@ function drawParticles() {
         r * 2,
       );
     } else if (p.kind === 'ring') {
-      const rx = G.cowH * 0.34 * (0.35 + 1.3 * t);
+      const rx = geometry.cowH * 0.34 * (0.35 + 1.3 * t);
       ctx.globalAlpha = 0.85 * (1 - t);
       ctx.strokeStyle = '#f4f8ff';
-      ctx.lineWidth = Math.max(1.5, 4 * G.u * (1 - t));
+      ctx.lineWidth = Math.max(1.5, 4 * geometry.u * (1 - t));
       ctx.beginPath();
       ctx.ellipse(p.x, p.y, rx, rx * 0.26, 0, 0, TAU);
       ctx.stroke();
@@ -2827,7 +2865,7 @@ function drawParticles() {
     const t = p.life / p.max;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
-    ctx.lineWidth = Math.max(1, 1.6 * G.u);
+    ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(p.x - p.vx * 0.022, p.y - p.vy * 0.022);
@@ -2850,7 +2888,7 @@ function initEffects() {
     } else if (d.from === 'double') {
       const x = (w[0].x + w[1].x) / 2,
         y = (w[0].y + w[1].y) / 2;
-      ring(x, y + 0.03 * G.cowH);
+      ring(x, y + 0.03 * geometry.cowH);
       puff(x, y, 1, 8, 0.8);
     } else {
       puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
@@ -2889,19 +2927,20 @@ function drawPops() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  const lh = 0.12 * G.cowH,
+  const lh = 0.12 * geometry.cowH,
     top = H * 0.13 + lh * 0.5;
   for (const q of pops) {
-    const k = q.t / q.dur,
+    const k = q.t / q.durationS,
       a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     const sc = q.t < 0.2 ? Math.max(0.01, easeOutBack(q.t / 0.2)) : 1;
     const size =
-      (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) * G.cowH;
+      (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) *
+      geometry.cowH;
     const y = q.right
       ? clamp(q.y, top, H * 0.45) + q.slot * lh
       : Math.max(top + q.slot * lh, q.y - q.slot * lh);
     ctx.save();
-    ctx.translate(q.x, y - k * 0.06 * G.cowH);
+    ctx.translate(q.x, y - k * 0.06 * geometry.cowH);
     ctx.scale(sc, sc);
     ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
     ctx.font = `800 ${size.toFixed(1)}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;
@@ -2919,18 +2958,22 @@ function drawPops() {
 
 // ---- game/player.js
 // ---------------------------------------------------------------- jumps & tricks
-const ready = () => !!imgs && !!G.cowH;
+const ready = () => !!imgs && !!geometry.cowH;
 /** @returns {number} секунды до касания земли при текущей вертикальной скорости */
 function timeToLand() {
-  return (S.hV + Math.sqrt(Math.max(0, S.hV * S.hV + 2 * GRAV * S.h))) / GRAV;
+  return (
+    (state.hV +
+      Math.sqrt(Math.max(0, state.hV * state.hV + 2 * GRAV * state.h))) /
+    GRAV
+  );
 }
 
-// Переходы автомата режимов (карта, этап 4, D5): S.mode меняется только
+// Переходы автомата режимов (карта, этап 4, D5): state.mode меняется только
 // здесь, каждый переход публикует своё событие на шине.
 
 /** @param {'jump' | 'launch'} from чем вызван взлёт */
 function enterAir(from) {
-  S.mode = 'air';
+  state.mode = 'air';
   emit('airborne', { from });
 }
 /**
@@ -2938,56 +2981,56 @@ function enterAir(from) {
  * @param {number} impact скорость касания; 0 — возврат после крэша
  */
 function enterGround(g, impact) {
-  S.mode = 'ground';
-  S.h = g;
-  S.onRamp = g > 0.001;
+  state.mode = 'ground';
+  state.h = g;
+  state.isOnRamp = g > 0.001;
   emit('land', { impact });
 }
 /**
  * @param {import('./types').CrashReason} reason причина падения
  */
 function enterCrash(reason) {
-  if (S.mode === 'crash') return;
+  if (state.mode === 'crash') return;
   // колёса снимаем до смены режима — поза с вибрацией, как на кадре крэша
   const w = wheelsScreen();
   // с конструкции — сразу: угол дуги уходит в roll, чтобы поза не прыгнула
-  if (S.ride) {
-    S.roll += S.ride.ang;
-    S.ride = null;
+  if (state.ride) {
+    state.roll += state.ride.ang;
+    state.ride = null;
   }
-  S.mode = 'crash';
-  S.crash = {
+  state.mode = 'crash';
+  state.crash = {
     reason,
     t: 0,
-    dur: 1.4,
-    r0: S.roll,
-    r1: Math.ceil((S.roll + Math.PI) / TAU) * TAU,
+    durationS: 1.4,
+    r0: state.roll,
+    r1: Math.ceil((state.roll + Math.PI) / TAU) * TAU,
     bx: 0,
-    bh: S.h,
+    bh: state.h,
     bvx: rand(1.2, 1.9),
     bvh: rand(1.6, 2.4),
-    brot: S.tilt,
+    brot: state.tilt,
     bvr: rand(7, 11),
-    bkick: S.kick,
+    bkick: state.kick,
     bvk: rand(10, 16),
     snap: null,
   };
-  S.trick = null;
-  S.trickQ = null;
-  S.spin = 0;
-  S.kick = 0;
-  S.kickDrop = 0;
-  S.onRamp = false;
-  S.jumps = 0;
-  S.airTricks = [];
-  S.airBonus = 0;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
-  S.hV = Math.max(S.hV, 0) + 1.7;
-  S.shake = 1.8;
-  S.sqV -= 2;
-  emit('crash', { reason, score: S.score, wheels: w });
+  state.trick = null;
+  state.trickQ = null;
+  state.spin = 0;
+  state.kick = 0;
+  state.kickDrop = 0;
+  state.isOnRamp = false;
+  state.jumps = 0;
+  state.airTricks = [];
+  state.airBonus = 0;
+  state.autoSeq = [];
+  state.autoDouble = 0;
+  state.autoAfter = null;
+  state.hV = Math.max(state.hV, 0) + 1.7;
+  state.shake = 1.8;
+  state.sqV -= 2;
+  emit('crash', { reason, score: state.score, wheels: w });
 }
 
 // ---------------------------------------------------------------- ride
@@ -2998,7 +3041,7 @@ function enterCrash(reason) {
 
 /** @returns {number} секунды до конца текущей траектории ride */
 function rideTimeLeft() {
-  const ride = S.ride;
+  const ride = state.ride;
   if (!ride) return 0;
   const rs = FEATURE_TYPES[ride.feat.type].ride;
   return rs ? (rs.length(ride.feat) - ride.s) / Math.max(1, ride.v) : 0;
@@ -3006,19 +3049,19 @@ function rideTimeLeft() {
 
 /** @param {import('./types').AnyFeature} feat конструкция с ride-спекой */
 function enterRide(feat) {
-  if (S.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
-  S.mode = 'ride';
-  S.ride = { feat, s: 0, v: S.speed, ang: 0, autoDone: false };
-  S.onRamp = false;
-  S.tilt = 0;
-  S.tiltV = 0;
-  S.h = 0;
-  S.hV = 0;
-  S.jumps = 1;
-  S.trick = null;
-  S.trickQ = null;
-  S.airTricks = [];
-  S.airBonus = 0;
+  if (state.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
+  state.mode = 'ride';
+  state.ride = { feat, s: 0, v: state.speed, ang: 0, isAutoDone: false };
+  state.isOnRamp = false;
+  state.tilt = 0;
+  state.tiltV = 0;
+  state.h = 0;
+  state.hV = 0;
+  state.jumps = 1;
+  state.trick = null;
+  state.trickQ = null;
+  state.airTricks = [];
+  state.airBonus = 0;
   emit('ride-enter', { type: feat.type });
 }
 
@@ -3033,30 +3076,30 @@ function enterRide(feat) {
 function exitRide(ride, p, res) {
   const v = ride.v,
     feat = ride.feat;
-  S.roll += ride.ang;
-  S.ride = null;
+  state.roll += ride.ang;
+  state.ride = null;
   emit('ride-exit', { type: feat.type, result: res, ok: v > 0 });
   if (res === 'fail') {
     enterCrash('stall');
     return;
   }
-  S.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
+  state.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
   if (Math.abs(p.h) < 0.06) {
-    if (v > 0) S.airBonus += 150; // прошёл конструкцию
-    S.hV = 0;
+    if (v > 0) state.airBonus += 150; // прошёл конструкцию
+    state.hV = 0;
     enterGround(0, 0);
   } else {
-    S.hV = clamp(-v * Math.sin(p.angle), 0, 9);
-    S.airT = 0;
-    S.jumps = 1;
-    S.airDur = timeToLand();
+    state.hV = clamp(-v * Math.sin(p.angle), 0, 9);
+    state.airT = 0;
+    state.jumps = 1;
+    state.airDurationS = timeToLand();
     enterAir('launch');
   }
 }
 
 /** Кадр катания по траектории: спека двигает s, поза — по path(s). */
 function rideStep(dt) {
-  const ride = /** @type {import('./types').RideState} */ (S.ride),
+  const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
   if (!rs) {
     exitRide(ride, { X: boardX(), h: 0, angle: 0 }, 'exit');
@@ -3064,48 +3107,48 @@ function rideStep(dt) {
   }
   stepTrick(dt);
   // демо-автопилот делает один трюк на дуге — показывает, что можно
-  if (!playerMode() && rs.tricks && !ride.autoDone && S.trick === null) {
+  if (!playerMode() && rs.tricks && !ride.isAutoDone && state.trick === null) {
     const left = rs.length(ride.feat);
     if (ride.s > left * 0.25 && ride.s < left * 0.75) {
-      ride.autoDone = true;
+      ride.isAutoDone = true;
       startTrick(pick(['spin', 'kick']), rideTimeLeft());
     }
   }
   const res = rs.step(ride.feat, ride, dt);
   const p = rs.path(ride.feat, ride.s);
-  S.camX = p.X - (G.ox + 200 * G.s - G.vx);
-  S.h = Math.max(0, p.h);
+  state.camX = p.X - (geometry.ox + 200 * geometry.s - geometry.vx);
+  state.h = Math.max(0, p.h);
   ride.ang = p.angle;
   if (res !== 'ride') exitRide(ride, p, res);
 }
 
 /** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 function jump() {
-  if (!ready() || S.mode === 'crash') return false;
-  if (S.mode === 'ground') {
-    S.hV = OLLIE_V + (S.onRamp ? S.slope * S.speed * 0.5 : 0);
-    S.airT = 0;
-    S.jumps = 1;
-    S.onRamp = false;
-    S.airTricks = [];
-    S.airBonus = 0;
-    S.tiltV -= 2.6;
-    S.sqV += 1.4;
-    S.earV -= 3.2;
-    S.tagV += 3.5;
+  if (!ready() || state.mode === 'crash') return false;
+  if (state.mode === 'ground') {
+    state.hV = OLLIE_V + (state.isOnRamp ? state.slope * state.speed * 0.5 : 0);
+    state.airT = 0;
+    state.jumps = 1;
+    state.isOnRamp = false;
+    state.airTricks = [];
+    state.airBonus = 0;
+    state.tiltV -= 2.6;
+    state.sqV += 1.4;
+    state.earV -= 3.2;
+    state.tagV += 3.5;
     enterAir('jump');
-  } else if (S.mode === 'air' && S.jumps < 2) {
-    S.jumps = 2;
-    S.hV = Math.max(S.hV, 0) * 0.3 + DOUBLE_V;
-    S.airTricks.push('double');
+  } else if (state.mode === 'air' && state.jumps < 2) {
+    state.jumps = 2;
+    state.hV = Math.max(state.hV, 0) * 0.3 + DOUBLE_V;
+    state.airTricks.push('double');
     emit('trick', { kind: 'double' });
-    S.tiltV -= 1.8;
-    S.earV -= 2.6;
-    S.tagV += 3;
-    S.sqV += 1;
+    state.tiltV -= 1.8;
+    state.earV -= 2.6;
+    state.tagV += 3;
+    state.sqV += 1;
     emit('airborne', { from: 'double' });
   } else return false;
-  S.airDur = S.airT + timeToLand();
+  state.airDurationS = state.airT + timeToLand();
   return true;
 }
 /**
@@ -3114,84 +3157,84 @@ function jump() {
  */
 function startTrick(kind, tl = timeToLand()) {
   const T = TRICKS[kind];
-  S.trick = {
+  state.trick = {
     kind,
     t: 0,
-    dur: clamp(tl - 0.06, 0.28, T.dur),
+    durationS: clamp(tl - 0.06, 0.28, T.durationS),
     dir: /** @type {1 | -1} */ (Math.random() < 0.5 ? 1 : -1),
   };
-  S.earV -= 1.5;
-  S.tagV += rand(-3, 3);
+  state.earV -= 1.5;
+  state.tagV += rand(-3, 3);
 }
 /** @param {import('./types').TrickKind} kind */
 function trick(kind) {
-  if (!ready() || S.mode === 'crash') return;
+  if (!ready() || state.mode === 'crash') return;
   // на конструкции трюки без прыжка — доска прижата к траектории
-  if (S.mode === 'ride') {
-    const rs = S.ride && FEATURE_TYPES[S.ride.feat.type].ride;
+  if (state.mode === 'ride') {
+    const rs = state.ride && FEATURE_TYPES[state.ride.feat.type].ride;
     if (!rs || !rs.tricks) return;
-    if (S.trick) {
-      S.trickQ = kind;
+    if (state.trick) {
+      state.trickQ = kind;
       return;
     }
     startTrick(kind, rideTimeLeft());
     return;
   }
-  if (S.mode !== 'air' && !jump()) return;
-  if (S.trick) {
-    S.trickQ = kind;
+  if (state.mode !== 'air' && !jump()) return;
+  if (state.trick) {
+    state.trickQ = kind;
     return;
   }
   startTrick(kind);
 }
 function finishTrick() {
-  const tr = S.trick;
+  const tr = state.trick;
   if (!tr) return;
-  S.spin = 0;
-  S.roll = 0;
-  S.kick = 0;
-  S.kickDrop = 0;
-  S.airTricks.push(tr.kind);
-  if (S.mode === 'ride') S.airBonus += 100; // трюк на конструкции дороже
+  state.spin = 0;
+  state.roll = 0;
+  state.kick = 0;
+  state.kickDrop = 0;
+  state.airTricks.push(tr.kind);
+  if (state.mode === 'ride') state.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
-  S.trick = null;
-  if (S.trickQ) {
-    const q = S.trickQ;
-    S.trickQ = null;
-    const tl = S.mode === 'ride' ? rideTimeLeft() : timeToLand();
+  state.trick = null;
+  if (state.trickQ) {
+    const q = state.trickQ;
+    state.trickQ = null;
+    const tl = state.mode === 'ride' ? rideTimeLeft() : timeToLand();
     if (tl > 0.3) startTrick(q, tl);
   }
 }
 function stepTrick(dt) {
-  const tr = S.trick;
+  const tr = state.trick;
   if (!tr) return;
   tr.t += dt;
-  const p = clamp(tr.t / tr.dur, 0, 1),
+  const p = clamp(tr.t / tr.durationS, 0, 1),
     e = easeInOut(p);
-  if (tr.kind === 'spin') S.spin = TAU * e * tr.dir;
-  else if (tr.kind === 'flip') S.roll = -TAU * e;
+  if (tr.kind === 'spin') state.spin = TAU * e * tr.dir;
+  else if (tr.kind === 'flip') state.roll = -TAU * e;
   else {
-    S.kick = TAU * e;
-    S.kickDrop = Math.sin(Math.PI * p) * 46;
+    state.kick = TAU * e;
+    state.kickDrop = Math.sin(Math.PI * p) * 46;
   }
   if (p >= 1) finishTrick();
 }
 /** слетели с конструкции — вылет в воздух */
 function launch() {
-  S.airT = 0;
-  S.jumps = 1;
-  S.hV = Math.min(3.9, 2.2 + 1.25 * S.spdN);
-  S.airTricks = [];
-  S.airBonus = 40;
-  S.airDur = timeToLand();
-  S.tiltV -= 1.2;
-  S.earV -= 3;
-  S.tagV += 3;
-  S.shake = Math.min(1.8, S.shake + 0.45);
+  state.airT = 0;
+  state.jumps = 1;
+  state.hV = Math.min(3.9, 2.2 + 1.25 * state.spdN);
+  state.airTricks = [];
+  state.airBonus = 40;
+  state.airDurationS = timeToLand();
+  state.tiltV -= 1.2;
+  state.earV -= 3;
+  state.tagV += 3;
+  state.shake = Math.min(1.8, state.shake + 0.45);
   enterAir('launch');
   if (!playerMode()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
-      S.airDur > 0.95
+      state.airDurationS > 0.95
         ? [
             ['spin', 'kick'],
             ['flip', 'kick'],
@@ -3201,53 +3244,53 @@ function launch() {
           ]
         : [['flip'], ['spin'], ['kick']]
     );
-    S.autoSeq = pick(seqs).slice();
+    state.autoSeq = pick(seqs).slice();
   }
 }
 /** @param {number} g высота земли под доской (росты коровы) */
 function land(g) {
-  if (S.trick) {
-    if (S.trick.t / S.trick.dur > 0.8) finishTrick();
+  if (state.trick) {
+    if (state.trick.t / state.trick.durationS > 0.8) finishTrick();
     else {
-      S.h = g;
+      state.h = g;
       enterCrash('bail');
       return;
     }
   }
-  S.trickQ = null;
-  const impact = -S.hV;
-  S.hV = 0;
-  S.jumps = 0;
-  S.airT = 0;
-  S.sqV -= impact * 1.3;
-  S.bobV += impact * 0.1;
-  S.tiltV += 0.5;
-  S.shake = Math.min(1.8, S.shake + 0.5 + 0.22 * impact);
-  S.earV -= 3.4;
-  S.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
+  state.trickQ = null;
+  const impact = -state.hV;
+  state.hV = 0;
+  state.jumps = 0;
+  state.airT = 0;
+  state.sqV -= impact * 1.3;
+  state.bobV += impact * 0.1;
+  state.tiltV += 0.5;
+  state.shake = Math.min(1.8, state.shake + 0.5 + 0.22 * impact);
+  state.earV -= 3.4;
+  state.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
   enterGround(g, impact);
 }
 
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = S.crash;
+  const c = state.crash;
   c.t += dt;
   // корова: подброс и кувырок вперёд
-  S.hV -= GRAV * dt;
-  S.h += S.hV * dt;
-  if (S.h <= 0) {
-    if (S.hV < -0.9) {
-      S.hV = -S.hV * 0.32;
-      S.sqV -= 1.4;
-      S.shake = Math.min(1.8, S.shake + 0.3);
+  state.hV -= GRAV * dt;
+  state.h += state.hV * dt;
+  if (state.h <= 0) {
+    if (state.hV < -0.9) {
+      state.hV = -state.hV * 0.32;
+      state.sqV -= 1.4;
+      state.shake = Math.min(1.8, state.shake + 0.3);
       const w = wheelsScreen();
       puff(w[1].x, w[1].y, w[1].z, 8, 1.2);
-    } else S.hV = 0;
-    S.h = 0;
+    } else state.hV = 0;
+    state.h = 0;
   }
   const k = clamp(c.t / 0.95, 0, 1);
-  S.roll = lerp(c.r0, c.r1, 1 - (1 - k) ** 3);
+  state.roll = lerp(c.r0, c.r1, 1 - (1 - k) ** 3);
   // доска улетает вперёд, кувыркаясь, потом возвращается под копыта
   if (c.t < 0.95) {
     c.bvh -= GRAV * dt;
@@ -3267,15 +3310,15 @@ function crashStep(dt) {
     const u = smooth(clamp((c.t - 0.95) / 0.32, 0, 1)),
       s0 = c.snap || { bx: 0, bh: 0, brot: 0, bkick: 0 };
     c.bx = lerp(s0.bx, 0, u);
-    c.bh = lerp(s0.bh, S.h, u);
-    c.brot = lerp(s0.brot, Math.round(s0.brot / TAU) * TAU + S.tilt, u);
+    c.bh = lerp(s0.bh, state.h, u);
+    c.brot = lerp(s0.brot, Math.round(s0.brot / TAU) * TAU + state.tilt, u);
     c.bkick = lerp(s0.bkick, Math.round(s0.bkick / TAU) * TAU, u);
   }
-  if (c.t >= c.dur) {
-    S.crash = null;
-    S.roll = 0;
-    S.invuln = 1.1;
-    S.sqV -= 1;
+  if (c.t >= c.durationS) {
+    state.crash = null;
+    state.roll = 0;
+    state.invuln = 1.1;
+    state.sqV -= 1;
     enterGround(0, 0);
   }
 }
@@ -3287,50 +3330,55 @@ function crashStep(dt) {
  * @param {import('./types').GroundInfo} gi поверхность под доской
  */
 function stepGround(gi) {
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   if (gi.h > 0.001) {
-    S.h = gi.h;
-    S.onRamp = true;
-    S.slope = gi.slope;
-  } else if (S.onRamp) {
-    S.onRamp = false;
-    S.h = 0;
+    state.h = gi.h;
+    state.isOnRamp = true;
+    state.slope = gi.slope;
+  } else if (state.isOnRamp) {
+    state.isOnRamp = false;
+    state.h = 0;
     launch();
-  } else S.h = 0;
+  } else state.h = 0;
 }
 
 // ---------------------------------------------------------------- history
 /** История поз для призраков (фиксированный шаг 1/60). @param {number} dt */
 function stepHistory(dt) {
-  S.histAcc += dt;
-  while (S.histAcc >= 1 / 60) {
-    S.histAcc -= 1 / 60;
-    S.hist.unshift(curPose());
-    if (S.hist.length > 14) S.hist.pop();
+  state.histAcc += dt;
+  while (state.histAcc >= 1 / 60) {
+    state.histAcc -= 1 / 60;
+    state.hist.unshift(curPose());
+    if (state.hist.length > 14) state.hist.pop();
   }
 }
 
 // ---------------------------------------------------------------- autopilot
 function autopilot() {
-  if (playerMode() || S.mode === 'crash') return;
-  if (S.mode === 'air') {
-    if (S.autoDouble && S.airT >= S.autoDouble && S.jumps < 2) {
-      S.autoDouble = 0;
+  if (playerMode() || state.mode === 'crash') return;
+  if (state.mode === 'air') {
+    if (state.autoDouble && state.airT >= state.autoDouble && state.jumps < 2) {
+      state.autoDouble = 0;
       jump();
-      if (S.autoAfter && !S.trick) {
-        startTrick(S.autoAfter);
+      if (state.autoAfter && !state.trick) {
+        startTrick(state.autoAfter);
       }
-      S.autoAfter = null;
+      state.autoAfter = null;
     }
-    if (!S.trick && S.autoSeq.length && S.airT > 0.05 && timeToLand() > 0.36)
-      startTrick(S.autoSeq.shift());
+    if (
+      !state.trick &&
+      state.autoSeq.length &&
+      state.airT > 0.05 &&
+      timeToLand() > 0.36
+    )
+      startTrick(state.autoSeq.shift());
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   const Xb = boardX(),
-    V = S.speed * G.cowH;
-  S.throttle = 0; // в демо газом владеет автопилот
+    V = state.speed * geometry.cowH;
+  state.throttle = 0; // в демо газом владеет автопилот
   // ближайшая конструкция с подсказкой: спека знает свою актуальность
   /** @type {import('./types').AutopilotHint | null} */
   let hint = null;
@@ -3346,18 +3394,18 @@ function autopilot() {
     if (t <= hint.leadS && t > -0.05) {
       if (hint.action === 'double') {
         jump();
-        S.autoDouble = 0.25;
-        if (Math.random() < 0.5) S.autoAfter = pick(['spin', 'kick']);
+        state.autoDouble = 0.25;
+        if (Math.random() < 0.5) state.autoAfter = pick(['spin', 'kick']);
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else S.throttle = 1; // hold — зажать разгон
+      } else state.throttle = 1; // hold — зажать разгон
       return;
     }
   }
   const room = !hint || (hint.at - Xb) / V > 1.6;
-  if (room && S.t > S.nextFlourish) {
-    S.nextFlourish = S.t + rand(3, 5.5);
+  if (room && state.t > state.nextFlourish) {
+    state.nextFlourish = state.t + rand(3, 5.5);
     const r = Math.random();
     if (r < 0.28) {
       jump();
@@ -3367,8 +3415,8 @@ function autopilot() {
       startTrick('spin');
     } else if (r < 0.86) {
       jump();
-      S.autoDouble = 0.24;
-      S.autoAfter = 'flip';
+      state.autoDouble = 0.24;
+      state.autoAfter = 'flip';
     } else jump();
   }
 }
@@ -3379,65 +3427,69 @@ function autopilot() {
  */
 function physicsStep(dt, g) {
   // подвеска
-  S.bobV += (-760 * S.bob - 17 * S.bobV) * dt;
-  S.bob += S.bobV * dt;
+  state.bobV += (-760 * state.bob - 17 * state.bobV) * dt;
+  state.bob += state.bobV * dt;
   // наклон: на земле — покачивание, на трамплине — по склону, в воздухе — нос вверх, потом выравнивание
   let tt;
-  if (S.mode === 'crash') tt = 0;
-  else if (S.mode === 'air') {
-    const ph = S.airT / Math.max(0.3, S.airDur);
+  if (state.mode === 'crash') tt = 0;
+  else if (state.mode === 'air') {
+    const ph = state.airT / Math.max(0.3, state.airDurationS);
     tt =
       ph < 0.32
         ? -0.17
         : lerp(-0.17, 0.04, smooth(clamp((ph - 0.32) / 0.58, 0, 1)));
-  } else if (S.onRamp) tt = -Math.atan(S.slope);
+  } else if (state.isOnRamp) tt = -Math.atan(state.slope);
   else
     tt =
-      0.007 * Math.sin(S.t * 1.7) +
-      0.006 * nB(S.t * 0.8) +
-      0.004 * S.boost * Math.sin(S.t * 5.3);
-  const kT = S.mode === 'air' ? 190 : 300;
-  S.tiltV += (-kT * (S.tilt - tt) - 13 * S.tiltV) * dt;
-  S.tilt += S.tiltV * dt;
+      0.007 * Math.sin(state.t * 1.7) +
+      0.006 * nB(state.t * 0.8) +
+      0.004 * state.boost * Math.sin(state.t * 5.3);
+  const kT = state.mode === 'air' ? 190 : 300;
+  state.tiltV += (-kT * (state.tilt - tt) - 13 * state.tiltV) * dt;
+  state.tilt += state.tiltV * dt;
   // приседание
-  S.sqV += (-420 * (S.sq - 1) - 15 * S.sqV) * dt;
-  S.sq += S.sqV * dt;
-  S.sq = clamp(S.sq, 0.84, 1.1);
+  state.sqV += (-420 * (state.sq - 1) - 15 * state.sqV) * dt;
+  state.sq += state.sqV * dt;
+  state.sq = clamp(state.sq, 0.84, 1.1);
   // ухо на ветру
   const flutter =
-    (Math.sin(S.t * 14.3) * 0.5 +
-      Math.sin(S.t * 31.7 + 1.1) * 0.22 +
-      nD(S.t * 7) * 0.55) *
+    (Math.sin(state.t * 14.3) * 0.5 +
+      Math.sin(state.t * 31.7 + 1.1) * 0.22 +
+      nD(state.t * 7) * 0.55) *
     0.03 *
-    (0.55 + 0.45 * S.spdN) *
+    (0.55 + 0.45 * state.spdN) *
     (reduce ? 0.5 : 1);
-  const earT = 0.04 + 0.06 * S.boost + (S.mode === 'air' ? 0.08 : 0) + flutter;
-  S.earV += (-150 * (S.ear - earT) - 7 * S.earV) * dt;
-  S.ear = clamp(S.ear + S.earV * dt, -0.3, 0.34);
+  const earT =
+    0.04 + 0.06 * state.boost + (state.mode === 'air' ? 0.08 : 0) + flutter;
+  state.earV += (-150 * (state.ear - earT) - 7 * state.earV) * dt;
+  state.ear = clamp(state.ear + state.earV * dt, -0.3, 0.34);
   // бирка-маятник, которую отдувает назад
   const wind =
     20 *
-    S.spdN *
-    S.spdN *
-    (1 + 0.28 * Math.sin(S.t * 19.1) + 0.25 * nC(S.t * 6.3));
-  S.tagV +=
-    (-72 * Math.sin(S.tag) + wind * Math.cos(S.tag) * 0.9 - 2.4 * S.tagV) * dt;
-  S.tag = clamp(S.tag + S.tagV * dt, -1.2, 1.3);
+    state.spdN *
+    state.spdN *
+    (1 + 0.28 * Math.sin(state.t * 19.1) + 0.25 * nC(state.t * 6.3));
+  state.tagV +=
+    (-72 * Math.sin(state.tag) +
+      wind * Math.cos(state.tag) * 0.9 -
+      2.4 * state.tagV) *
+    dt;
+  state.tag = clamp(state.tag + state.tagV * dt, -1.2, 1.3);
 
-  if (S.mode === 'crash') {
+  if (state.mode === 'crash') {
     crashStep(dt);
     return;
   }
-  if (S.mode === 'ride') {
+  if (state.mode === 'ride') {
     rideStep(dt);
     return;
   }
-  if (S.mode === 'air') {
-    S.airT += dt;
-    S.hV -= GRAV * dt;
-    S.h += S.hV * dt;
+  if (state.mode === 'air') {
+    state.airT += dt;
+    state.hV -= GRAV * dt;
+    state.h += state.hV * dt;
     stepTrick(dt);
-    if (S.h <= g && S.hV < 0) land(g);
+    if (state.h <= g && state.hV < 0) land(g);
   }
 }
 
@@ -3447,11 +3499,11 @@ function physicsStep(dt, g) {
  */
 function bumpAt(i, strength) {
   if (!onFlat()) return;
-  S.bobV -= 0.11 * strength;
-  S.tiltV += (i === 1 ? -1.3 : 0.9) * strength;
-  S.shake = Math.min(1.6, S.shake + 0.35 * strength);
-  S.earV -= 1.5 * strength;
-  S.tagV += rand(-2.5, 2.5) * strength;
+  state.bobV -= 0.11 * strength;
+  state.tiltV += (i === 1 ? -1.3 : 0.9) * strength;
+  state.shake = Math.min(1.6, state.shake + 0.35 * strength);
+  state.earV -= 1.5 * strength;
+  state.tagV += rand(-2.5, 2.5) * strength;
   const w = wheelsScreen()[i];
   puff(w.x, w.y, w.z, 7, 1.1 * strength);
   if (Math.random() < 0.45) sparks(w.x, w.y, w.z, 4);
@@ -3495,7 +3547,7 @@ function pickSpec() {
 }
 /** x0 последней спец-конструкции (для рейт-лимита). */
 function lastSpecialX() {
-  const horizon = S.nextSpawnX - SPECIAL_EVERY_COWH * G.cowH;
+  const horizon = state.nextSpawnX - SPECIAL_EVERY_COWH * geometry.cowH;
   for (let i = feats.length - 1; i >= 0; i--) {
     const f = feats[i];
     if (FEATURE_TYPES[f.type].special) return f.x0;
@@ -3507,16 +3559,21 @@ function lastSpecialX() {
 function initFeatures() {
   // чистая зона после приземления — ближние CLEAR_AFTER_LAND_COWH без конструкций
   on('land', () => {
-    S.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * G.cowH;
+    state.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * geometry.cowH;
   });
 }
 
 function spawnFeatures() {
   // на узких экранах спавним глубже — за видимым краем дороги, чтобы препятствия подъезжали издалека
   const ahead =
-    S.camX + Math.max(W * 1.5 - G.vx, G.zEdge * 1.15 * (W - G.vx) + 2 * G.cowH);
-  while (S.nextSpawnX < ahead) {
-    if (S.nextSpawnX < S.clearSpawnX) S.nextSpawnX = S.clearSpawnX;
+    state.camX +
+    Math.max(
+      W * 1.5 - geometry.vx,
+      geometry.zEdge * 1.15 * (W - geometry.vx) + 2 * geometry.cowH,
+    );
+  while (state.nextSpawnX < ahead) {
+    if (state.nextSpawnX < state.clearSpawnX)
+      state.nextSpawnX = state.clearSpawnX;
     // форс-спавн через ?feat= обходит веса и рейт-лимиты
     const forced = feat0pending
       ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
@@ -3524,32 +3581,38 @@ function spawnFeatures() {
     feat0pending = false;
     let spec = forced || pickSpec();
     const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
-    let X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+    let X = Math.max(
+      state.nextSpawnX,
+      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+    );
     // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
     if (
       !forced &&
       spec.special &&
-      X - lastSpecialX() < SPECIAL_EVERY_COWH * G.cowH
+      X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
     ) {
       spec = FALLBACK;
-      X = Math.max(S.nextSpawnX, prevX1 + spec.minGapBeforeCowH * G.cowH);
+      X = Math.max(
+        state.nextSpawnX,
+        prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+      );
     }
-    const plan = spec.plan({ X, cowH: G.cowH, spdN: S.spdN, rand });
+    const plan = spec.plan({ X, cowH: geometry.cowH, spdN: state.spdN, rand });
     const f = createFeature(
       spec.type,
       X,
-      X + plan.lengthCowH * G.cowH,
+      X + plan.lengthCowH * geometry.cowH,
       plan.data,
     );
     // реестр стирает вид: на границе спавна приводим к известному объединению
     feats.push(
       /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
     );
-    S.nextSpawnX = f.x1 + plan.gapAfterCowH * G.cowH;
+    state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
   for (let i = feats.length - 1; i >= 0; i--) {
     const f = feats[i];
-    if (G.vx + (f.x1 - S.camX) < -W * 0.5) feats.splice(i, 1);
+    if (geometry.vx + (f.x1 - state.camX) < -W * 0.5) feats.splice(i, 1);
   }
 }
 /**
@@ -3564,14 +3627,14 @@ function groundInfo(X) {
   return { h: 0, slope: 0 };
 }
 /**
- * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, S).
+ * Вход в ride-режим: конструкция сама решает через ride.canEnter(feat, state).
  * Вызывается после stepGround — доска на поверхности, режим актуален.
  */
 function checkRideEntry() {
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   for (const f of feats) {
     const rs = FEATURE_TYPES[f.type].ride;
-    if (rs && rs.canEnter(f, S)) {
+    if (rs && rs.canEnter(f, state)) {
       enterRide(f);
       return;
     }
@@ -3580,33 +3643,34 @@ function checkRideEntry() {
 function checkObstacles() {
   const Xb = boardX();
   for (const f of feats)
-    if (FEATURE_TYPES[f.type].collide?.(f, Xb, S.h) === 'hit')
+    if (FEATURE_TYPES[f.type].collide?.(f, Xb, state.h) === 'hit')
       enterCrash('hit');
 }
 /** Швы на асфальте → удары по колёсам. */
 function stepCracks() {
-  const zB = G.zBottom,
-    farX = S.camX + (W * 1.3 - G.vx) * G.zEdge;
+  const zB = geometry.zBottom,
+    farX = state.camX + (W * 1.3 - geometry.vx) * geometry.zEdge;
   let last = cracks.length
     ? cracks[cracks.length - 1].X
-    : S.camX + W * 0.6 * zB;
+    : state.camX + W * 0.6 * zB;
   while (last < farX) {
-    last += rand(5, 13) * G.cowH;
+    last += rand(5, 13) * geometry.cowH;
     cracks.push({
       X: last,
-      hit: /** @type {[boolean, boolean]} */ ([false, false]),
+      isHit: /** @type {[boolean, boolean]} */ ([false, false]),
     });
   }
-  while (cracks.length && xAt(cracks[0].X, G.zEdge) < -W * 0.3) cracks.shift();
-  const restM = poseMatrix({ y: S.bob, tilt: S.tilt, sq: S.sq });
+  while (cracks.length && xAt(cracks[0].X, geometry.zEdge) < -W * 0.3)
+    cracks.shift();
+  const restM = poseMatrix({ y: state.bob, tilt: state.tilt, sq: state.sq });
   for (let i = 0; i < 2; i++) {
     const p = restM.transformPoint(
       new DOMPoint(META.contact[i][0], META.contact[i][1]),
     );
-    const Xw = S.camX + (p.x - G.vx) * zAt(p.y);
+    const Xw = state.camX + (p.x - geometry.vx) * zAt(p.y);
     for (const c of cracks)
-      if (!c.hit[i] && Xw >= c.X) {
-        c.hit[i] = true;
+      if (!c.isHit[i] && Xw >= c.X) {
+        c.isHit[i] = true;
         bumpAt(i, rand(0.6, 1));
       }
   }
@@ -3617,7 +3681,7 @@ function stepFlying(dt) {
 }
 
 function drawFeatures() {
-  const blur = (S.speed * G.cowH) / 45;
+  const blur = (state.speed * geometry.cowH) / 45;
   /** @type {{z: number, f: import('./types').AnyFeature}[]} */
   const items = []; // дальние рисуем первыми
   for (const f of feats) {
@@ -3640,7 +3704,7 @@ function drawMarkers() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  const V = Math.max(1, S.speed * G.cowH),
+  const V = Math.max(1, state.speed * geometry.cowH),
     Xb = boardX();
   for (const f of feats) {
     const mk = FEATURE_TYPES[f.type].marker?.(f);
@@ -3648,18 +3712,18 @@ function drawMarkers() {
     const mid = (f.x0 + f.x1) / 2,
       t = (mid - Xb) / V;
     if (t <= 0 || t > 2.6) continue;
-    const z = obZ(mid - S.camX);
+    const z = obZ(mid - state.camX);
     const p = CAM.transformPoint(
       new DOMPoint(
-        G.vx + (mid - S.camX) / z,
-        yAt(z) - (mk.heightCowH * G.cowH) / z,
+        geometry.vx + (mid - state.camX) / z,
+        yAt(z) - (mk.heightCowH * geometry.cowH) / z,
       ),
     );
     if (p.x < -24 * DPR || p.x > W + 24 * DPR) continue;
     const urgent = t < mk.leadS + 0.35;
     const a = smooth(clamp((2.6 - t) / 0.9, 0, 1));
     const s = (urgent ? 15 : 12) * DPR;
-    const bob = (0.5 + 0.5 * Math.sin(S.t * (urgent ? 13 : 7))) * s * 0.35;
+    const bob = (0.5 + 0.5 * Math.sin(state.t * (urgent ? 13 : 7))) * s * 0.35;
     ctx.globalAlpha = a;
     ctx.fillStyle = urgent ? '#ff5a4a' : '#ffd84a';
     ctx.beginPath();
@@ -3678,18 +3742,18 @@ function drawMarkers() {
 // значок у правого края: конструкция ещё за кадром, кольцо заполняется к моменту прыжка
 function drawWarnings() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     Xb = boardX(),
-    r = Math.max(14 * DPR, 0.06 * G.cowH);
+    r = Math.max(14 * DPR, 0.06 * geometry.cowH);
   for (const f of feats) {
     const mk = FEATURE_TYPES[f.type].marker?.(f);
     if (!mk) continue;
     const mid = (f.x0 + f.x1) / 2,
       t = (mid - Xb) / V,
       lead = mk.leadS;
-    const z = obZ(mid - S.camX);
+    const z = obZ(mid - state.camX);
     const edge = CAM.transformPoint(
-      new DOMPoint(G.vx + (f.x0 - S.camX) / z, yAt(z)),
+      new DOMPoint(geometry.vx + (f.x0 - state.camX) / z, yAt(z)),
     );
     if (t > lead + 1.3 || t < 0) continue;
     const fadeIn = smooth(clamp((lead + 1.3 - t) / 0.35, 0, 1)); // появился заранее
@@ -3698,7 +3762,9 @@ function drawWarnings() {
     const a = fadeIn * fadeOut * seen;
     if (a <= 0.01) continue;
     const x = W - r - 14 * DPR,
-      y = CAM.transformPoint(new DOMPoint(0, G.refY - 0.16 * G.cowH)).y;
+      y = CAM.transformPoint(
+        new DOMPoint(0, geometry.refY - 0.16 * geometry.cowH),
+      ).y;
     const prog = clamp(1 - (t - lead) / 1.3, 0, 1),
       now = t <= lead + 0.06;
     ctx.globalAlpha = a;
@@ -3752,13 +3818,13 @@ function bumpScore() {
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
-  if (S.score !== shown.score) {
-    scoreEl.textContent = S.score.toLocaleString('ru-RU');
-    shown.score = S.score;
+  if (state.score !== shown.score) {
+    scoreEl.textContent = state.score.toLocaleString('ru-RU');
+    shown.score = state.score;
   }
-  if (S.best !== shown.best) {
-    bestEl.textContent = S.best.toLocaleString('ru-RU');
-    shown.best = S.best;
+  if (state.best !== shown.best) {
+    bestEl.textContent = state.best.toLocaleString('ru-RU');
+    shown.best = state.best;
   }
   const auto = !playerMode();
   if (auto !== shown.auto) {
@@ -3766,12 +3832,12 @@ function hud() {
     hudEl.classList.toggle('dim', auto);
     shown.auto = auto;
   }
-  const cta = auto && !S.touched0; // призыв виден только в демо до первого касания
+  const cta = auto && !state.isTouched0; // призыв виден только в демо до первого касания
   if (cta !== shown.cta) {
     ctaEl.classList.toggle('dim', !cta);
     shown.cta = cta;
   }
-  const res = S.t < S.resultUntil;
+  const res = state.t < state.resultUntil;
   if (res !== shown.res) {
     resultEl.classList.toggle('dim', !res);
     shown.res = res;
@@ -3781,46 +3847,50 @@ function hud() {
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
 /** @param {number} sc очки заезда */
 function showResult(sc) {
-  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
+  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${state.best.toLocaleString('ru-RU')}</span>`;
   resultEl.classList.remove('dim');
-  S.resultUntil = S.t + 2.6;
+  state.resultUntil = state.t + 2.6;
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
 /**
  * @param {string | null} text текст подсказки (null — скрыть)
- * @param {number} [dur] секунды показа (по умолчанию — до замены)
+ * @param {number} [durationS] секунды показа (по умолчанию — до замены)
  */
-function setCoach(text, dur) {
+function setCoach(text, durationS) {
   if (!text) {
     coachEl.classList.add('dim');
-    S.coachText = null;
-    S.coachUntil = 0;
+    state.coachText = null;
+    state.coachUntil = 0;
     return;
   }
-  if (S.coachText !== text) {
-    S.coachText = text;
+  if (state.coachText !== text) {
+    state.coachText = text;
     coachEl.textContent = text;
   }
   coachEl.classList.remove('dim');
-  S.coachUntil = dur ? S.t + dur : Infinity;
+  state.coachUntil = durationS ? state.t + durationS : Infinity;
 }
 // подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
 function coachStep() {
-  if (S.coachText && S.coachUntil !== Infinity && S.t > S.coachUntil)
+  if (
+    state.coachText &&
+    state.coachUntil !== Infinity &&
+    state.t > state.coachUntil
+  )
     setCoach(null);
   if (!playerMode()) {
-    if (S.coachText) setCoach(null);
+    if (state.coachText) setCoach(null);
     return;
   } // в демо подсказок нет
-  if (S.mode === 'crash' || S.coachStage > 2) return;
-  if (S.coachStage === 0) {
-    if (S.mode === 'air') {
-      S.coachStage = 1;
+  if (state.mode === 'crash' || state.coachStage > 2) return;
+  if (state.coachStage === 0) {
+    if (state.mode === 'air') {
+      state.coachStage = 1;
       setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
     } else {
       const Xb = boardX(),
-        V = Math.max(1, S.speed * G.cowH);
+        V = Math.max(1, state.speed * geometry.cowH);
       // ближайшая прыгаемая конструкция — по подсказке её спеки
       let jumpAt = Infinity;
       for (const f of feats) {
@@ -3835,14 +3905,14 @@ function coachStep() {
         }
       }
       if ((jumpAt - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
-      else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
+      else if (state.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
-  } else if (S.coachStage === 1) {
-    if (S.mode !== 'air' || S.jumps >= 2) {
-      S.coachStage = 2;
+  } else if (state.coachStage === 1) {
+    if (state.mode !== 'air' || state.jumps >= 2) {
+      state.coachStage = 2;
       setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
     }
-  } else if (S.t > S.coachUntil) S.coachStage = 3;
+  } else if (state.t > state.coachUntil) state.coachStage = 3;
 }
 
 // ---------------------------------------------------------------- подписки
@@ -3861,14 +3931,14 @@ let holdTimer = 0,
   holding = false;
 function touched() {
   if (!playerMode()) {
-    S.score = 0;
-    S.playT0 = S.t;
+    state.score = 0;
+    state.playT0 = state.t;
   } // новый заезд — с мягкого разгона
-  S.touched0 = true;
-  S.lastInput = S.t;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
+  state.isTouched0 = true;
+  state.lastInput = state.t;
+  state.autoSeq = [];
+  state.autoDouble = 0;
+  state.autoAfter = null;
   hintEl.classList.add('dim');
 }
 /** @param {import('./types').Action} a действие кнопки/клавиши */
@@ -3884,21 +3954,21 @@ cv.addEventListener('pointerdown', (e) => {
   holding = false;
   holdTimer = setTimeout(() => {
     holding = true;
-    S.throttle = 1;
+    state.throttle = 1;
   }, 280);
 });
 const release = () => {
   clearTimeout(holdTimer);
   if (holding) {
     holding = false;
-    S.throttle = 0;
+    state.throttle = 0;
   }
 };
 addEventListener('pointerup', release);
 addEventListener('pointercancel', release);
 addEventListener('blur', () => {
   release();
-  S.throttle = 0;
+  state.throttle = 0;
 });
 const padBtns = /** @type {NodeListOf<HTMLElement>} */ (
   document.querySelectorAll('.pad [data-act]')
@@ -3936,18 +4006,20 @@ addEventListener('keydown', (e) => {
     if (!e.repeat) act(keyAct);
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
-    S.throttle = 1;
+    state.throttle = 1;
     touched();
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
-    S.throttle = -1;
+    state.throttle = -1;
     touched();
   }
 });
 addEventListener('keyup', (e) => {
   const k = e.code;
-  if ((k === 'ArrowRight' || k === 'KeyD') && S.throttle > 0) S.throttle = 0;
-  if ((k === 'ArrowLeft' || k === 'KeyA') && S.throttle < 0) S.throttle = 0;
+  if ((k === 'ArrowRight' || k === 'KeyD') && state.throttle > 0)
+    state.throttle = 0;
+  if ((k === 'ArrowLeft' || k === 'KeyA') && state.throttle < 0)
+    state.throttle = 0;
 });
 
 // ---- game/render.js
@@ -3966,23 +4038,33 @@ function drawSky() {
   const p0 = inv.transformPoint(new DOMPoint(0, 0));
   const p1 = inv.transformPoint(new DOMPoint(W, H));
   const sx = clamp(p0.x + W * 0.12 - pad, 0, skyCv.width);
-  const sy = clamp(p0.y + G.skyOff - pad, 0, skyCv.height);
+  const sy = clamp(p0.y + geometry.skyOff - pad, 0, skyCv.height);
   const sw = clamp(p1.x - p0.x + pad * 2, 0, skyCv.width - sx);
   const sh = clamp(p1.y - p0.y + pad * 2, 0, skyCv.height - sy);
   if (sw > 1 && sh > 1)
-    ctx.drawImage(skyCv, sx, sy, sw, sh, sx - W * 0.12, sy - G.skyOff, sw, sh);
+    ctx.drawImage(
+      skyCv,
+      sx,
+      sy,
+      sw,
+      sh,
+      sx - W * 0.12,
+      sy - geometry.skyOff,
+      sw,
+      sh,
+    );
   for (const c of clouds) {
-    const sc = c.scale * G.u * 1.05;
+    const sc = c.scale * geometry.u * 1.05;
     const w = c.img.width * sc,
       h = c.img.height * sc;
     const LW = W * 1.24 + w + c.gap * W; // у каждого облака свой цикл — небо не пустеет
     const x = (((c.x % 1) + 1) % 1) * LW - w - W * 0.12;
-    const y = G.horizon * c.yN - h * 0.6;
+    const y = geometry.horizon * c.yN - h * 0.6;
     if (
       x + w < -W * 0.15 ||
       x > W * 1.15 ||
-      y + h < -0.8 * G.cowH ||
-      y > H + 0.4 * G.cowH
+      y + h < -0.8 * geometry.cowH ||
+      y > H + 0.4 * geometry.cowH
     )
       continue;
     ctx.globalAlpha = c.alpha;
@@ -3997,20 +4079,20 @@ function ridge(color, par, amp0, amp1, freq, seedFn, offY) {
   const x0 = X0(),
     x1 = X1(),
     step = Math.max(4, 8 * DPR);
-  ctx.moveTo(x0, G.horizon + 3);
+  ctx.moveTo(x0, geometry.horizon + 3);
   for (let x = x0; x <= x1 + step; x += step) {
-    const wx = (x + S.camX * par) / (G.cowH * freq);
-    const hh = (amp0 + amp1 * (fbm(seedFn, wx) * 0.5 + 0.5)) * G.cowH;
-    ctx.lineTo(x, G.horizon - hh + offY);
+    const wx = (x + state.camX * par) / (geometry.cowH * freq);
+    const hh = (amp0 + amp1 * (fbm(seedFn, wx) * 0.5 + 0.5)) * geometry.cowH;
+    ctx.lineTo(x, geometry.horizon - hh + offY);
   }
-  ctx.lineTo(x1 + step, G.horizon + 3);
+  ctx.lineTo(x1 + step, geometry.horizon + 3);
   ctx.closePath();
   ctx.fill();
 }
 
 function drawGround() {
-  const hz = G.horizon,
-    K = G.K,
+  const hz = geometry.horizon,
+    K = geometry.K,
     x0 = X0(),
     x1 = X1(),
     yEnd = H * 1.2;
@@ -4022,15 +4104,15 @@ function drawGround() {
   if (!canPatternTransform) {
     const g = ctx.createLinearGradient(0, hz, 0, H);
     g.addColorStop(0, '#5b6c62');
-    g.addColorStop((G.edgeY - hz) / (H - hz) - 0.001, '#3c4a3a');
-    g.addColorStop((G.edgeY - hz) / (H - hz), '#3a4658');
+    g.addColorStop((geometry.edgeY - hz) / (H - hz) - 0.001, '#3c4a3a');
+    g.addColorStop((geometry.edgeY - hz) / (H - hz), '#3a4658');
     g.addColorStop(1, '#1b1e2b');
     ctx.fillStyle = g;
     ctx.fillRect(x0, yTex, x1 - x0, yEnd - yTex);
     return;
   }
-  const uR = (((S.camX * G.kR) % RT.w) + RT.w) % RT.w;
-  const uF = (((S.camX * G.kF) % FT.w) + FT.w) % FT.w;
+  const uR = (((state.camX * geometry.kR) % RT.w) + RT.w) % RT.w;
+  const uF = (((state.camX * geometry.kF) % FT.w) + FT.w) % FT.w;
   const bMax = Math.max(bMin, Math.round(22 * DPR));
   // полосы растут к низу: ошибка линейной аппроксимации проекции ≈ band²/(4(y−hz)) px
   // — держим её субпиксельной (≤0.3px), поэтому кадр рисует ~50 полос вместо сотен
@@ -4039,8 +4121,8 @@ function drawGround() {
     const zA = K / (y - hz),
       zB = K / (y + bnd - hz),
       z = (zA + zB) * 0.5;
-    const road = y + bnd * 0.5 >= G.edgeY;
-    const k = road ? G.kR : G.kF,
+    const road = y + bnd * 0.5 >= geometry.edgeY;
+    const k = road ? geometry.kR : geometry.kF,
       kv = road ? 110 : 34;
     const T = road ? RT : FT,
       pat = road ? roadPat : fieldPat,
@@ -4053,7 +4135,7 @@ function drawGround() {
     PM.b = 0;
     PM.c = 0;
     PM.d = d;
-    PM.e = G.vx - u0 * a;
+    PM.e = geometry.vx - u0 * a;
     PM.f = y - d * (vA % T.h);
     pat.setTransform(PM);
     ctx.fillStyle = pat;
@@ -4063,41 +4145,41 @@ function drawGround() {
 }
 
 function drawGroundOverlays() {
-  const hz = G.horizon,
+  const hz = geometry.horizon,
     x0 = X0(),
     x1 = X1(),
     w = x1 - x0,
     yEnd = H * 1.2;
-  const fh = G.edgeY - hz;
-  ctx.fillStyle = G.hg;
+  const fh = geometry.edgeY - hz;
+  ctx.fillStyle = geometry.hg;
   ctx.fillRect(x0, hz - 1, w, fh + 2);
-  ctx.fillStyle = G.rg;
-  ctx.fillRect(x0, G.edgeY, w, yEnd - G.edgeY);
-  const zE = G.zEdge;
+  ctx.fillStyle = geometry.rg;
+  ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  const zE = geometry.zEdge;
   const yS0 = yAt(zE * 1.07),
-    yS1 = G.edgeY;
+    yS1 = geometry.edgeY;
   ctx.fillStyle = 'rgba(92,90,80,0.5)';
   ctx.fillRect(x0, yS0, w, yS1 - yS0);
   const yL = yAt(zE * 0.975),
-    th = Math.max(1, (0.011 * G.cowH) / zE);
+    th = Math.max(1, (0.011 * geometry.cowH) / zE);
   ctx.fillStyle = 'rgba(214,220,228,0.32)';
   ctx.fillRect(x0, yL - th / 2, w, th);
 }
 
 function repeatAt(z, P, off, fn) {
-  const k0 = Math.floor((S.camX + (X0() - G.vx) * z - off) / P) - 1;
-  const k1 = Math.ceil((S.camX + (X1() - G.vx) * z - off) / P) + 1;
+  const k0 = Math.floor((state.camX + (X0() - geometry.vx) * z - off) / P) - 1;
+  const k1 = Math.ceil((state.camX + (X1() - geometry.vx) * z - off) / P) + 1;
   for (let k = k0; k <= k1; k++) fn(k, xAt(k * P + off, z));
 }
 
 function drawDashes() {
   const z = 1.72,
     yC = yAt(z),
-    hh = Math.max(1.5, (G.K * 0.05) / (z * z));
-  const V = S.speed * G.cowH,
+    hh = Math.max(1.5, (geometry.K * 0.05) / (z * z));
+  const V = state.speed * geometry.cowH,
     blur = V / z / 40,
-    L = (2.3 * G.cowH) / z;
-  repeatAt(z, 6.2 * G.cowH, 0, (k, x) => {
+    L = (2.3 * geometry.cowH) / z;
+  repeatAt(z, 6.2 * geometry.cowH, 0, (k, x) => {
     const xa = x - blur / 2,
       xb = x + L + blur / 2;
     if (xb < X0() || xa > X1()) return;
@@ -4113,15 +4195,15 @@ function drawDashes() {
 }
 
 function drawPoles() {
-  const z = G.zEdge * 2.05,
+  const z = geometry.zEdge * 2.05,
     yb = yAt(z);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     blur = V / z / 45;
-  const h = (2.2 * G.cowH) / z,
-    w = (0.05 * G.cowH) / z,
-    P = 7.6 * G.cowH;
+  const h = (2.2 * geometry.cowH) / z,
+    w = (0.05 * geometry.cowH) / z,
+    P = 7.6 * geometry.cowH;
   const top = yb - h,
-    sag = (0.1 * G.cowH) / z;
+    sag = (0.1 * geometry.cowH) / z;
   ctx.strokeStyle = 'rgba(38,48,66,0.5)';
   ctx.lineWidth = Math.max(1, 0.8 * DPR);
   const xs = [];
@@ -4156,14 +4238,14 @@ function drawPoles() {
 }
 
 function drawPosts() {
-  const z = G.zEdge * 0.985,
+  const z = geometry.zEdge * 0.985,
     yb = yAt(z);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     blur = V / z / 45;
-  const h = (0.16 * G.cowH) / z,
-    w = (0.02 * G.cowH) / z;
+  const h = (0.16 * geometry.cowH) / z,
+    w = (0.02 * geometry.cowH) / z;
   const al = clamp((w / (w + blur)) * 1.6, 0.18, 0.85);
-  repeatAt(z, 3.7 * G.cowH, 0.8 * G.cowH, (k, x) => {
+  repeatAt(z, 3.7 * geometry.cowH, 0.8 * geometry.cowH, (k, x) => {
     const xl = x - (w + blur) / 2,
       ww = w + blur;
     ctx.globalAlpha = al;
@@ -4178,10 +4260,10 @@ function drawPosts() {
 }
 
 function drawShadow() {
-  const g = S.mode === 'crash' ? 0 : groundInfo(boardX()).h;
+  const g = state.mode === 'crash' ? 0 : groundInfo(boardX()).h;
   const m = poseMatrix({
-    y: S.bob + vib() - g,
-    tilt: onFeature() ? S.tilt : S.tilt * 0.5,
+    y: state.bob + vib() - g,
+    tilt: onFeature() ? state.tilt : state.tilt * 0.5,
     sq: 1,
   });
   const a = m.transformPoint(new DOMPoint(80, 488)),
@@ -4189,8 +4271,8 @@ function drawShadow() {
   const cx = (a.x + b.x) / 2,
     cy = (a.y + b.y) / 2;
   const len = Math.hypot(b.x - a.x, b.y - a.y) * 0.62,
-    wid = 0.05 * G.cowH;
-  const k = 1 - clamp((S.h - g) / 0.5, 0, 0.7);
+    wid = 0.05 * geometry.cowH;
+  const k = 1 - clamp((state.h - g) / 0.5, 0, 0.7);
   const draw = (sx, sy, al) => {
     ctx.save();
     ctx.translate(cx, cy);
@@ -4221,7 +4303,7 @@ function star(x, y, r) {
 function drawStreaks(m, sp, busy) {
   if (!streaks.length || !streakCv) return;
   setT(m);
-  const t = S.t,
+  const t = state.t,
     fade = busy ? 0.25 : 1;
   for (let i = 0; i < streaks.length; i++) {
     const s = streaks[i];
@@ -4247,9 +4329,9 @@ function drawStreaks(m, sp, busy) {
 // призраки
 function drawGhosts(sp, busy) {
   const GN = 4,
-    spacing = (0.05 + 0.035 * S.boost) * G.cowH * sp;
+    spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
   for (let i = GN; i >= 1; i--) {
-    const h = S.hist[Math.min(S.hist.length - 1, i * 2)];
+    const h = state.hist[Math.min(state.hist.length - 1, i * 2)];
     if (!h) continue;
     setT(poseMatrix({ ...h, x: -i * spacing }));
     ctx.globalAlpha =
@@ -4259,31 +4341,36 @@ function drawGhosts(sp, busy) {
 }
 // звёздочки над головой после падения
 function drawCrashStars() {
-  const c = S.crash;
+  const c = state.crash;
   if (!c || c.t <= 0.3) return;
   setCam();
-  const hm = poseMatrix({ y: S.bob - S.h, tilt: S.tilt, sq: S.sq });
+  const hm = poseMatrix({
+    y: state.bob - state.h,
+    tilt: state.tilt,
+    sq: state.sq,
+  });
   const hp = hm.transformPoint(new DOMPoint(430, 30));
   ctx.globalAlpha =
-    clamp((c.dur - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
+    clamp((c.durationS - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
   ctx.fillStyle = '#ffd84a';
   ctx.strokeStyle = 'rgba(60,40,0,.7)';
-  ctx.lineWidth = Math.max(1, 1.5 * G.u);
+  ctx.lineWidth = Math.max(1, 1.5 * geometry.u);
   ctx.lineJoin = 'round';
   for (let i = 0; i < 3; i++) {
-    const an = S.t * 7 + (i * TAU) / 3;
+    const an = state.t * 7 + (i * TAU) / 3;
     star(
-      hp.x + Math.cos(an) * 0.13 * G.cowH,
-      hp.y + Math.sin(an) * 0.035 * G.cowH,
-      0.03 * G.cowH,
+      hp.x + Math.cos(an) * 0.13 * geometry.cowH,
+      hp.y + Math.sin(an) * 0.035 * geometry.cowH,
+      0.03 * geometry.cowH,
     );
   }
 }
 function drawCow() {
   const pose = curPose(),
     m = poseMatrix(pose);
-  const sp = clamp(S.spdN, 0.5, 2);
-  const busy = S.trick || S.mode === 'crash' || Math.abs(S.roll) > 0.01;
+  const sp = clamp(state.spdN, 0.5, 2);
+  const busy =
+    state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
   drawStreaks(m, sp, busy);
   drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
@@ -4296,7 +4383,7 @@ function drawCow() {
   setT(
     m
       .translate(ep[0], ep[1])
-      .rotate(S.ear * DEG)
+      .rotate(state.ear * DEG)
       .translate(-ep[0], -ep[1]),
   );
   ctx.drawImage(imgs.ear, META.ear.x, META.ear.y);
@@ -4304,7 +4391,7 @@ function drawCow() {
   setT(
     m
       .translate(tp[0], tp[1])
-      .rotate((S.tag - S.tilt) * DEG)
+      .rotate((state.tag - state.tilt) * DEG)
       .translate(-tp[0], -tp[1]),
   );
   ctx.drawImage(imgs.tag, META.tag.x, META.tag.y);
@@ -4340,7 +4427,7 @@ function post() {
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.drawImage(vigCv, 0, 0);
-  const pat = grainPats[((S.t * 24) | 0) % grainPats.length];
+  const pat = grainPats[((state.t * 24) | 0) % grainPats.length];
   if (pat && canPatternTransform) {
     PM.a = 1;
     PM.b = 0;
@@ -4408,27 +4495,32 @@ function relayout() {
 
 /** Скорость и продвижение мира: разгон, крейсер, глушение после падения. */
 function stepSpeed(dt) {
-  S.t += dt;
+  state.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
-  const rampT = S.playT0 ? smooth(clamp((S.t - S.playT0) / 14, 0, 1)) : 1;
+  const rampT = state.playT0
+    ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
+    : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
   const target =
-    S.mode === 'crash'
+    state.mode === 'crash'
       ? 1.3
-      : S.throttle > 0
+      : state.throttle > 0
         ? MAXSPD
-        : S.throttle < 0
+        : state.throttle < 0
           ? MINSPD
           : reduce
             ? 3.2
             : cruise;
-  S.speed +=
-    (target - S.speed) *
-    (1 - Math.exp(-dt * (S.mode === 'crash' ? 3 : S.throttle > 0 ? 1.3 : 0.9)));
-  S.boost = clamp((S.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
-  S.spdN = S.speed / CRUISE;
-  S.camX += S.speed * G.cowH * dt;
-  S.invuln = Math.max(0, S.invuln - dt);
+  state.speed +=
+    (target - state.speed) *
+    (1 -
+      Math.exp(
+        -dt * (state.mode === 'crash' ? 3 : state.throttle > 0 ? 1.3 : 0.9),
+      ));
+  state.boost = clamp((state.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
+  state.spdN = state.speed / CRUISE;
+  state.camX += state.speed * geometry.cowH * dt;
+  state.invuln = Math.max(0, state.invuln - dt);
 }
 
 /**
@@ -4463,7 +4555,7 @@ function update(dt) {
   stepParticles(dt);
   stepLines(dt);
   stepClouds(dt);
-  if (S.t > 9) hintEl.classList.add('dim');
+  if (state.t > 9) hintEl.classList.add('dim');
   stepCamera(dt);
 }
 
@@ -4484,7 +4576,7 @@ function frame(now) {
   emaWork += (performance.now() - t0 - emaWork) * 0.06;
   emaFrame += (Math.min(dt * 1000, 34) - emaFrame) * 0.06; // cap — не считаем паузы в фоне
   perfCool -= dt;
-  if (S.t > 4 && perfCool <= 0) {
+  if (state.t > 4 && perfCool <= 0) {
     if (emaFrame > 19 && perfScale > 0.55) {
       setPerfScale(Math.max(0.55, perfScale - 0.15));
       perfCool = 2.5;

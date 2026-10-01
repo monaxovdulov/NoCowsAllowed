@@ -7,12 +7,12 @@ import {
   clouds,
   ctx,
   cv,
-  G,
+  geometry,
   grainEl,
   PM,
   onFeature,
   reduce,
-  S,
+  state,
 } from './state.js';
 import { CAM } from './camera.js';
 import { boardX, DPR, H, W, X0, X1, xAt, yAt } from './layout.js';
@@ -63,23 +63,33 @@ function drawSky() {
   const p0 = inv.transformPoint(new DOMPoint(0, 0));
   const p1 = inv.transformPoint(new DOMPoint(W, H));
   const sx = clamp(p0.x + W * 0.12 - pad, 0, skyCv.width);
-  const sy = clamp(p0.y + G.skyOff - pad, 0, skyCv.height);
+  const sy = clamp(p0.y + geometry.skyOff - pad, 0, skyCv.height);
   const sw = clamp(p1.x - p0.x + pad * 2, 0, skyCv.width - sx);
   const sh = clamp(p1.y - p0.y + pad * 2, 0, skyCv.height - sy);
   if (sw > 1 && sh > 1)
-    ctx.drawImage(skyCv, sx, sy, sw, sh, sx - W * 0.12, sy - G.skyOff, sw, sh);
+    ctx.drawImage(
+      skyCv,
+      sx,
+      sy,
+      sw,
+      sh,
+      sx - W * 0.12,
+      sy - geometry.skyOff,
+      sw,
+      sh,
+    );
   for (const c of clouds) {
-    const sc = c.scale * G.u * 1.05;
+    const sc = c.scale * geometry.u * 1.05;
     const w = c.img.width * sc,
       h = c.img.height * sc;
     const LW = W * 1.24 + w + c.gap * W; // у каждого облака свой цикл — небо не пустеет
     const x = (((c.x % 1) + 1) % 1) * LW - w - W * 0.12;
-    const y = G.horizon * c.yN - h * 0.6;
+    const y = geometry.horizon * c.yN - h * 0.6;
     if (
       x + w < -W * 0.15 ||
       x > W * 1.15 ||
-      y + h < -0.8 * G.cowH ||
-      y > H + 0.4 * G.cowH
+      y + h < -0.8 * geometry.cowH ||
+      y > H + 0.4 * geometry.cowH
     )
       continue;
     ctx.globalAlpha = c.alpha;
@@ -94,20 +104,20 @@ function ridge(color, par, amp0, amp1, freq, seedFn, offY) {
   const x0 = X0(),
     x1 = X1(),
     step = Math.max(4, 8 * DPR);
-  ctx.moveTo(x0, G.horizon + 3);
+  ctx.moveTo(x0, geometry.horizon + 3);
   for (let x = x0; x <= x1 + step; x += step) {
-    const wx = (x + S.camX * par) / (G.cowH * freq);
-    const hh = (amp0 + amp1 * (fbm(seedFn, wx) * 0.5 + 0.5)) * G.cowH;
-    ctx.lineTo(x, G.horizon - hh + offY);
+    const wx = (x + state.camX * par) / (geometry.cowH * freq);
+    const hh = (amp0 + amp1 * (fbm(seedFn, wx) * 0.5 + 0.5)) * geometry.cowH;
+    ctx.lineTo(x, geometry.horizon - hh + offY);
   }
-  ctx.lineTo(x1 + step, G.horizon + 3);
+  ctx.lineTo(x1 + step, geometry.horizon + 3);
   ctx.closePath();
   ctx.fill();
 }
 
 function drawGround() {
-  const hz = G.horizon,
-    K = G.K,
+  const hz = geometry.horizon,
+    K = geometry.K,
     x0 = X0(),
     x1 = X1(),
     yEnd = H * 1.2;
@@ -119,15 +129,15 @@ function drawGround() {
   if (!canPatternTransform) {
     const g = ctx.createLinearGradient(0, hz, 0, H);
     g.addColorStop(0, '#5b6c62');
-    g.addColorStop((G.edgeY - hz) / (H - hz) - 0.001, '#3c4a3a');
-    g.addColorStop((G.edgeY - hz) / (H - hz), '#3a4658');
+    g.addColorStop((geometry.edgeY - hz) / (H - hz) - 0.001, '#3c4a3a');
+    g.addColorStop((geometry.edgeY - hz) / (H - hz), '#3a4658');
     g.addColorStop(1, '#1b1e2b');
     ctx.fillStyle = g;
     ctx.fillRect(x0, yTex, x1 - x0, yEnd - yTex);
     return;
   }
-  const uR = (((S.camX * G.kR) % RT.w) + RT.w) % RT.w;
-  const uF = (((S.camX * G.kF) % FT.w) + FT.w) % FT.w;
+  const uR = (((state.camX * geometry.kR) % RT.w) + RT.w) % RT.w;
+  const uF = (((state.camX * geometry.kF) % FT.w) + FT.w) % FT.w;
   const bMax = Math.max(bMin, Math.round(22 * DPR));
   // полосы растут к низу: ошибка линейной аппроксимации проекции ≈ band²/(4(y−hz)) px
   // — держим её субпиксельной (≤0.3px), поэтому кадр рисует ~50 полос вместо сотен
@@ -136,8 +146,8 @@ function drawGround() {
     const zA = K / (y - hz),
       zB = K / (y + bnd - hz),
       z = (zA + zB) * 0.5;
-    const road = y + bnd * 0.5 >= G.edgeY;
-    const k = road ? G.kR : G.kF,
+    const road = y + bnd * 0.5 >= geometry.edgeY;
+    const k = road ? geometry.kR : geometry.kF,
       kv = road ? 110 : 34;
     const T = road ? RT : FT,
       pat = road ? roadPat : fieldPat,
@@ -150,7 +160,7 @@ function drawGround() {
     PM.b = 0;
     PM.c = 0;
     PM.d = d;
-    PM.e = G.vx - u0 * a;
+    PM.e = geometry.vx - u0 * a;
     PM.f = y - d * (vA % T.h);
     pat.setTransform(PM);
     ctx.fillStyle = pat;
@@ -160,41 +170,41 @@ function drawGround() {
 }
 
 function drawGroundOverlays() {
-  const hz = G.horizon,
+  const hz = geometry.horizon,
     x0 = X0(),
     x1 = X1(),
     w = x1 - x0,
     yEnd = H * 1.2;
-  const fh = G.edgeY - hz;
-  ctx.fillStyle = G.hg;
+  const fh = geometry.edgeY - hz;
+  ctx.fillStyle = geometry.hg;
   ctx.fillRect(x0, hz - 1, w, fh + 2);
-  ctx.fillStyle = G.rg;
-  ctx.fillRect(x0, G.edgeY, w, yEnd - G.edgeY);
-  const zE = G.zEdge;
+  ctx.fillStyle = geometry.rg;
+  ctx.fillRect(x0, geometry.edgeY, w, yEnd - geometry.edgeY);
+  const zE = geometry.zEdge;
   const yS0 = yAt(zE * 1.07),
-    yS1 = G.edgeY;
+    yS1 = geometry.edgeY;
   ctx.fillStyle = 'rgba(92,90,80,0.5)';
   ctx.fillRect(x0, yS0, w, yS1 - yS0);
   const yL = yAt(zE * 0.975),
-    th = Math.max(1, (0.011 * G.cowH) / zE);
+    th = Math.max(1, (0.011 * geometry.cowH) / zE);
   ctx.fillStyle = 'rgba(214,220,228,0.32)';
   ctx.fillRect(x0, yL - th / 2, w, th);
 }
 
 function repeatAt(z, P, off, fn) {
-  const k0 = Math.floor((S.camX + (X0() - G.vx) * z - off) / P) - 1;
-  const k1 = Math.ceil((S.camX + (X1() - G.vx) * z - off) / P) + 1;
+  const k0 = Math.floor((state.camX + (X0() - geometry.vx) * z - off) / P) - 1;
+  const k1 = Math.ceil((state.camX + (X1() - geometry.vx) * z - off) / P) + 1;
   for (let k = k0; k <= k1; k++) fn(k, xAt(k * P + off, z));
 }
 
 function drawDashes() {
   const z = 1.72,
     yC = yAt(z),
-    hh = Math.max(1.5, (G.K * 0.05) / (z * z));
-  const V = S.speed * G.cowH,
+    hh = Math.max(1.5, (geometry.K * 0.05) / (z * z));
+  const V = state.speed * geometry.cowH,
     blur = V / z / 40,
-    L = (2.3 * G.cowH) / z;
-  repeatAt(z, 6.2 * G.cowH, 0, (k, x) => {
+    L = (2.3 * geometry.cowH) / z;
+  repeatAt(z, 6.2 * geometry.cowH, 0, (k, x) => {
     const xa = x - blur / 2,
       xb = x + L + blur / 2;
     if (xb < X0() || xa > X1()) return;
@@ -210,15 +220,15 @@ function drawDashes() {
 }
 
 function drawPoles() {
-  const z = G.zEdge * 2.05,
+  const z = geometry.zEdge * 2.05,
     yb = yAt(z);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     blur = V / z / 45;
-  const h = (2.2 * G.cowH) / z,
-    w = (0.05 * G.cowH) / z,
-    P = 7.6 * G.cowH;
+  const h = (2.2 * geometry.cowH) / z,
+    w = (0.05 * geometry.cowH) / z,
+    P = 7.6 * geometry.cowH;
   const top = yb - h,
-    sag = (0.1 * G.cowH) / z;
+    sag = (0.1 * geometry.cowH) / z;
   ctx.strokeStyle = 'rgba(38,48,66,0.5)';
   ctx.lineWidth = Math.max(1, 0.8 * DPR);
   const xs = [];
@@ -253,14 +263,14 @@ function drawPoles() {
 }
 
 function drawPosts() {
-  const z = G.zEdge * 0.985,
+  const z = geometry.zEdge * 0.985,
     yb = yAt(z);
-  const V = S.speed * G.cowH,
+  const V = state.speed * geometry.cowH,
     blur = V / z / 45;
-  const h = (0.16 * G.cowH) / z,
-    w = (0.02 * G.cowH) / z;
+  const h = (0.16 * geometry.cowH) / z,
+    w = (0.02 * geometry.cowH) / z;
   const al = clamp((w / (w + blur)) * 1.6, 0.18, 0.85);
-  repeatAt(z, 3.7 * G.cowH, 0.8 * G.cowH, (k, x) => {
+  repeatAt(z, 3.7 * geometry.cowH, 0.8 * geometry.cowH, (k, x) => {
     const xl = x - (w + blur) / 2,
       ww = w + blur;
     ctx.globalAlpha = al;
@@ -275,10 +285,10 @@ function drawPosts() {
 }
 
 function drawShadow() {
-  const g = S.mode === 'crash' ? 0 : groundInfo(boardX()).h;
+  const g = state.mode === 'crash' ? 0 : groundInfo(boardX()).h;
   const m = poseMatrix({
-    y: S.bob + vib() - g,
-    tilt: onFeature() ? S.tilt : S.tilt * 0.5,
+    y: state.bob + vib() - g,
+    tilt: onFeature() ? state.tilt : state.tilt * 0.5,
     sq: 1,
   });
   const a = m.transformPoint(new DOMPoint(80, 488)),
@@ -286,8 +296,8 @@ function drawShadow() {
   const cx = (a.x + b.x) / 2,
     cy = (a.y + b.y) / 2;
   const len = Math.hypot(b.x - a.x, b.y - a.y) * 0.62,
-    wid = 0.05 * G.cowH;
-  const k = 1 - clamp((S.h - g) / 0.5, 0, 0.7);
+    wid = 0.05 * geometry.cowH;
+  const k = 1 - clamp((state.h - g) / 0.5, 0, 0.7);
   const draw = (sx, sy, al) => {
     ctx.save();
     ctx.translate(cx, cy);
@@ -318,7 +328,7 @@ function star(x, y, r) {
 function drawStreaks(m, sp, busy) {
   if (!streaks.length || !streakCv) return;
   setT(m);
-  const t = S.t,
+  const t = state.t,
     fade = busy ? 0.25 : 1;
   for (let i = 0; i < streaks.length; i++) {
     const s = streaks[i];
@@ -344,9 +354,9 @@ function drawStreaks(m, sp, busy) {
 // призраки
 function drawGhosts(sp, busy) {
   const GN = 4,
-    spacing = (0.05 + 0.035 * S.boost) * G.cowH * sp;
+    spacing = (0.05 + 0.035 * state.boost) * geometry.cowH * sp;
   for (let i = GN; i >= 1; i--) {
-    const h = S.hist[Math.min(S.hist.length - 1, i * 2)];
+    const h = state.hist[Math.min(state.hist.length - 1, i * 2)];
     if (!h) continue;
     setT(poseMatrix({ ...h, x: -i * spacing }));
     ctx.globalAlpha =
@@ -356,31 +366,36 @@ function drawGhosts(sp, busy) {
 }
 // звёздочки над головой после падения
 function drawCrashStars() {
-  const c = S.crash;
+  const c = state.crash;
   if (!c || c.t <= 0.3) return;
   setCam();
-  const hm = poseMatrix({ y: S.bob - S.h, tilt: S.tilt, sq: S.sq });
+  const hm = poseMatrix({
+    y: state.bob - state.h,
+    tilt: state.tilt,
+    sq: state.sq,
+  });
   const hp = hm.transformPoint(new DOMPoint(430, 30));
   ctx.globalAlpha =
-    clamp((c.dur - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
+    clamp((c.durationS - c.t) / 0.3, 0, 1) * clamp((c.t - 0.3) / 0.15, 0, 1);
   ctx.fillStyle = '#ffd84a';
   ctx.strokeStyle = 'rgba(60,40,0,.7)';
-  ctx.lineWidth = Math.max(1, 1.5 * G.u);
+  ctx.lineWidth = Math.max(1, 1.5 * geometry.u);
   ctx.lineJoin = 'round';
   for (let i = 0; i < 3; i++) {
-    const an = S.t * 7 + (i * TAU) / 3;
+    const an = state.t * 7 + (i * TAU) / 3;
     star(
-      hp.x + Math.cos(an) * 0.13 * G.cowH,
-      hp.y + Math.sin(an) * 0.035 * G.cowH,
-      0.03 * G.cowH,
+      hp.x + Math.cos(an) * 0.13 * geometry.cowH,
+      hp.y + Math.sin(an) * 0.035 * geometry.cowH,
+      0.03 * geometry.cowH,
     );
   }
 }
 function drawCow() {
   const pose = curPose(),
     m = poseMatrix(pose);
-  const sp = clamp(S.spdN, 0.5, 2);
-  const busy = S.trick || S.mode === 'crash' || Math.abs(S.roll) > 0.01;
+  const sp = clamp(state.spdN, 0.5, 2);
+  const busy =
+    state.trick || state.mode === 'crash' || Math.abs(state.roll) > 0.01;
   drawStreaks(m, sp, busy);
   drawGhosts(sp, busy);
   ctx.globalAlpha = 1;
@@ -393,7 +408,7 @@ function drawCow() {
   setT(
     m
       .translate(ep[0], ep[1])
-      .rotate(S.ear * DEG)
+      .rotate(state.ear * DEG)
       .translate(-ep[0], -ep[1]),
   );
   ctx.drawImage(imgs.ear, META.ear.x, META.ear.y);
@@ -401,7 +416,7 @@ function drawCow() {
   setT(
     m
       .translate(tp[0], tp[1])
-      .rotate((S.tag - S.tilt) * DEG)
+      .rotate((state.tag - state.tilt) * DEG)
       .translate(-tp[0], -tp[1]),
   );
   ctx.drawImage(imgs.tag, META.tag.x, META.tag.y);
@@ -437,7 +452,7 @@ function post() {
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.drawImage(vigCv, 0, 0);
-  const pat = grainPats[((S.t * 24) | 0) % grainPats.length];
+  const pat = grainPats[((state.t * 24) | 0) % grainPats.length];
   if (pat && canPatternTransform) {
     PM.a = 1;
     PM.b = 0;

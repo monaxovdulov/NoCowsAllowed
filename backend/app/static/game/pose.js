@@ -1,6 +1,6 @@
 import { META } from './assets.js';
 import { DEG, nE } from './utils.js';
-import { G, onFlat, reduce, S } from './state.js';
+import { geometry, onFlat, reduce, state } from './state.js';
 import { zAt } from './layout.js';
 
 // ---------------------------------------------------------------- pose → matrix
@@ -16,11 +16,11 @@ export function poseMatrix(p) {
   const sqX = 1 + (1 - p.sq) * 0.55;
   const m = new DOMMatrix()
     .translate(
-      G.ox + PIV[0] * G.s + (p.x || 0),
-      G.oy + PIV[1] * G.s + p.y * G.cowH,
+      geometry.ox + PIV[0] * geometry.s + (p.x || 0),
+      geometry.oy + PIV[1] * geometry.s + p.y * geometry.cowH,
     )
     .rotate(p.tilt * DEG)
-    .scale(G.s * sqX, G.s * p.sq)
+    .scale(geometry.s * sqX, geometry.s * p.sq)
     .translate(CEN[0] - PIV[0], CEN[1] - PIV[1]);
   if (p.roll) m.rotateSelf(p.roll * DEG);
   if (p.spin) {
@@ -32,12 +32,12 @@ export function poseMatrix(p) {
 }
 /** @returns {import('./types').Pose} текущая поза коровы */
 export const curPose = () => ({
-  y: S.bob + vib() - S.h,
-  tilt: S.tilt,
-  sq: S.sq,
-  spin: S.spin,
+  y: state.bob + vib() - state.h,
+  tilt: state.tilt,
+  sq: state.sq,
+  spin: state.spin,
   // на ride-конструкции к кувырку добавляется угол касательной дуги
-  roll: S.roll + (S.ride ? S.ride.ang : 0),
+  roll: state.roll + (state.ride ? state.ride.ang : 0),
 });
 /**
  * @param {DOMMatrix} m
@@ -62,20 +62,27 @@ function kickT(m, ang, drop) {
 }
 /** @param {DOMMatrix} m @returns {DOMMatrix} */
 export function boardMatrix(m) {
-  const c = S.crash;
+  const c = state.crash;
   if (c)
     return kickT(
-      poseMatrix({ x: c.bx * G.cowH, y: S.bob - c.bh, tilt: c.brot, sq: 1 }),
+      poseMatrix({
+        x: c.bx * geometry.cowH,
+        y: state.bob - c.bh,
+        tilt: c.brot,
+        sq: 1,
+      }),
       c.bkick,
       0,
     );
-  return S.kick || S.kickDrop ? kickT(m, S.kick, S.kickDrop) : m;
+  return state.kick || state.kickDrop
+    ? kickT(m, state.kick, state.kickDrop)
+    : m;
 }
 /** @returns {number} вибрация подвески на ходу */
 export function vib() {
   if (!onFlat()) return 0;
-  const t = S.t,
-    a = (reduce ? 0.35 : 1) * 0.0016 * S.spdN;
+  const t = state.t,
+    a = (reduce ? 0.35 : 1) * 0.0016 * state.spdN;
   return (
     a *
     (Math.sin(t * 47.1) * 0.5 +
@@ -85,9 +92,13 @@ export function vib() {
 }
 /** @returns {import('./types').WheelPoint[]} колёса в экранных координатах */
 export function wheelsScreen() {
-  const m = poseMatrix({ y: S.bob + vib() - S.h, tilt: S.tilt, sq: S.sq });
+  const m = poseMatrix({
+    y: state.bob + vib() - state.h,
+    tilt: state.tilt,
+    sq: state.sq,
+  });
   return META.contact.map(([x, y]) => {
     const p = m.transformPoint(new DOMPoint(x, y));
-    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, G.horizon + 5)) };
+    return { x: p.x, y: p.y, z: zAt(Math.max(p.y, geometry.horizon + 5)) };
   });
 }

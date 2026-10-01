@@ -1,7 +1,7 @@
 import { SRC } from './assets.js';
 import { clamp, lerp, loadImg, smooth } from './utils.js';
 import { CRUISE, MAXSPD, MINSPD } from './constants.js';
-import { G, grainEl, hintEl, lines, reduce, S } from './state.js';
+import { geometry, grainEl, hintEl, lines, reduce, state } from './state.js';
 import { boardX, layout, perfScale, setPerfScale } from './layout.js';
 import {
   buildSizeDependent,
@@ -51,27 +51,32 @@ function relayout() {
 
 /** Скорость и продвижение мира: разгон, крейсер, глушение после падения. */
 function stepSpeed(dt) {
-  S.t += dt;
+  state.t += dt;
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
-  const rampT = S.playT0 ? smooth(clamp((S.t - S.playT0) / 14, 0, 1)) : 1;
+  const rampT = state.playT0
+    ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
+    : 1;
   const cruise = lerp(3.3, CRUISE, rampT);
   const target =
-    S.mode === 'crash'
+    state.mode === 'crash'
       ? 1.3
-      : S.throttle > 0
+      : state.throttle > 0
         ? MAXSPD
-        : S.throttle < 0
+        : state.throttle < 0
           ? MINSPD
           : reduce
             ? 3.2
             : cruise;
-  S.speed +=
-    (target - S.speed) *
-    (1 - Math.exp(-dt * (S.mode === 'crash' ? 3 : S.throttle > 0 ? 1.3 : 0.9)));
-  S.boost = clamp((S.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
-  S.spdN = S.speed / CRUISE;
-  S.camX += S.speed * G.cowH * dt;
-  S.invuln = Math.max(0, S.invuln - dt);
+  state.speed +=
+    (target - state.speed) *
+    (1 -
+      Math.exp(
+        -dt * (state.mode === 'crash' ? 3 : state.throttle > 0 ? 1.3 : 0.9),
+      ));
+  state.boost = clamp((state.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
+  state.spdN = state.speed / CRUISE;
+  state.camX += state.speed * geometry.cowH * dt;
+  state.invuln = Math.max(0, state.invuln - dt);
 }
 
 /**
@@ -106,7 +111,7 @@ function update(dt) {
   stepParticles(dt);
   stepLines(dt);
   stepClouds(dt);
-  if (S.t > 9) hintEl.classList.add('dim');
+  if (state.t > 9) hintEl.classList.add('dim');
   stepCamera(dt);
 }
 
@@ -127,7 +132,7 @@ function frame(now) {
   emaWork += (performance.now() - t0 - emaWork) * 0.06;
   emaFrame += (Math.min(dt * 1000, 34) - emaFrame) * 0.06; // cap — не считаем паузы в фоне
   perfCool -= dt;
-  if (S.t > 4 && perfCool <= 0) {
+  if (state.t > 4 && perfCool <= 0) {
     if (emaFrame > 19 && perfScale > 0.55) {
       setPerfScale(Math.max(0.55, perfScale - 0.15));
       perfCool = 2.5;

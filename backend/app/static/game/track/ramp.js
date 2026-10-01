@@ -1,7 +1,7 @@
 // Кикер (невысокий трамплин-клин): ground — подъём по склону, с края —
 // вылет в launch(). Хуков collide/ride нет — конструкция проезжаемая.
 import { clamp } from '../utils.js';
-import { ctx, G, S } from '../state.js';
+import { ctx, geometry, state } from '../state.js';
 import { boardX, obZ, X0, X1, yAt } from '../layout.js';
 
 /**
@@ -23,12 +23,12 @@ function fillPoly(pts, style, dx) {
  * @param {number} blur смаз по x в пикселях
  */
 function drawRamp(f, blur) {
-  const q = obZ(f.x0 - S.camX),
+  const q = obZ(f.x0 - state.camX),
     zn = 0.8 * q,
     zf = 1.28 * q,
-    hh = f.data.hr * G.cowH;
+    hh = f.data.hr * geometry.cowH;
   /** @type {(X: number, h: number, z: number) => number[]} */
-  const P = (X, h, z) => [G.vx + (X - S.camX) / z, yAt(z) - h / z];
+  const P = (X, h, z) => [geometry.vx + (X - state.camX) / z, yAt(z) - h / z];
   const A = P(f.x0, 0, zn),
     B = P(f.x1, hh, zn),
     C = P(f.x1, hh, zf),
@@ -37,9 +37,9 @@ function drawRamp(f, blur) {
     Gp = P(f.x1, 0, zf);
   if (Math.max(B[0], F[0]) < X0() - 60 || Math.min(A[0], D[0]) > X1() + 60)
     return;
-  const fa = clamp((G.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
+  const fa = clamp((geometry.zEdge * 1.12 - zf) * 2.4, 0, 1); // проступает из дали
   if (fa <= 0.02) return;
-  const shadowLen = 0.35 * G.cowH;
+  const shadowLen = 0.35 * geometry.cowH;
   const shape = (dx, alpha) => {
     ctx.globalAlpha = alpha;
     fillPoly(
@@ -53,7 +53,7 @@ function drawRamp(f, blur) {
     tg.addColorStop(1, '#cc9655');
     fillPoly([A, B, C, D], tg, dx);
     ctx.strokeStyle = 'rgba(70,42,18,0.55)';
-    ctx.lineWidth = Math.max(1, 1.3 * G.u);
+    ctx.lineWidth = Math.max(1, 1.3 * geometry.u);
     ctx.beginPath();
     for (let i = 1; i < 6; i++) {
       const z = zn + ((zf - zn) * i) / 6,
@@ -68,7 +68,7 @@ function drawRamp(f, blur) {
     sg.addColorStop(1, '#4a2c12');
     fillPoly([A, F, B], sg, dx);
     ctx.strokeStyle = 'rgba(40,24,10,0.7)';
-    ctx.lineWidth = Math.max(1, 2.2 * G.u);
+    ctx.lineWidth = Math.max(1, 2.2 * geometry.u);
     ctx.beginPath();
     for (const k of [0.4, 0.72]) {
       const t = P(f.x0 + (f.x1 - f.x0) * k, hh * k, zn),
@@ -78,7 +78,7 @@ function drawRamp(f, blur) {
     }
     ctx.stroke();
     ctx.strokeStyle = '#dfe4ea';
-    ctx.lineWidth = Math.max(1.5, 3.2 * G.u);
+    ctx.lineWidth = Math.max(1.5, 3.2 * geometry.u);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(B[0] + dx, B[1]);
@@ -108,7 +108,7 @@ export const rampSpec = {
     const k = (X - feat.x0) / (feat.x1 - feat.x0);
     return {
       h: feat.data.hr * k,
-      slope: (feat.data.hr * G.cowH) / (feat.x1 - feat.x0),
+      slope: (feat.data.hr * geometry.cowH) / (feat.x1 - feat.x0),
     };
   },
   autopilot(feat) {
@@ -118,6 +118,6 @@ export const rampSpec = {
       ? { at: feat.x0, leadS: 0, action: 'none' }
       : null;
   },
-  depth: (feat) => obZ(feat.x0 - S.camX) * 1.06,
+  depth: (feat) => obZ(feat.x0 - state.camX) * 1.06,
   draw: drawRamp,
 };

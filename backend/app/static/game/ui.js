@@ -5,12 +5,12 @@ import {
   ctaEl,
   cv,
   feats,
-  G,
+  geometry,
   hintEl,
   hudEl,
   playerMode,
   resultEl,
-  S,
+  state,
   scoreEl,
 } from './state.js';
 import { on } from './events.js';
@@ -29,13 +29,13 @@ function bumpScore() {
 const shown = { score: -1, best: -1, auto: null, cta: null, res: null };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
-  if (S.score !== shown.score) {
-    scoreEl.textContent = S.score.toLocaleString('ru-RU');
-    shown.score = S.score;
+  if (state.score !== shown.score) {
+    scoreEl.textContent = state.score.toLocaleString('ru-RU');
+    shown.score = state.score;
   }
-  if (S.best !== shown.best) {
-    bestEl.textContent = S.best.toLocaleString('ru-RU');
-    shown.best = S.best;
+  if (state.best !== shown.best) {
+    bestEl.textContent = state.best.toLocaleString('ru-RU');
+    shown.best = state.best;
   }
   const auto = !playerMode();
   if (auto !== shown.auto) {
@@ -43,12 +43,12 @@ export function hud() {
     hudEl.classList.toggle('dim', auto);
     shown.auto = auto;
   }
-  const cta = auto && !S.touched0; // призыв виден только в демо до первого касания
+  const cta = auto && !state.isTouched0; // призыв виден только в демо до первого касания
   if (cta !== shown.cta) {
     ctaEl.classList.toggle('dim', !cta);
     shown.cta = cta;
   }
-  const res = S.t < S.resultUntil;
+  const res = state.t < state.resultUntil;
   if (res !== shown.res) {
     resultEl.classList.toggle('dim', !res);
     shown.res = res;
@@ -58,46 +58,50 @@ export function hud() {
 // карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
 /** @param {number} sc очки заезда */
 function showResult(sc) {
-  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${S.best.toLocaleString('ru-RU')}</span>`;
+  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${state.best.toLocaleString('ru-RU')}</span>`;
   resultEl.classList.remove('dim');
-  S.resultUntil = S.t + 2.6;
+  state.resultUntil = state.t + 2.6;
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
 /**
  * @param {string | null} text текст подсказки (null — скрыть)
- * @param {number} [dur] секунды показа (по умолчанию — до замены)
+ * @param {number} [durationS] секунды показа (по умолчанию — до замены)
  */
-function setCoach(text, dur) {
+function setCoach(text, durationS) {
   if (!text) {
     coachEl.classList.add('dim');
-    S.coachText = null;
-    S.coachUntil = 0;
+    state.coachText = null;
+    state.coachUntil = 0;
     return;
   }
-  if (S.coachText !== text) {
-    S.coachText = text;
+  if (state.coachText !== text) {
+    state.coachText = text;
     coachEl.textContent = text;
   }
   coachEl.classList.remove('dim');
-  S.coachUntil = dur ? S.t + dur : Infinity;
+  state.coachUntil = durationS ? state.t + durationS : Infinity;
 }
 // подсказки по ситуации: прыжок у первого препятствия → двойной → трюки кнопками
 export function coachStep() {
-  if (S.coachText && S.coachUntil !== Infinity && S.t > S.coachUntil)
+  if (
+    state.coachText &&
+    state.coachUntil !== Infinity &&
+    state.t > state.coachUntil
+  )
     setCoach(null);
   if (!playerMode()) {
-    if (S.coachText) setCoach(null);
+    if (state.coachText) setCoach(null);
     return;
   } // в демо подсказок нет
-  if (S.mode === 'crash' || S.coachStage > 2) return;
-  if (S.coachStage === 0) {
-    if (S.mode === 'air') {
-      S.coachStage = 1;
+  if (state.mode === 'crash' || state.coachStage > 2) return;
+  if (state.coachStage === 0) {
+    if (state.mode === 'air') {
+      state.coachStage = 1;
       setCoach('ЕЩЁ ТАП В ВОЗДУХЕ — ДВОЙНОЙ', 1.7);
     } else {
       const Xb = boardX(),
-        V = Math.max(1, S.speed * G.cowH);
+        V = Math.max(1, state.speed * geometry.cowH);
       // ближайшая прыгаемая конструкция — по подсказке её спеки
       let jumpAt = Infinity;
       for (const f of feats) {
@@ -112,14 +116,14 @@ export function coachStep() {
         }
       }
       if ((jumpAt - Xb) / V < 1.5) setCoach('ПРЫГАЙ!', Infinity);
-      else if (S.coachText === 'ПРЫГАЙ!') setCoach(null);
+      else if (state.coachText === 'ПРЫГАЙ!') setCoach(null);
     }
-  } else if (S.coachStage === 1) {
-    if (S.mode !== 'air' || S.jumps >= 2) {
-      S.coachStage = 2;
+  } else if (state.coachStage === 1) {
+    if (state.mode !== 'air' || state.jumps >= 2) {
+      state.coachStage = 2;
       setCoach('КНОПКИ ВНИЗУ — ТРЮКИ ЗА ОЧКИ', 3);
     }
-  } else if (S.t > S.coachUntil) S.coachStage = 3;
+  } else if (state.t > state.coachUntil) state.coachStage = 3;
 }
 
 // ---------------------------------------------------------------- подписки
@@ -138,14 +142,14 @@ let holdTimer = 0,
   holding = false;
 function touched() {
   if (!playerMode()) {
-    S.score = 0;
-    S.playT0 = S.t;
+    state.score = 0;
+    state.playT0 = state.t;
   } // новый заезд — с мягкого разгона
-  S.touched0 = true;
-  S.lastInput = S.t;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
+  state.isTouched0 = true;
+  state.lastInput = state.t;
+  state.autoSeq = [];
+  state.autoDouble = 0;
+  state.autoAfter = null;
   hintEl.classList.add('dim');
 }
 /** @param {import('./types').Action} a действие кнопки/клавиши */
@@ -161,21 +165,21 @@ cv.addEventListener('pointerdown', (e) => {
   holding = false;
   holdTimer = setTimeout(() => {
     holding = true;
-    S.throttle = 1;
+    state.throttle = 1;
   }, 280);
 });
 const release = () => {
   clearTimeout(holdTimer);
   if (holding) {
     holding = false;
-    S.throttle = 0;
+    state.throttle = 0;
   }
 };
 addEventListener('pointerup', release);
 addEventListener('pointercancel', release);
 addEventListener('blur', () => {
   release();
-  S.throttle = 0;
+  state.throttle = 0;
 });
 const padBtns = /** @type {NodeListOf<HTMLElement>} */ (
   document.querySelectorAll('.pad [data-act]')
@@ -213,16 +217,18 @@ addEventListener('keydown', (e) => {
     if (!e.repeat) act(keyAct);
   } else if (k === 'ArrowRight' || k === 'KeyD') {
     e.preventDefault();
-    S.throttle = 1;
+    state.throttle = 1;
     touched();
   } else if (k === 'ArrowLeft' || k === 'KeyA') {
     e.preventDefault();
-    S.throttle = -1;
+    state.throttle = -1;
     touched();
   }
 });
 addEventListener('keyup', (e) => {
   const k = e.code;
-  if ((k === 'ArrowRight' || k === 'KeyD') && S.throttle > 0) S.throttle = 0;
-  if ((k === 'ArrowLeft' || k === 'KeyA') && S.throttle < 0) S.throttle = 0;
+  if ((k === 'ArrowRight' || k === 'KeyD') && state.throttle > 0)
+    state.throttle = 0;
+  if ((k === 'ArrowLeft' || k === 'KeyA') && state.throttle < 0)
+    state.throttle = 0;
 });

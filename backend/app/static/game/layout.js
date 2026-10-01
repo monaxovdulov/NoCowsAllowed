@@ -1,5 +1,5 @@
 import { clamp } from './utils.js';
-import { cracks, cv, feats, G, S } from './state.js';
+import { cracks, cv, feats, geometry, state } from './state.js';
 
 // ---------------------------------------------------------------- layout
 export let W = 1,
@@ -11,28 +11,30 @@ export function setPerfScale(v) {
   perfScale = v;
 }
 /** @param {number} y @returns {number} глубина z по экранному y */
-export const zAt = (y) => G.K / Math.max(1e-3, y - G.horizon);
+export const zAt = (y) => geometry.K / Math.max(1e-3, y - geometry.horizon);
 /** @param {number} z @returns {number} экранный y по глубине z */
-export const yAt = (z) => G.horizon + G.K / z;
+export const yAt = (z) => geometry.horizon + geometry.K / z;
 /**
  * @param {number} X мировой X
  * @param {number} z
  * @returns {number} экранный x
  */
-export const xAt = (X, z) => G.vx + (X - S.camX) / z;
+export const xAt = (X, z) => geometry.vx + (X - state.camX) / z;
 /** @returns {number} центр доски в мире (глубина 1) */
-export const boardX = () => S.camX + (G.ox + 200 * G.s - G.vx);
+export const boardX = () =>
+  state.camX + (geometry.ox + 200 * geometry.s - geometry.vx);
 // препятствия едут по полосе дороги: у доски z=1, вдали сжимаются к горизонту
 /** @param {number} d расстояние до камеры @returns {number} глубина z */
-export const obZ = (d) => clamp(1 + (d - G.obD) / G.obL, 0.8, G.zEdge * 1.12);
+export const obZ = (d) =>
+  clamp(1 + (d - geometry.obD) / geometry.obL, 0.8, geometry.zEdge * 1.12);
 /**
  * @param {number} X мировой X препятствия
  * @returns {import('./types').Vec3} экранные x, y и глубина z
  */
 export const obPos = (X) => {
-  const d = X - S.camX,
+  const d = X - state.camX,
     z = obZ(d);
-  return [G.vx + d / z, yAt(z), z];
+  return [geometry.vx + d / z, yAt(z), z];
 };
 
 // Только геометрия кадра и мировой масштаб (карта, этап 3): пересборку
@@ -45,7 +47,7 @@ export function layout() {
   const cap = 2.6e6;
   if (cssW * cssH * dpr * dpr > cap) dpr = Math.sqrt(cap / (cssW * cssH));
   DPR = Math.max(0.5, dpr);
-  const oldCowH = G.cowH;
+  const oldCowH = geometry.cowH;
   W = Math.round(cssW * DPR);
   H = Math.round(cssH * DPR);
   cv.width = W;
@@ -62,36 +64,37 @@ export function layout() {
   );
   const top = bottom - cowH;
   const cx = W * (W > H * 1.25 ? 0.36 : narrow ? 0.27 : 0.44); // впереди коровы — место, чтобы видеть препятствия
-  Object.assign(G, {
+  Object.assign(geometry, {
     s,
     cowH,
     u: cowH / 670,
     ox: cx - 312 * s,
     oy: top - 45 * s,
   });
-  G.horizon = G.oy + 200 * s; // линия горизонта как на фото
-  G.edgeY = G.oy + 329 * s; // дальний край дороги
-  G.refY = G.oy + 537 * s; // линия контакта доски = глубина 1
-  G.K = G.refY - G.horizon;
-  G.vx = W * 0.5;
-  G.zEdge = G.K / (G.edgeY - G.horizon);
-  G.zBottom = G.K / (H * 1.2 - G.horizon);
-  G.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
-  G.kF = 60 / cowH; // … поля
-  G.obD = G.ox + 200 * s - G.vx; // смещение доски от камеры — здесь z=1
-  G.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
+  geometry.horizon = geometry.oy + 200 * s; // линия горизонта как на фото
+  geometry.edgeY = geometry.oy + 329 * s; // дальний край дороги
+  geometry.refY = geometry.oy + 537 * s; // линия контакта доски = глубина 1
+  geometry.K = geometry.refY - geometry.horizon;
+  geometry.vx = W * 0.5;
+  geometry.zEdge = geometry.K / (geometry.edgeY - geometry.horizon);
+  geometry.zBottom = geometry.K / (H * 1.2 - geometry.horizon);
+  geometry.kR = 150 / cowH; // пикселей текстуры асфальта на мировую единицу
+  geometry.kF = 60 / cowH; // … поля
+  geometry.obD = geometry.ox + 200 * s - geometry.vx; // смещение доски от камеры — здесь z=1
+  geometry.obL = W * 1.45; // шкала схода препятствий к горизонту (шире — входят в кадр крупнее)
   if (oldCowH) {
     // мир в пикселях — пересчитываем всё под новый масштаб
     const k = cowH / oldCowH;
-    S.camX *= k;
-    S.nextSpawnX *= k;
+    state.camX *= k;
+    state.nextSpawnX *= k;
     for (const f of feats) {
       f.x0 *= k;
       f.x1 *= k;
     }
   }
   cracks.length = 0;
-  if (!S.nextSpawnX) S.nextSpawnX = S.camX + (W * 1.05 - G.vx) + 4 * cowH;
+  if (!state.nextSpawnX)
+    state.nextSpawnX = state.camX + (W * 1.05 - geometry.vx) + 4 * cowH;
 }
 
 /** @returns {number} левый край видимого мира */

@@ -19,7 +19,7 @@ import {
   TRICKS,
 } from './constants.js';
 import { emit } from './events.js';
-import { feats, G, onFlat, playerMode, reduce, S } from './state.js';
+import { feats, geometry, onFlat, playerMode, reduce, state } from './state.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { boardX } from './layout.js';
 import { curPose, wheelsScreen } from './pose.js';
@@ -27,18 +27,22 @@ import { imgs } from './sprites.js';
 import { puff, sparks } from './effects.js';
 
 // ---------------------------------------------------------------- jumps & tricks
-const ready = () => !!imgs && !!G.cowH;
+const ready = () => !!imgs && !!geometry.cowH;
 /** @returns {number} секунды до касания земли при текущей вертикальной скорости */
 function timeToLand() {
-  return (S.hV + Math.sqrt(Math.max(0, S.hV * S.hV + 2 * GRAV * S.h))) / GRAV;
+  return (
+    (state.hV +
+      Math.sqrt(Math.max(0, state.hV * state.hV + 2 * GRAV * state.h))) /
+    GRAV
+  );
 }
 
-// Переходы автомата режимов (карта, этап 4, D5): S.mode меняется только
+// Переходы автомата режимов (карта, этап 4, D5): state.mode меняется только
 // здесь, каждый переход публикует своё событие на шине.
 
 /** @param {'jump' | 'launch'} from чем вызван взлёт */
 function enterAir(from) {
-  S.mode = 'air';
+  state.mode = 'air';
   emit('airborne', { from });
 }
 /**
@@ -46,56 +50,56 @@ function enterAir(from) {
  * @param {number} impact скорость касания; 0 — возврат после крэша
  */
 function enterGround(g, impact) {
-  S.mode = 'ground';
-  S.h = g;
-  S.onRamp = g > 0.001;
+  state.mode = 'ground';
+  state.h = g;
+  state.isOnRamp = g > 0.001;
   emit('land', { impact });
 }
 /**
  * @param {import('./types').CrashReason} reason причина падения
  */
 export function enterCrash(reason) {
-  if (S.mode === 'crash') return;
+  if (state.mode === 'crash') return;
   // колёса снимаем до смены режима — поза с вибрацией, как на кадре крэша
   const w = wheelsScreen();
   // с конструкции — сразу: угол дуги уходит в roll, чтобы поза не прыгнула
-  if (S.ride) {
-    S.roll += S.ride.ang;
-    S.ride = null;
+  if (state.ride) {
+    state.roll += state.ride.ang;
+    state.ride = null;
   }
-  S.mode = 'crash';
-  S.crash = {
+  state.mode = 'crash';
+  state.crash = {
     reason,
     t: 0,
-    dur: 1.4,
-    r0: S.roll,
-    r1: Math.ceil((S.roll + Math.PI) / TAU) * TAU,
+    durationS: 1.4,
+    r0: state.roll,
+    r1: Math.ceil((state.roll + Math.PI) / TAU) * TAU,
     bx: 0,
-    bh: S.h,
+    bh: state.h,
     bvx: rand(1.2, 1.9),
     bvh: rand(1.6, 2.4),
-    brot: S.tilt,
+    brot: state.tilt,
     bvr: rand(7, 11),
-    bkick: S.kick,
+    bkick: state.kick,
     bvk: rand(10, 16),
     snap: null,
   };
-  S.trick = null;
-  S.trickQ = null;
-  S.spin = 0;
-  S.kick = 0;
-  S.kickDrop = 0;
-  S.onRamp = false;
-  S.jumps = 0;
-  S.airTricks = [];
-  S.airBonus = 0;
-  S.autoSeq = [];
-  S.autoDouble = 0;
-  S.autoAfter = null;
-  S.hV = Math.max(S.hV, 0) + 1.7;
-  S.shake = 1.8;
-  S.sqV -= 2;
-  emit('crash', { reason, score: S.score, wheels: w });
+  state.trick = null;
+  state.trickQ = null;
+  state.spin = 0;
+  state.kick = 0;
+  state.kickDrop = 0;
+  state.isOnRamp = false;
+  state.jumps = 0;
+  state.airTricks = [];
+  state.airBonus = 0;
+  state.autoSeq = [];
+  state.autoDouble = 0;
+  state.autoAfter = null;
+  state.hV = Math.max(state.hV, 0) + 1.7;
+  state.shake = 1.8;
+  state.sqV -= 2;
+  emit('crash', { reason, score: state.score, wheels: w });
 }
 
 // ---------------------------------------------------------------- ride
@@ -106,7 +110,7 @@ export function enterCrash(reason) {
 
 /** @returns {number} секунды до конца текущей траектории ride */
 function rideTimeLeft() {
-  const ride = S.ride;
+  const ride = state.ride;
   if (!ride) return 0;
   const rs = FEATURE_TYPES[ride.feat.type].ride;
   return rs ? (rs.length(ride.feat) - ride.s) / Math.max(1, ride.v) : 0;
@@ -114,19 +118,19 @@ function rideTimeLeft() {
 
 /** @param {import('./types').AnyFeature} feat конструкция с ride-спекой */
 export function enterRide(feat) {
-  if (S.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
-  S.mode = 'ride';
-  S.ride = { feat, s: 0, v: S.speed, ang: 0, autoDone: false };
-  S.onRamp = false;
-  S.tilt = 0;
-  S.tiltV = 0;
-  S.h = 0;
-  S.hV = 0;
-  S.jumps = 1;
-  S.trick = null;
-  S.trickQ = null;
-  S.airTricks = [];
-  S.airBonus = 0;
+  if (state.mode !== 'ground' || !FEATURE_TYPES[feat.type].ride) return;
+  state.mode = 'ride';
+  state.ride = { feat, s: 0, v: state.speed, ang: 0, isAutoDone: false };
+  state.isOnRamp = false;
+  state.tilt = 0;
+  state.tiltV = 0;
+  state.h = 0;
+  state.hV = 0;
+  state.jumps = 1;
+  state.trick = null;
+  state.trickQ = null;
+  state.airTricks = [];
+  state.airBonus = 0;
   emit('ride-enter', { type: feat.type });
 }
 
@@ -141,30 +145,30 @@ export function enterRide(feat) {
 function exitRide(ride, p, res) {
   const v = ride.v,
     feat = ride.feat;
-  S.roll += ride.ang;
-  S.ride = null;
+  state.roll += ride.ang;
+  state.ride = null;
   emit('ride-exit', { type: feat.type, result: res, ok: v > 0 });
   if (res === 'fail') {
     enterCrash('stall');
     return;
   }
-  S.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
+  state.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
   if (Math.abs(p.h) < 0.06) {
-    if (v > 0) S.airBonus += 150; // прошёл конструкцию
-    S.hV = 0;
+    if (v > 0) state.airBonus += 150; // прошёл конструкцию
+    state.hV = 0;
     enterGround(0, 0);
   } else {
-    S.hV = clamp(-v * Math.sin(p.angle), 0, 9);
-    S.airT = 0;
-    S.jumps = 1;
-    S.airDur = timeToLand();
+    state.hV = clamp(-v * Math.sin(p.angle), 0, 9);
+    state.airT = 0;
+    state.jumps = 1;
+    state.airDurationS = timeToLand();
     enterAir('launch');
   }
 }
 
 /** Кадр катания по траектории: спека двигает s, поза — по path(s). */
 function rideStep(dt) {
-  const ride = /** @type {import('./types').RideState} */ (S.ride),
+  const ride = /** @type {import('./types').RideState} */ (state.ride),
     rs = FEATURE_TYPES[ride.feat.type].ride;
   if (!rs) {
     exitRide(ride, { X: boardX(), h: 0, angle: 0 }, 'exit');
@@ -172,48 +176,48 @@ function rideStep(dt) {
   }
   stepTrick(dt);
   // демо-автопилот делает один трюк на дуге — показывает, что можно
-  if (!playerMode() && rs.tricks && !ride.autoDone && S.trick === null) {
+  if (!playerMode() && rs.tricks && !ride.isAutoDone && state.trick === null) {
     const left = rs.length(ride.feat);
     if (ride.s > left * 0.25 && ride.s < left * 0.75) {
-      ride.autoDone = true;
+      ride.isAutoDone = true;
       startTrick(pick(['spin', 'kick']), rideTimeLeft());
     }
   }
   const res = rs.step(ride.feat, ride, dt);
   const p = rs.path(ride.feat, ride.s);
-  S.camX = p.X - (G.ox + 200 * G.s - G.vx);
-  S.h = Math.max(0, p.h);
+  state.camX = p.X - (geometry.ox + 200 * geometry.s - geometry.vx);
+  state.h = Math.max(0, p.h);
   ride.ang = p.angle;
   if (res !== 'ride') exitRide(ride, p, res);
 }
 
 /** @returns {boolean} получилось ли прыгнуть/сделать двойной */
 export function jump() {
-  if (!ready() || S.mode === 'crash') return false;
-  if (S.mode === 'ground') {
-    S.hV = OLLIE_V + (S.onRamp ? S.slope * S.speed * 0.5 : 0);
-    S.airT = 0;
-    S.jumps = 1;
-    S.onRamp = false;
-    S.airTricks = [];
-    S.airBonus = 0;
-    S.tiltV -= 2.6;
-    S.sqV += 1.4;
-    S.earV -= 3.2;
-    S.tagV += 3.5;
+  if (!ready() || state.mode === 'crash') return false;
+  if (state.mode === 'ground') {
+    state.hV = OLLIE_V + (state.isOnRamp ? state.slope * state.speed * 0.5 : 0);
+    state.airT = 0;
+    state.jumps = 1;
+    state.isOnRamp = false;
+    state.airTricks = [];
+    state.airBonus = 0;
+    state.tiltV -= 2.6;
+    state.sqV += 1.4;
+    state.earV -= 3.2;
+    state.tagV += 3.5;
     enterAir('jump');
-  } else if (S.mode === 'air' && S.jumps < 2) {
-    S.jumps = 2;
-    S.hV = Math.max(S.hV, 0) * 0.3 + DOUBLE_V;
-    S.airTricks.push('double');
+  } else if (state.mode === 'air' && state.jumps < 2) {
+    state.jumps = 2;
+    state.hV = Math.max(state.hV, 0) * 0.3 + DOUBLE_V;
+    state.airTricks.push('double');
     emit('trick', { kind: 'double' });
-    S.tiltV -= 1.8;
-    S.earV -= 2.6;
-    S.tagV += 3;
-    S.sqV += 1;
+    state.tiltV -= 1.8;
+    state.earV -= 2.6;
+    state.tagV += 3;
+    state.sqV += 1;
     emit('airborne', { from: 'double' });
   } else return false;
-  S.airDur = S.airT + timeToLand();
+  state.airDurationS = state.airT + timeToLand();
   return true;
 }
 /**
@@ -222,84 +226,84 @@ export function jump() {
  */
 function startTrick(kind, tl = timeToLand()) {
   const T = TRICKS[kind];
-  S.trick = {
+  state.trick = {
     kind,
     t: 0,
-    dur: clamp(tl - 0.06, 0.28, T.dur),
+    durationS: clamp(tl - 0.06, 0.28, T.durationS),
     dir: /** @type {1 | -1} */ (Math.random() < 0.5 ? 1 : -1),
   };
-  S.earV -= 1.5;
-  S.tagV += rand(-3, 3);
+  state.earV -= 1.5;
+  state.tagV += rand(-3, 3);
 }
 /** @param {import('./types').TrickKind} kind */
 export function trick(kind) {
-  if (!ready() || S.mode === 'crash') return;
+  if (!ready() || state.mode === 'crash') return;
   // на конструкции трюки без прыжка — доска прижата к траектории
-  if (S.mode === 'ride') {
-    const rs = S.ride && FEATURE_TYPES[S.ride.feat.type].ride;
+  if (state.mode === 'ride') {
+    const rs = state.ride && FEATURE_TYPES[state.ride.feat.type].ride;
     if (!rs || !rs.tricks) return;
-    if (S.trick) {
-      S.trickQ = kind;
+    if (state.trick) {
+      state.trickQ = kind;
       return;
     }
     startTrick(kind, rideTimeLeft());
     return;
   }
-  if (S.mode !== 'air' && !jump()) return;
-  if (S.trick) {
-    S.trickQ = kind;
+  if (state.mode !== 'air' && !jump()) return;
+  if (state.trick) {
+    state.trickQ = kind;
     return;
   }
   startTrick(kind);
 }
 function finishTrick() {
-  const tr = S.trick;
+  const tr = state.trick;
   if (!tr) return;
-  S.spin = 0;
-  S.roll = 0;
-  S.kick = 0;
-  S.kickDrop = 0;
-  S.airTricks.push(tr.kind);
-  if (S.mode === 'ride') S.airBonus += 100; // трюк на конструкции дороже
+  state.spin = 0;
+  state.roll = 0;
+  state.kick = 0;
+  state.kickDrop = 0;
+  state.airTricks.push(tr.kind);
+  if (state.mode === 'ride') state.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
-  S.trick = null;
-  if (S.trickQ) {
-    const q = S.trickQ;
-    S.trickQ = null;
-    const tl = S.mode === 'ride' ? rideTimeLeft() : timeToLand();
+  state.trick = null;
+  if (state.trickQ) {
+    const q = state.trickQ;
+    state.trickQ = null;
+    const tl = state.mode === 'ride' ? rideTimeLeft() : timeToLand();
     if (tl > 0.3) startTrick(q, tl);
   }
 }
 function stepTrick(dt) {
-  const tr = S.trick;
+  const tr = state.trick;
   if (!tr) return;
   tr.t += dt;
-  const p = clamp(tr.t / tr.dur, 0, 1),
+  const p = clamp(tr.t / tr.durationS, 0, 1),
     e = easeInOut(p);
-  if (tr.kind === 'spin') S.spin = TAU * e * tr.dir;
-  else if (tr.kind === 'flip') S.roll = -TAU * e;
+  if (tr.kind === 'spin') state.spin = TAU * e * tr.dir;
+  else if (tr.kind === 'flip') state.roll = -TAU * e;
   else {
-    S.kick = TAU * e;
-    S.kickDrop = Math.sin(Math.PI * p) * 46;
+    state.kick = TAU * e;
+    state.kickDrop = Math.sin(Math.PI * p) * 46;
   }
   if (p >= 1) finishTrick();
 }
 /** слетели с конструкции — вылет в воздух */
 export function launch() {
-  S.airT = 0;
-  S.jumps = 1;
-  S.hV = Math.min(3.9, 2.2 + 1.25 * S.spdN);
-  S.airTricks = [];
-  S.airBonus = 40;
-  S.airDur = timeToLand();
-  S.tiltV -= 1.2;
-  S.earV -= 3;
-  S.tagV += 3;
-  S.shake = Math.min(1.8, S.shake + 0.45);
+  state.airT = 0;
+  state.jumps = 1;
+  state.hV = Math.min(3.9, 2.2 + 1.25 * state.spdN);
+  state.airTricks = [];
+  state.airBonus = 40;
+  state.airDurationS = timeToLand();
+  state.tiltV -= 1.2;
+  state.earV -= 3;
+  state.tagV += 3;
+  state.shake = Math.min(1.8, state.shake + 0.45);
   enterAir('launch');
   if (!playerMode()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
-      S.airDur > 0.95
+      state.airDurationS > 0.95
         ? [
             ['spin', 'kick'],
             ['flip', 'kick'],
@@ -309,53 +313,53 @@ export function launch() {
           ]
         : [['flip'], ['spin'], ['kick']]
     );
-    S.autoSeq = pick(seqs).slice();
+    state.autoSeq = pick(seqs).slice();
   }
 }
 /** @param {number} g высота земли под доской (росты коровы) */
 function land(g) {
-  if (S.trick) {
-    if (S.trick.t / S.trick.dur > 0.8) finishTrick();
+  if (state.trick) {
+    if (state.trick.t / state.trick.durationS > 0.8) finishTrick();
     else {
-      S.h = g;
+      state.h = g;
       enterCrash('bail');
       return;
     }
   }
-  S.trickQ = null;
-  const impact = -S.hV;
-  S.hV = 0;
-  S.jumps = 0;
-  S.airT = 0;
-  S.sqV -= impact * 1.3;
-  S.bobV += impact * 0.1;
-  S.tiltV += 0.5;
-  S.shake = Math.min(1.8, S.shake + 0.5 + 0.22 * impact);
-  S.earV -= 3.4;
-  S.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
+  state.trickQ = null;
+  const impact = -state.hV;
+  state.hV = 0;
+  state.jumps = 0;
+  state.airT = 0;
+  state.sqV -= impact * 1.3;
+  state.bobV += impact * 0.1;
+  state.tiltV += 0.5;
+  state.shake = Math.min(1.8, state.shake + 0.5 + 0.22 * impact);
+  state.earV -= 3.4;
+  state.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
   enterGround(g, impact);
 }
 
 // ---------------------------------------------------------------- crash
 /** @param {number} dt шаг, секунды */
 function crashStep(dt) {
-  const c = S.crash;
+  const c = state.crash;
   c.t += dt;
   // корова: подброс и кувырок вперёд
-  S.hV -= GRAV * dt;
-  S.h += S.hV * dt;
-  if (S.h <= 0) {
-    if (S.hV < -0.9) {
-      S.hV = -S.hV * 0.32;
-      S.sqV -= 1.4;
-      S.shake = Math.min(1.8, S.shake + 0.3);
+  state.hV -= GRAV * dt;
+  state.h += state.hV * dt;
+  if (state.h <= 0) {
+    if (state.hV < -0.9) {
+      state.hV = -state.hV * 0.32;
+      state.sqV -= 1.4;
+      state.shake = Math.min(1.8, state.shake + 0.3);
       const w = wheelsScreen();
       puff(w[1].x, w[1].y, w[1].z, 8, 1.2);
-    } else S.hV = 0;
-    S.h = 0;
+    } else state.hV = 0;
+    state.h = 0;
   }
   const k = clamp(c.t / 0.95, 0, 1);
-  S.roll = lerp(c.r0, c.r1, 1 - (1 - k) ** 3);
+  state.roll = lerp(c.r0, c.r1, 1 - (1 - k) ** 3);
   // доска улетает вперёд, кувыркаясь, потом возвращается под копыта
   if (c.t < 0.95) {
     c.bvh -= GRAV * dt;
@@ -375,15 +379,15 @@ function crashStep(dt) {
     const u = smooth(clamp((c.t - 0.95) / 0.32, 0, 1)),
       s0 = c.snap || { bx: 0, bh: 0, brot: 0, bkick: 0 };
     c.bx = lerp(s0.bx, 0, u);
-    c.bh = lerp(s0.bh, S.h, u);
-    c.brot = lerp(s0.brot, Math.round(s0.brot / TAU) * TAU + S.tilt, u);
+    c.bh = lerp(s0.bh, state.h, u);
+    c.brot = lerp(s0.brot, Math.round(s0.brot / TAU) * TAU + state.tilt, u);
     c.bkick = lerp(s0.bkick, Math.round(s0.bkick / TAU) * TAU, u);
   }
-  if (c.t >= c.dur) {
-    S.crash = null;
-    S.roll = 0;
-    S.invuln = 1.1;
-    S.sqV -= 1;
+  if (c.t >= c.durationS) {
+    state.crash = null;
+    state.roll = 0;
+    state.invuln = 1.1;
+    state.sqV -= 1;
     enterGround(0, 0);
   }
 }
@@ -395,50 +399,55 @@ function crashStep(dt) {
  * @param {import('./types').GroundInfo} gi поверхность под доской
  */
 export function stepGround(gi) {
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   if (gi.h > 0.001) {
-    S.h = gi.h;
-    S.onRamp = true;
-    S.slope = gi.slope;
-  } else if (S.onRamp) {
-    S.onRamp = false;
-    S.h = 0;
+    state.h = gi.h;
+    state.isOnRamp = true;
+    state.slope = gi.slope;
+  } else if (state.isOnRamp) {
+    state.isOnRamp = false;
+    state.h = 0;
     launch();
-  } else S.h = 0;
+  } else state.h = 0;
 }
 
 // ---------------------------------------------------------------- history
 /** История поз для призраков (фиксированный шаг 1/60). @param {number} dt */
 export function stepHistory(dt) {
-  S.histAcc += dt;
-  while (S.histAcc >= 1 / 60) {
-    S.histAcc -= 1 / 60;
-    S.hist.unshift(curPose());
-    if (S.hist.length > 14) S.hist.pop();
+  state.histAcc += dt;
+  while (state.histAcc >= 1 / 60) {
+    state.histAcc -= 1 / 60;
+    state.hist.unshift(curPose());
+    if (state.hist.length > 14) state.hist.pop();
   }
 }
 
 // ---------------------------------------------------------------- autopilot
 export function autopilot() {
-  if (playerMode() || S.mode === 'crash') return;
-  if (S.mode === 'air') {
-    if (S.autoDouble && S.airT >= S.autoDouble && S.jumps < 2) {
-      S.autoDouble = 0;
+  if (playerMode() || state.mode === 'crash') return;
+  if (state.mode === 'air') {
+    if (state.autoDouble && state.airT >= state.autoDouble && state.jumps < 2) {
+      state.autoDouble = 0;
       jump();
-      if (S.autoAfter && !S.trick) {
-        startTrick(S.autoAfter);
+      if (state.autoAfter && !state.trick) {
+        startTrick(state.autoAfter);
       }
-      S.autoAfter = null;
+      state.autoAfter = null;
     }
-    if (!S.trick && S.autoSeq.length && S.airT > 0.05 && timeToLand() > 0.36)
-      startTrick(S.autoSeq.shift());
+    if (
+      !state.trick &&
+      state.autoSeq.length &&
+      state.airT > 0.05 &&
+      timeToLand() > 0.36
+    )
+      startTrick(state.autoSeq.shift());
     return;
   }
   // ground: решения по конструкциям; ride/crash — вне зоны автопилота
-  if (S.mode !== 'ground') return;
+  if (state.mode !== 'ground') return;
   const Xb = boardX(),
-    V = S.speed * G.cowH;
-  S.throttle = 0; // в демо газом владеет автопилот
+    V = state.speed * geometry.cowH;
+  state.throttle = 0; // в демо газом владеет автопилот
   // ближайшая конструкция с подсказкой: спека знает свою актуальность
   /** @type {import('./types').AutopilotHint | null} */
   let hint = null;
@@ -454,18 +463,18 @@ export function autopilot() {
     if (t <= hint.leadS && t > -0.05) {
       if (hint.action === 'double') {
         jump();
-        S.autoDouble = 0.25;
-        if (Math.random() < 0.5) S.autoAfter = pick(['spin', 'kick']);
+        state.autoDouble = 0.25;
+        if (Math.random() < 0.5) state.autoAfter = pick(['spin', 'kick']);
       } else if (hint.action === 'jump') {
         jump();
         if (Math.random() < 0.5) startTrick(pick(['kick', 'spin']));
-      } else S.throttle = 1; // hold — зажать разгон
+      } else state.throttle = 1; // hold — зажать разгон
       return;
     }
   }
   const room = !hint || (hint.at - Xb) / V > 1.6;
-  if (room && S.t > S.nextFlourish) {
-    S.nextFlourish = S.t + rand(3, 5.5);
+  if (room && state.t > state.nextFlourish) {
+    state.nextFlourish = state.t + rand(3, 5.5);
     const r = Math.random();
     if (r < 0.28) {
       jump();
@@ -475,8 +484,8 @@ export function autopilot() {
       startTrick('spin');
     } else if (r < 0.86) {
       jump();
-      S.autoDouble = 0.24;
-      S.autoAfter = 'flip';
+      state.autoDouble = 0.24;
+      state.autoAfter = 'flip';
     } else jump();
   }
 }
@@ -487,65 +496,69 @@ export function autopilot() {
  */
 export function physicsStep(dt, g) {
   // подвеска
-  S.bobV += (-760 * S.bob - 17 * S.bobV) * dt;
-  S.bob += S.bobV * dt;
+  state.bobV += (-760 * state.bob - 17 * state.bobV) * dt;
+  state.bob += state.bobV * dt;
   // наклон: на земле — покачивание, на трамплине — по склону, в воздухе — нос вверх, потом выравнивание
   let tt;
-  if (S.mode === 'crash') tt = 0;
-  else if (S.mode === 'air') {
-    const ph = S.airT / Math.max(0.3, S.airDur);
+  if (state.mode === 'crash') tt = 0;
+  else if (state.mode === 'air') {
+    const ph = state.airT / Math.max(0.3, state.airDurationS);
     tt =
       ph < 0.32
         ? -0.17
         : lerp(-0.17, 0.04, smooth(clamp((ph - 0.32) / 0.58, 0, 1)));
-  } else if (S.onRamp) tt = -Math.atan(S.slope);
+  } else if (state.isOnRamp) tt = -Math.atan(state.slope);
   else
     tt =
-      0.007 * Math.sin(S.t * 1.7) +
-      0.006 * nB(S.t * 0.8) +
-      0.004 * S.boost * Math.sin(S.t * 5.3);
-  const kT = S.mode === 'air' ? 190 : 300;
-  S.tiltV += (-kT * (S.tilt - tt) - 13 * S.tiltV) * dt;
-  S.tilt += S.tiltV * dt;
+      0.007 * Math.sin(state.t * 1.7) +
+      0.006 * nB(state.t * 0.8) +
+      0.004 * state.boost * Math.sin(state.t * 5.3);
+  const kT = state.mode === 'air' ? 190 : 300;
+  state.tiltV += (-kT * (state.tilt - tt) - 13 * state.tiltV) * dt;
+  state.tilt += state.tiltV * dt;
   // приседание
-  S.sqV += (-420 * (S.sq - 1) - 15 * S.sqV) * dt;
-  S.sq += S.sqV * dt;
-  S.sq = clamp(S.sq, 0.84, 1.1);
+  state.sqV += (-420 * (state.sq - 1) - 15 * state.sqV) * dt;
+  state.sq += state.sqV * dt;
+  state.sq = clamp(state.sq, 0.84, 1.1);
   // ухо на ветру
   const flutter =
-    (Math.sin(S.t * 14.3) * 0.5 +
-      Math.sin(S.t * 31.7 + 1.1) * 0.22 +
-      nD(S.t * 7) * 0.55) *
+    (Math.sin(state.t * 14.3) * 0.5 +
+      Math.sin(state.t * 31.7 + 1.1) * 0.22 +
+      nD(state.t * 7) * 0.55) *
     0.03 *
-    (0.55 + 0.45 * S.spdN) *
+    (0.55 + 0.45 * state.spdN) *
     (reduce ? 0.5 : 1);
-  const earT = 0.04 + 0.06 * S.boost + (S.mode === 'air' ? 0.08 : 0) + flutter;
-  S.earV += (-150 * (S.ear - earT) - 7 * S.earV) * dt;
-  S.ear = clamp(S.ear + S.earV * dt, -0.3, 0.34);
+  const earT =
+    0.04 + 0.06 * state.boost + (state.mode === 'air' ? 0.08 : 0) + flutter;
+  state.earV += (-150 * (state.ear - earT) - 7 * state.earV) * dt;
+  state.ear = clamp(state.ear + state.earV * dt, -0.3, 0.34);
   // бирка-маятник, которую отдувает назад
   const wind =
     20 *
-    S.spdN *
-    S.spdN *
-    (1 + 0.28 * Math.sin(S.t * 19.1) + 0.25 * nC(S.t * 6.3));
-  S.tagV +=
-    (-72 * Math.sin(S.tag) + wind * Math.cos(S.tag) * 0.9 - 2.4 * S.tagV) * dt;
-  S.tag = clamp(S.tag + S.tagV * dt, -1.2, 1.3);
+    state.spdN *
+    state.spdN *
+    (1 + 0.28 * Math.sin(state.t * 19.1) + 0.25 * nC(state.t * 6.3));
+  state.tagV +=
+    (-72 * Math.sin(state.tag) +
+      wind * Math.cos(state.tag) * 0.9 -
+      2.4 * state.tagV) *
+    dt;
+  state.tag = clamp(state.tag + state.tagV * dt, -1.2, 1.3);
 
-  if (S.mode === 'crash') {
+  if (state.mode === 'crash') {
     crashStep(dt);
     return;
   }
-  if (S.mode === 'ride') {
+  if (state.mode === 'ride') {
     rideStep(dt);
     return;
   }
-  if (S.mode === 'air') {
-    S.airT += dt;
-    S.hV -= GRAV * dt;
-    S.h += S.hV * dt;
+  if (state.mode === 'air') {
+    state.airT += dt;
+    state.hV -= GRAV * dt;
+    state.h += state.hV * dt;
     stepTrick(dt);
-    if (S.h <= g && S.hV < 0) land(g);
+    if (state.h <= g && state.hV < 0) land(g);
   }
 }
 
@@ -555,11 +568,11 @@ export function physicsStep(dt, g) {
  */
 export function bumpAt(i, strength) {
   if (!onFlat()) return;
-  S.bobV -= 0.11 * strength;
-  S.tiltV += (i === 1 ? -1.3 : 0.9) * strength;
-  S.shake = Math.min(1.6, S.shake + 0.35 * strength);
-  S.earV -= 1.5 * strength;
-  S.tagV += rand(-2.5, 2.5) * strength;
+  state.bobV -= 0.11 * strength;
+  state.tiltV += (i === 1 ? -1.3 : 0.9) * strength;
+  state.shake = Math.min(1.6, state.shake + 0.35 * strength);
+  state.earV -= 1.5 * strength;
+  state.tagV += rand(-2.5, 2.5) * strength;
   const w = wheelsScreen()[i];
   puff(w.x, w.y, w.z, 7, 1.1 * strength);
   if (Math.random() < 0.45) sparks(w.x, w.y, w.z, 4);

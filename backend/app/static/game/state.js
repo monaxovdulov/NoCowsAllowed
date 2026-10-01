@@ -1,4 +1,4 @@
-import { AUTO_DELAY, CRUISE } from './constants.js';
+import { AUTO_DELAY_S, CRUISE } from './constants.js';
 
 // ---------------------------------------------------------------- DOM, canvas
 /** @type {HTMLCanvasElement} */
@@ -77,7 +77,7 @@ if (matchMedia('(pointer: coarse)').matches) {
 // Геометрия кадра: все поля создаются сразу (стабильная форма объекта),
 // значения пересчитывает layout() при resize.
 /** @type {import('./types').Geometry} */
-export const G = {
+export const geometry = {
   s: 0,
   cowH: 0,
   u: 0,
@@ -104,7 +104,7 @@ export const canPatternTransform =
   'setTransform' in CanvasPattern.prototype;
 
 /** @type {import('./types').GameState} */
-export const S = {
+export const state = {
   t: 0,
   camX: 90000 + Math.random() * 5000,
   speed: CRUISE,
@@ -119,9 +119,9 @@ export const S = {
   hV: 0,
   mode: 'ground',
   airT: 0,
-  airDur: 0.6,
+  airDurationS: 0.6,
   jumps: 0,
-  onRamp: false,
+  isOnRamp: false,
   slope: 0,
   sq: 1,
   sqV: 0,
@@ -154,7 +154,7 @@ export const S = {
   clearSpawnX: 0,
   score: 0,
   best: 0,
-  touched0: false,
+  isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachStage: 0,
   coachText: null,
@@ -162,7 +162,7 @@ export const S = {
   resultUntil: 0, // карточка результата после крэша
 };
 try {
-  S.best = Math.max(
+  state.best = Math.max(
     0,
     parseInt(localStorage.getItem('cow-skate-best'), 10) || 0,
   );
@@ -182,8 +182,8 @@ export const feats = [];
 /** @type {import('./types').Pop[]} */
 export const pops = [];
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
-export const playerMode = () => S.t - S.lastInput <= AUTO_DELAY;
+export const playerMode = () => state.t - state.lastInput <= AUTO_DELAY_S;
 /** @returns {boolean} катимся по ровному асфальту (не по конструкции) */
-export const onFlat = () => S.mode === 'ground' && !S.onRamp;
+export const onFlat = () => state.mode === 'ground' && !state.isOnRamp;
 /** @returns {boolean} катимся по поверхности конструкции */
-export const onFeature = () => S.mode === 'ground' && S.onRamp;
+export const onFeature = () => state.mode === 'ground' && state.isOnRamp;

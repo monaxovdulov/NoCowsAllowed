@@ -5,14 +5,14 @@ import {
   clouds,
   cracks,
   ctx,
-  G,
+  geometry,
   lines,
   onFeature,
   onFlat,
   parts,
   pops,
   reduce,
-  S,
+  state,
 } from './state.js';
 import { CAM } from './camera.js';
 import { DPR, H, W, xAt, yAt } from './layout.js';
@@ -58,19 +58,19 @@ export function newLine(init) {
  * @returns {import('./types').Particle}
  */
 export function createDust(x, y, z, strength, img) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   return {
     kind: 'dust',
     img: img || dustImg,
-    x: x + rand(-6, 6) * G.u,
-    y: y - rand(0, 8) * G.u,
+    x: x + rand(-6, 6) * geometry.u,
+    y: y - rand(0, 8) * geometry.u,
     z,
     vx: (-rand(0.05, 0.35) * V) / z,
-    vy: -rand(0.04, 0.26) * G.cowH * strength,
+    vy: -rand(0.04, 0.26) * geometry.cowH * strength,
     life: 0,
     max: rand(0.45, 1.1),
-    r0: (rand(3, 8) * G.u) / z,
-    r1: ((rand(24, 60) * G.u) / z) * (0.5 + strength * 0.5),
+    r0: (rand(3, 8) * geometry.u) / z,
+    r1: ((rand(24, 60) * geometry.u) / z) * (0.5 + strength * 0.5),
     a: rand(0.1, 0.24) * Math.min(1.4, 0.6 + strength * 0.4),
   };
 }
@@ -81,15 +81,15 @@ export function createDust(x, y, z, strength, img) {
  * @returns {import('./types').Particle}
  */
 export function createSpark(x, y, z) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   return {
     kind: 'spark',
     img: null,
     x,
-    y: y - 2 * G.u,
+    y: y - 2 * geometry.u,
     z,
-    vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * G.u,
-    vy: -rand(0.25, 1.5) * G.cowH,
+    vx: (-rand(0.2, 0.9) * V) / z + rand(-80, 80) * geometry.u,
+    vy: -rand(0.25, 1.5) * geometry.cowH,
     life: 0,
     max: rand(0.18, 0.45),
     r0: 0,
@@ -152,11 +152,11 @@ export function ring(x, y) {
  * @param {import('./types').PopKind} kind
  */
 export function popup(text, kind) {
-  if (!G.cowH) return;
-  const m = poseMatrix({ y: S.bob - S.h, tilt: 0, sq: 1 });
+  if (!geometry.cowH) return;
+  const m = poseMatrix({ y: state.bob - state.h, tilt: 0, sq: 1 });
   const nose = CAM.transformPoint(m.transformPoint(new DOMPoint(580, 120)));
   const head = CAM.transformPoint(m.transformPoint(new DOMPoint(400, 40)));
-  const right = W - nose.x > 0.5 * G.cowH; // справа от морды есть место — пишем там, иначе над головой
+  const right = W - nose.x > 0.5 * geometry.cowH; // справа от морды есть место — пишем там, иначе над головой
   const used = new Set(pops.map((q) => q.slot));
   let slot = 0;
   while (used.has(slot)) slot++;
@@ -166,11 +166,11 @@ export function popup(text, kind) {
     slot,
     right,
     t: 0,
-    dur: kind === 'pts' ? 1.35 : 1.05,
+    durationS: kind === 'pts' ? 1.35 : 1.05,
     x: right
-      ? Math.min(nose.x + 0.36 * G.cowH, W - 0.3 * G.cowH)
+      ? Math.min(nose.x + 0.36 * geometry.cowH, W - 0.3 * geometry.cowH)
       : clamp(head.x, W * 0.3, W * 0.7),
-    y: right ? head.y + 0.05 * G.cowH : head.y - 0.12 * G.cowH,
+    y: right ? head.y + 0.05 * geometry.cowH : head.y - 0.12 * geometry.cowH,
   });
 }
 
@@ -178,15 +178,15 @@ export function popup(text, kind) {
 /** Пыль из-под колёс на ровном ходу. @param {number} dt */
 export function stepDust(dt) {
   if (!onFlat()) return;
-  const rate = 16 * S.spdN;
+  const rate = 16 * state.spdN;
   const w = wheelsScreen();
   for (let i = 0; i < 2; i++)
     if (Math.random() < rate * dt)
-      puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * S.boost);
+      puff(w[i].x, w[i].y, w[i].z, 1, 0.55 + 0.4 * state.boost);
 }
 /** Частицы и всплывающие подписи. @param {number} dt */
 export function stepParticles(dt) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     p.life += dt;
@@ -196,9 +196,9 @@ export function stepParticles(dt) {
     }
     if (p.kind === 'dust') {
       p.vx += (-V / p.z - p.vx) * (1 - Math.exp(-dt * 2.4));
-      p.vy += (0.03 * G.cowH - p.vy) * (1 - Math.exp(-dt * 2));
+      p.vy += (0.03 * geometry.cowH - p.vy) * (1 - Math.exp(-dt * 2));
     } else if (p.kind === 'spark') {
-      p.vy += 6.5 * G.cowH * dt;
+      p.vy += 6.5 * geometry.cowH * dt;
     } else {
       p.vx = -V * 0.35;
     }
@@ -208,35 +208,36 @@ export function stepParticles(dt) {
   if (parts.length > 460) parts.splice(0, parts.length - 460);
   for (let i = pops.length - 1; i >= 0; i--) {
     pops[i].t += dt;
-    if (pops[i].t >= pops[i].dur) pops.splice(i, 1);
+    if (pops[i].t >= pops[i].durationS) pops.splice(i, 1);
   }
 }
 /** Линии скорости. @param {number} dt */
 export function stepLines(dt) {
-  const V = S.speed * G.cowH;
+  const V = state.speed * geometry.cowH;
   const nLines = reduce ? 10 : 26;
   while (lines.length < nLines) lines.push(newLine(true));
   for (const l of lines) {
-    l.x -= (V * l.sp * (0.55 + 0.9 * S.boost) * dt) / W;
+    l.x -= (V * l.sp * (0.55 + 0.9 * state.boost) * dt) / W;
     if (l.x + l.len < -0.05) Object.assign(l, newLine(false));
   }
 }
 /** Облака: параллакс плюс собственный дрейф. @param {number} dt */
 export function stepClouds(dt) {
   for (const c of clouds) {
-    const w = c.img.width * c.scale * G.u * 1.05;
+    const w = c.img.width * c.scale * geometry.u * 1.05;
     c.x -=
-      ((c.drift + c.par * S.speed) * G.cowH * dt) / (W * 1.24 + w + c.gap * W);
+      ((c.drift + c.par * state.speed) * geometry.cowH * dt) /
+      (W * 1.24 + w + c.gap * W);
   }
 }
 
 export function drawCracks() {
-  const V = S.speed * G.cowH,
-    zE = G.zEdge * 0.99,
-    zB = G.zBottom;
+  const V = state.speed * geometry.cowH,
+    zE = geometry.zEdge * 0.99,
+    zB = geometry.zBottom;
   const yE = yAt(zE),
     yB = yAt(zB);
-  const cw = 0.016 * G.cowH,
+  const cw = 0.016 * geometry.cowH,
     blur = V / 150;
   ctx.fillStyle = '#06070c';
   ctx.globalAlpha = (0.5 * cw) / (cw + blur);
@@ -260,7 +261,8 @@ export function drawCracks() {
 /** @param {boolean} front передний (true) или задний план */
 export function drawLines(front) {
   ctx.globalCompositeOperation = 'screen';
-  const k = (reduce ? 0.4 : 1) * (0.45 + 1.3 * S.boost) * (0.8 + 0.2 * S.spdN);
+  const k =
+    (reduce ? 0.4 : 1) * (0.45 + 1.3 * state.boost) * (0.8 + 0.2 * state.spdN);
   for (const l of lines) {
     if (l.front !== front) continue;
     ctx.globalAlpha = clamp(l.a * k, 0, 0.5);
@@ -286,10 +288,10 @@ export function drawParticles() {
         r * 2,
       );
     } else if (p.kind === 'ring') {
-      const rx = G.cowH * 0.34 * (0.35 + 1.3 * t);
+      const rx = geometry.cowH * 0.34 * (0.35 + 1.3 * t);
       ctx.globalAlpha = 0.85 * (1 - t);
       ctx.strokeStyle = '#f4f8ff';
-      ctx.lineWidth = Math.max(1.5, 4 * G.u * (1 - t));
+      ctx.lineWidth = Math.max(1.5, 4 * geometry.u * (1 - t));
       ctx.beginPath();
       ctx.ellipse(p.x, p.y, rx, rx * 0.26, 0, 0, TAU);
       ctx.stroke();
@@ -302,7 +304,7 @@ export function drawParticles() {
     const t = p.life / p.max;
     ctx.globalAlpha = 1 - t;
     ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
-    ctx.lineWidth = Math.max(1, 1.6 * G.u);
+    ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(p.x - p.vx * 0.022, p.y - p.vy * 0.022);
@@ -325,7 +327,7 @@ export function initEffects() {
     } else if (d.from === 'double') {
       const x = (w[0].x + w[1].x) / 2,
         y = (w[0].y + w[1].y) / 2;
-      ring(x, y + 0.03 * G.cowH);
+      ring(x, y + 0.03 * geometry.cowH);
       puff(x, y, 1, 8, 0.8);
     } else {
       puff(w[1].x, w[1].y, 1, 8, 1.1, woodImg);
@@ -364,19 +366,20 @@ export function drawPops() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  const lh = 0.12 * G.cowH,
+  const lh = 0.12 * geometry.cowH,
     top = H * 0.13 + lh * 0.5;
   for (const q of pops) {
-    const k = q.t / q.dur,
+    const k = q.t / q.durationS,
       a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     const sc = q.t < 0.2 ? Math.max(0.01, easeOutBack(q.t / 0.2)) : 1;
     const size =
-      (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) * G.cowH;
+      (q.kind === 'crash' ? 0.13 : q.kind === 'pts' ? 0.075 : 0.092) *
+      geometry.cowH;
     const y = q.right
       ? clamp(q.y, top, H * 0.45) + q.slot * lh
       : Math.max(top + q.slot * lh, q.y - q.slot * lh);
     ctx.save();
-    ctx.translate(q.x, y - k * 0.06 * G.cowH);
+    ctx.translate(q.x, y - k * 0.06 * geometry.cowH);
     ctx.scale(sc, sc);
     ctx.rotate(q.kind === 'crash' ? -0.09 : -0.04);
     ctx.font = `800 ${size.toFixed(1)}px Unbounded, "Arial Black", Impact, system-ui, sans-serif`;

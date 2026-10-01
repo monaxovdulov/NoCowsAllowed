@@ -42,7 +42,7 @@ export type Action = 'jump' | TrickKind;
 
 export interface TrickSpec {
   name: string;
-  dur: number;
+  durationS: number;
   pts: number;
 }
 
@@ -115,7 +115,7 @@ export interface WheelPoint {
 export interface ActiveTrick {
   kind: TrickKind;
   t: number;
-  dur: number;
+  durationS: number;
   dir: 1 | -1;
 }
 
@@ -133,7 +133,7 @@ export type CrashReason = 'hit' | 'bail' | 'fall' | 'stall';
 export interface CrashState extends BoardSnap {
   reason: CrashReason;
   t: number;
-  dur: number;
+  durationS: number;
   r0: number;
   r1: number;
   bvx: number;
@@ -162,9 +162,9 @@ export interface GameState {
   // enterGround/enterAir/enterCrash/enterRide в player.js
   mode: PlayerMode;
   airT: number;
-  airDur: number;
+  airDurationS: number;
   jumps: 0 | 1 | 2;
-  onRamp: boolean;
+  isOnRamp: boolean;
   slope: number;
   sq: number;
   sqV: number;
@@ -197,7 +197,7 @@ export interface GameState {
   clearSpawnX: number;
   score: number;
   best: number;
-  touched0: boolean;
+  isTouched0: boolean;
   playT0: number;
   coachStage: 0 | 1 | 2 | 3;
   coachText: string | null;
@@ -222,7 +222,7 @@ export interface GroundInfo {
 
 export interface Crack {
   X: number;
-  hit: [boolean, boolean];
+  isHit: [boolean, boolean];
 }
 
 // ---------------------------------------------------------------- effects
@@ -256,7 +256,7 @@ export interface Pop {
   slot: number;
   right: boolean;
   t: number;
-  dur: number;
+  durationS: number;
   x: number;
   y: number;
 }
@@ -324,8 +324,8 @@ export interface RampData {
 
 export interface ObstacleData {
   kind: ObstacleKind;
-  over: boolean;
-  cleared: boolean;
+  isOver: boolean;
+  isCleared: boolean;
   fly: FlyState | null;
 }
 
@@ -339,7 +339,7 @@ export interface LoopData {
   r: number;
   entry: number;
   // попытка уже была: повторный заезд в ту же петлю не предлагаем
-  tried: boolean;
+  isTried: boolean;
 }
 
 export interface RailData {
@@ -362,7 +362,7 @@ export interface RideState {
   // текущий угол касательной для позы (рад, canvas-знак)
   ang: number;
   // демо-автопилот уже исполнил трюк на дуге
-  autoDone: boolean;
+  isAutoDone: boolean;
 }
 
 export interface SpawnContext {
