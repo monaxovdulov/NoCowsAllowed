@@ -8,7 +8,15 @@ import {
   TURBO_EXTRA,
   TURBO_HOLD,
 } from './constants.js';
-import { geometry, grainEl, hintEl, lines, reduce, state } from './state.js';
+import {
+  BOT_DRIVE,
+  geometry,
+  grainEl,
+  hintEl,
+  lines,
+  reduce,
+  state,
+} from './state.js';
 import { boardX, layout, perfScale, setPerfScale } from './layout.js';
 import {
   buildSizeDependent,
@@ -195,6 +203,9 @@ warmFont();
 if (document.fonts) document.fonts.ready.then(warmFont);
 
 /*TEST_HOOK*/
+// ?bot=1 — хук для headless-замеров (npm run balance): автопилот едет
+// «за игрока», а раннер читает живой state и перезапускает заезды.
+if (BOT_DRIVE) window.__cowskate = { state };
 Promise.all([
   loadImg(SRC.base),
   loadImg(SRC.board),

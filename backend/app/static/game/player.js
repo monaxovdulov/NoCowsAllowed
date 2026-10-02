@@ -19,7 +19,7 @@ import {
   TRICKS,
 } from './constants.js';
 import { emit } from './events.js';
-import { feats, geometry, onFlat, playerMode, reduce, state } from './state.js';
+import { autoDrives, feats, geometry, onFlat, reduce, state } from './state.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { boardX } from './layout.js';
 import { curPose, wheelsScreen } from './pose.js';
@@ -180,7 +180,7 @@ function rideStep(dt) {
   }
   stepTrick(dt);
   // демо-автопилот делает один трюк на дуге — показывает, что можно
-  if (!playerMode() && rs.tricks && !ride.isAutoDone && state.trick === null) {
+  if (autoDrives() && rs.tricks && !ride.isAutoDone && state.trick === null) {
     const left = rs.length(ride.feat);
     if (ride.s > left * 0.25 && ride.s < left * 0.75) {
       ride.isAutoDone = true;
@@ -306,7 +306,7 @@ export function launch() {
   state.tagV += 3;
   state.shake = Math.min(1.8, state.shake + 0.45);
   enterAir('launch');
-  if (!playerMode()) {
+  if (autoDrives()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
       state.airDurationS > 0.95
         ? [
@@ -428,7 +428,7 @@ export function stepHistory(dt) {
 
 // ---------------------------------------------------------------- autopilot
 export function autopilot() {
-  if (playerMode() || state.mode === 'crash') return;
+  if (!autoDrives() || state.mode === 'crash') return;
   if (state.mode === 'air') {
     if (state.autoDouble && state.airT >= state.autoDouble && state.jumps < 2) {
       state.autoDouble = 0;

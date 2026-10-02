@@ -585,6 +585,9 @@ declare global {
   }
 
   interface Window {
+    // тест-хук ?bot=1 (main.js): живой стейт для headless-замеров
+    // (tools/game-snapshot.mjs --balance). В проде не устанавливается.
+    __cowskate?: { state: GameState };
     Telegram?: {
       WebApp?: TelegramWebApp;
       Game?: { Proxy?: TelegramGameProxy };

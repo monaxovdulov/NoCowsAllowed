@@ -11,6 +11,7 @@
 //
 //   node tools/game-snapshot.mjs            # проверка (exit 1 при расхождении)
 //   node tools/game-snapshot.mjs --update   # перезаписать эталон
+//   node tools/game-snapshot.mjs --balance[=120]   # баланс-прогон ?bot=1
 //
 // Chromium не скачивается: playwright-core@1.62 ждёт ревизию
 // chromium_headless_shell-1234, которая уже есть в ~/.cache/ms-playwright.
@@ -28,6 +29,10 @@ const UPDATE = process.argv.includes('--update');
 
 const SEED = 0x51ca7e;
 const FRAME_MS = 1000 / 60;
+// --balance[=секунды]: вместо снапшота — баланс-прогон автопилота в
+// player-режиме (страница с ?bot=1, см. BOT_DRIVE в game/state.js).
+const BALANCE_ARG = process.argv.find((a) => a.startsWith('--balance'));
+const BALANCE_S = BALANCE_ARG ? Number(BALANCE_ARG.split('=')[1]) || 120 : 0;
 
 // ---------------------------------------------------------------- сценарий
 // Кадры — абсолютные; ввод диспатчится до шага кадра. Фазы по документу:
@@ -201,6 +206,13 @@ const initHook = ({ seed, coarse, tutored }) => {
     queued: () => rafQ.reduce((n, cb) => n + (cb ? 1 : 0), 0),
   };
 
+  // концы заездов копим для баланс-прогонов (--balance): detail содержит
+  // счёт, дистанцию, длительность и статистику заезда
+  window.__runs = [];
+  document.addEventListener('cowskate:run-end', (e) =>
+    window.__runs.push(e.detail),
+  );
+
   // Ввод как у пользователя: pointerdown на canvas, клавиши на window.
   window.__act = (name) => {
     const cv = document.getElementById('scene');
@@ -297,6 +309,20 @@ function serveStatic() {
 }
 
 // ---------------------------------------------------------------- прогон
+/** Ждёт конца boot-цепочки: игра встала в rAF-цикл, прогрев отработал. */
+async function waitBoot(page) {
+  for (let i = 0; i < 400; i++) {
+    const ready = await page.evaluate(
+      () => window.__vt && window.__vt.queued() > 0,
+    );
+    if (ready) return;
+    if (i === 399) throw new Error('boot не завершился за ~20 с');
+    await new Promise((r) => {
+      setTimeout(r, 50);
+    });
+  }
+}
+
 async function runViewport(browser, origin, vp) {
   const context = await browser.newContext(vp.context);
   await context.addInitScript(initHook, {
@@ -317,16 +343,7 @@ async function runViewport(browser, origin, vp) {
   // ждём конца boot-цепочки: после requestAnimationFrame(frame) прогрев
   // (initAssets, layout, 60×update) уже отработал — кадровая петля детерминирована.
   // Поллим из node: waitForFunction сам встаёт в нашу очередь rAF.
-  for (let i = 0; i < 400; i++) {
-    const ready = await page.evaluate(
-      () => window.__vt && window.__vt.queued() > 0,
-    );
-    if (ready) break;
-    if (i === 399) throw new Error('boot не завершился за ~20 с');
-    await new Promise((r) => {
-      setTimeout(r, 50);
-    });
-  }
+  await waitBoot(page);
 
   let frame = 0;
   const checkpoints = [];
@@ -385,6 +402,92 @@ function diffRun(base, got) {
   return diffs;
 }
 
+// ---------------------------------------------------------------- баланс
+// Прогон автопилота в player-режиме (?bot=1) на N секунд виртуального
+// времени: заезды собираются из __runs, оборвавшийся заезд
+// перезапускается тапом (незаконченный считается «в игре» отдельно).
+async function runBalance(browser, origin, seconds) {
+  // маленький вьюпорт: кадр дешевле рендерить, на физику не влияет
+  const context = await browser.newContext({
+    viewport: { width: 480, height: 270 },
+    deviceScaleFactor: 1,
+  });
+  await context.addInitScript(initHook, {
+    seed: SEED,
+    coarse: false,
+    tutored: true,
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.route('**/*', (route) => {
+    const u = route.request().url();
+    return u.startsWith(origin) ? route.continue() : route.abort();
+  });
+  await page.goto(`${origin}/index.html?bot=1`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await waitBoot(page);
+  // первый тап выводит из демо в заезд; дальше рулит автопилот, а кончившиеся
+  // заезды перезапускает тап — всё одним evaluate, чтобы не тратить время
+  // на RPC между кадрами (прогон весь рендерит в software-canvas)
+  const frames = Math.round(seconds * 60);
+  await page.evaluate(
+    ({ n, dt }) => {
+      const tap = () => {
+        window.__act('tap');
+        window.__act('release');
+      };
+      tap();
+      for (let i = 0; i < n; i++) {
+        window.__vt.step(dt);
+        const cs = window.__cowskate;
+        if (cs && !cs.state.run && cs.state.mode !== 'crash') tap();
+      }
+    },
+    { n: frames, dt: FRAME_MS },
+  );
+  if (errors.length) throw new Error(`pageerror: ${errors.join(' | ')}`);
+  const report = await page.evaluate(() => {
+    const cs = window.__cowskate;
+    return {
+      runs: window.__runs,
+      live:
+        cs && cs.state.run
+          ? {
+              score: cs.state.score,
+              pot: cs.state.combo ? cs.state.combo.pot : 0,
+              lives: cs.state.run.lives,
+              distM: cs.state.run.distM,
+            }
+          : null,
+    };
+  });
+  await context.close();
+  const scores = report.runs.map((r) => r.score);
+  if (report.live) scores.push(report.live.score);
+  const avg = scores.length
+    ? scores.reduce((a, s) => a + s, 0) / scores.length
+    : 0;
+  const liveNote = report.live ? ' + 1 в игре' : '';
+  console.log(`баланс ${seconds} с: заездов ${report.runs.length}${liveNote}`);
+  for (const r of report.runs)
+    console.log(
+      `  #${r.n}: ${r.score} очк · ${Math.round(r.distM)} м · ` +
+        `${r.durationS.toFixed(1)} с · ${r.reason} · ` +
+        `крэшей ${r.stats.crashes} · ×${r.stats.maxMult}`,
+    );
+  if (report.live)
+    console.log(
+      `  в игре: ${report.live.score} очк · ` +
+        `${Math.round(report.live.distM)} м · горшок ${report.live.pot}`,
+    );
+  console.log(
+    `средний счёт заезда: ${Math.round(avg)} · ` +
+      `макс: ${scores.length ? Math.max(...scores) : 0}`,
+  );
+}
+
 // ---------------------------------------------------------------- main
 async function main() {
   const server = await serveStatic();
@@ -393,6 +496,10 @@ async function main() {
     args: ['--force-color-profile=srgb', '--disable-gpu'],
   });
   try {
+    if (BALANCE_S > 0) {
+      await runBalance(browser, origin, BALANCE_S);
+      return;
+    }
     const result = { seed: SEED, frameMs: FRAME_MS, viewports: {} };
     for (const vp of VIEWPORTS) {
       // двойной прогон: детерминизм проверяется до сравнения с эталоном

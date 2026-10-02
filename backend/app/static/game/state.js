@@ -195,8 +195,15 @@ export const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64));
 export const feats = [];
 /** @type {import('./types').Pop[]} */
 export const pops = [];
+// ?bot=1 — баланс-прогон (tools/game-snapshot.mjs --balance): автопилот
+// играет «за игрока» — заезд живёт и очки капают. В проде флага нет.
+export const BOT_DRIVE =
+  new URLSearchParams(location.search).get('bot') === '1';
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
-export const playerMode = () => state.t - state.lastInput <= AUTO_DELAY_S;
+export const playerMode = () =>
+  BOT_DRIVE || state.t - state.lastInput <= AUTO_DELAY_S;
+/** @returns {boolean} коровой рулит автопилот (демо или баланс-бот) */
+export const autoDrives = () => BOT_DRIVE || !playerMode();
 /** @returns {boolean} катимся по ровному асфальту (не по конструкции) */
 export const onFlat = () => state.mode === 'ground' && !state.isOnRamp;
 /** @returns {boolean} катимся по поверхности конструкции */

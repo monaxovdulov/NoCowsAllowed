@@ -1135,8 +1135,15 @@ const cracks = /** @type {import('./types').CrackRing} */ (makeRing(64)); // ш�
 const feats = [];
 /** @type {import('./types').Pop[]} */
 const pops = [];
+// ?bot=1 — баланс-прогон (tools/game-snapshot.mjs --balance): автопилот
+// играет «за игрока» — заезд живёт и очки капают. В проде флага нет.
+const BOT_DRIVE =
+  new URLSearchParams(location.search).get('bot') === '1';
 /** @returns {boolean} игрок управляет сам (false — автопилот демо-режима) */
-const playerMode = () => state.t - state.lastInput <= AUTO_DELAY_S;
+const playerMode = () =>
+  BOT_DRIVE || state.t - state.lastInput <= AUTO_DELAY_S;
+/** @returns {boolean} коровой рулит автопилот (демо или баланс-бот) */
+const autoDrives = () => BOT_DRIVE || !playerMode();
 /** @returns {boolean} катимся по ровному асфальту (не по конструкции) */
 const onFlat = () => state.mode === 'ground' && !state.isOnRamp;
 /** @returns {boolean} катимся по поверхности конструкции */
@@ -3559,7 +3566,7 @@ function rideStep(dt) {
   }
   stepTrick(dt);
   // демо-автопилот делает один трюк на дуге — показывает, что можно
-  if (!playerMode() && rs.tricks && !ride.isAutoDone && state.trick === null) {
+  if (autoDrives() && rs.tricks && !ride.isAutoDone && state.trick === null) {
     const left = rs.length(ride.feat);
     if (ride.s > left * 0.25 && ride.s < left * 0.75) {
       ride.isAutoDone = true;
@@ -3685,7 +3692,7 @@ function launch() {
   state.tagV += 3;
   state.shake = Math.min(1.8, state.shake + 0.45);
   enterAir('launch');
-  if (!playerMode()) {
+  if (autoDrives()) {
     const seqs = /** @type {import('./types').TrickKind[][]} */ (
       state.airDurationS > 0.95
         ? [
@@ -3807,7 +3814,7 @@ function stepHistory(dt) {
 
 // ---------------------------------------------------------------- autopilot
 function autopilot() {
-  if (playerMode() || state.mode === 'crash') return;
+  if (!autoDrives() || state.mode === 'crash') return;
   if (state.mode === 'air') {
     if (state.autoDouble && state.airT >= state.autoDouble && state.jumps < 2) {
       state.autoDouble = 0;
@@ -5528,6 +5535,9 @@ warmFont();
 if (document.fonts) document.fonts.ready.then(warmFont);
 
 /*TEST_HOOK*/
+// ?bot=1 — хук для headless-замеров (npm run balance): автопилот едет
+// «за игрока», а раннер читает живой state и перезапускает заезды.
+if (BOT_DRIVE) window.__cowskate = { state };
 Promise.all([
   loadImg(SRC.base),
   loadImg(SRC.board),

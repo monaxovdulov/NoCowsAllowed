@@ -6,7 +6,8 @@
     "lint": "node tools/check-import-graph.mjs && eslint . && prettier --check . --ignore-unknown",
     "fix": "eslint . --fix && prettier --write . --ignore-unknown",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.strict.json",
-    "snapshot": "node tools/game-snapshot.mjs"
+    "snapshot": "node tools/game-snapshot.mjs",
+    "balance": "node tools/game-snapshot.mjs --balance"
   },
   "devDependencies": {
     "eslint": "9.39.5",
