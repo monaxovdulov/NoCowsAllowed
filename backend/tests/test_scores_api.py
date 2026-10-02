@@ -42,7 +42,13 @@ def test_score_with_session_reports_native_and_stores(
     )
     assert response.status_code == 200
     body = response.json()
-    assert body == {"ok": True, "best": 321, "rank": 1, "is_new_best": True}
+    assert body == {
+        "ok": True,
+        "best": 321,
+        "rank": 1,
+        "prev_rank": None,
+        "is_new_best": True,
+    }
 
     assert len(game_gateway.reported_scores) == 1
     reported = game_gateway.reported_scores[0]
@@ -170,6 +176,103 @@ def test_leaderboard_orders_and_limits(client, engine) -> None:
 
     limited = client.get("/api/leaderboard?limit=2").json()["entries"]
     assert len(limited) == 2
+
+
+def test_score_stores_run_stats(client, engine, settings) -> None:
+    # Фаза 0: один заезд — один POST с метриками заезда.
+    token = issue_token(settings)
+    response = client.post(
+        "/api/score",
+        json={
+            "session": token,
+            "init_data": None,
+            "score": 321,
+            "distance_m": 812,
+            "duration_s": 47,
+            "crash_reason": "hit",
+            "max_mult": 3,
+        },
+    )
+    assert response.status_code == 200
+    with Session(engine) as db:
+        player = db.get(Player, USER["id"])
+        assert player is not None
+        assert player.runs == 1
+        run = db.exec(select(ScoreRun)).one()
+        assert run.distance_m == 812
+        assert run.duration_s == 47
+        assert run.crash_reason == "hit"
+        assert run.max_mult == 3
+
+
+def test_score_old_body_without_run_stats_accepted(client, settings) -> None:
+    # Старый клиент шлёт только score — статистика остаётся пустой.
+    token = issue_token(settings)
+    response = client.post(
+        "/api/score", json={"session": token, "init_data": None, "score": 42}
+    )
+    assert response.status_code == 200
+
+
+def test_score_implausible_for_duration_rejected(client, settings) -> None:
+    token = issue_token(settings)
+    response = client.post(
+        "/api/score",
+        json={
+            "session": token,
+            "init_data": None,
+            "score": 100_000,
+            "duration_s": 10,  # 400 очков/с — потолок профиля
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "NCA_SCORE_IMPLAUSIBLE"
+
+
+def test_score_plausible_for_duration_accepted(client, settings) -> None:
+    token = issue_token(settings)
+    response = client.post(
+        "/api/score",
+        json={
+            "session": token,
+            "init_data": None,
+            "score": 4000,
+            "duration_s": 10,
+        },
+    )
+    assert response.status_code == 200
+
+
+def test_score_reports_prev_rank(client, engine, settings) -> None:
+    # Фаза 0: карточке результата нужно «было #N» — позиция до сабмита.
+    with Session(engine) as db:
+        db.add(
+            Player(
+                telegram_user_id=1,
+                first_name="Соперник",
+                best_score=400,
+                runs=3,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        db.commit()
+    token = issue_token(settings)
+    first = client.post(
+        "/api/score", json={"session": token, "init_data": None, "score": 100}
+    ).json()
+    assert first["rank"] == 2
+    assert first["prev_rank"] is None
+    second = client.post(
+        "/api/score", json={"session": token, "init_data": None, "score": 500}
+    ).json()
+    assert second["rank"] == 1
+    assert second["prev_rank"] == 2
+    third = client.post(
+        "/api/score", json={"session": token, "init_data": None, "score": 50}
+    ).json()
+    assert third["rank"] == 1
+    assert third["prev_rank"] == 1
 
 
 def test_rank_reflects_position(client, engine) -> None:

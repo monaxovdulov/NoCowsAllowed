@@ -22,6 +22,10 @@ class AppProfile:
     # Правдоподобная верхняя граница счёта: не античит-гарантия, а отсечка
     # явно сломанных/подделанных значений.
     score_max: int
+    # Мягкий анти-чит: верхняя граница очков в секунду заезда
+    # (score <= duration_s * score_per_sec_max). Пристрелочная — после
+    # фазы 1 (комбо) потолок пересматривается по данным ScoreRun.
+    score_per_sec_max: int
     telegram_request_timeout: float
 
 
@@ -30,6 +34,7 @@ COWSKATE_V0_1_PROFILE = AppProfile(
     leaderboard_limit=50,
     leaderboard_max_limit=200,
     score_max=100_000_000,
+    score_per_sec_max=400,
     telegram_request_timeout=30.0,
 )
 

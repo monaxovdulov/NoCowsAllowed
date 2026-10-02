@@ -35,6 +35,9 @@ class RecordedScore:
     player: Player
     is_new_best: bool
     rank: int
+    # Место до этого сабмита (для «было #N» в карточке результата);
+    # None — игрока ещё не было в топе
+    prev_rank: int | None
 
 
 def upsert_player(session: Session, identity: PlayerIdentity, now: datetime) -> Player:
@@ -84,6 +87,11 @@ def record_score(
     score: int,
     claims: SessionClaims | None,
     score_max: int,
+    score_per_sec_max: int,
+    distance_m: int | None,
+    duration_s: int | None,
+    crash_reason: str | None,
+    max_mult: int | None,
     now: datetime,
 ) -> RecordedScore:
     if score < 0 or score > score_max:
@@ -92,7 +100,16 @@ def record_score(
             code="NCA_SCORE_OUT_OF_RANGE",
             message="Недопустимое значение счёта.",
         )
+    # Мягкий анти-чит: score не может превышать duration_s × потолок
+    # очков в секунду. Без duration_s (старый клиент) не проверяем.
+    if duration_s is not None and score > duration_s * score_per_sec_max:
+        raise AppError(
+            status_code=422,
+            code="NCA_SCORE_IMPLAUSIBLE",
+            message="Счёт не похож на реальный для такой длительности заезда.",
+        )
     player = upsert_player(session, identity, now)
+    prev_rank = player_rank(session, player) if player.best_score > 0 else None
     session.add(
         ScoreRun(
             telegram_user_id=player.telegram_user_id,
@@ -100,6 +117,10 @@ def record_score(
             score=score,
             via=(ScoreVia.MINI_APP if claims is None else ScoreVia.GAME_MESSAGE),
             created_at=now,
+            distance_m=distance_m,
+            duration_s=duration_s,
+            crash_reason=crash_reason,
+            max_mult=max_mult,
         )
     )
     player.runs += 1
@@ -112,6 +133,7 @@ def record_score(
         player=player,
         is_new_best=is_new_best,
         rank=player_rank(session, player),
+        prev_rank=prev_rank,
     )
 
 

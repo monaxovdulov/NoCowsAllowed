@@ -47,3 +47,9 @@ class ScoreRun(SQLModel, table=True):
     score: int
     via: ScoreVia
     created_at: datetime = Field(index=True)
+    # Статистика заезда (продукт-план, фаза 0): один ряд = один заезд.
+    # Nullable — старые клиенты этих полей не присылают.
+    distance_m: int | None = None
+    duration_s: int | None = None
+    crash_reason: str | None = None
+    max_mult: int | None = None

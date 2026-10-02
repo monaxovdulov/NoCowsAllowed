@@ -24,12 +24,19 @@ class ScoreSubmit(BaseModel):
     session: str | None = Field(default=None, max_length=2048)
     init_data: str | None = Field(default=None, max_length=8192)
     score: int = Field(ge=0)
+    # Статистика заезда (продукт-план, фаза 0): всё опционально, чтобы
+    # старый клиент (только score) не сломался.
+    distance_m: int | None = Field(default=None, ge=0)
+    duration_s: int | None = Field(default=None, ge=0)
+    crash_reason: str | None = Field(default=None, max_length=32)
+    max_mult: int | None = Field(default=None, ge=0)
 
 
 class ScoreAccepted(BaseModel):
     ok: bool
     best: int
     rank: int
+    prev_rank: int | None
     is_new_best: bool
 
 
@@ -72,6 +79,11 @@ async def submit_score(request: Request, body: ScoreSubmit) -> ScoreAccepted:
             score=body.score,
             claims=claims,
             score_max=settings.profile.score_max,
+            score_per_sec_max=settings.profile.score_per_sec_max,
+            distance_m=body.distance_m,
+            duration_s=body.duration_s,
+            crash_reason=body.crash_reason,
+            max_mult=body.max_mult,
             now=now,
         )
         db.commit()
@@ -84,6 +96,7 @@ async def submit_score(request: Request, body: ScoreSubmit) -> ScoreAccepted:
         ok=True,
         best=best,
         rank=recorded.rank,
+        prev_rank=recorded.prev_rank,
         is_new_best=recorded.is_new_best,
     )
 
