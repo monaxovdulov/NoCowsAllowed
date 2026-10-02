@@ -34,7 +34,10 @@ COWSKATE_V0_1_PROFILE = AppProfile(
     leaderboard_limit=50,
     leaderboard_max_limit=200,
     score_max=100_000_000,
-    score_per_sec_max=400,
+    # фаза 1 (комбо): автопилот в баланс-прогоне ≈234 очк/с, игрок на
+    # длинной цепи ×8 реально до ~3–4k/с — потолок с запасом, чтобы
+    # не резать честные заезды; тюнить дальше по ScoreRun
+    score_per_sec_max=5_000,
     telegram_request_timeout=30.0,
 )
 

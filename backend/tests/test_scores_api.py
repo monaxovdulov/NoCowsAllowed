@@ -222,7 +222,7 @@ def test_score_implausible_for_duration_rejected(client, settings) -> None:
             "session": token,
             "init_data": None,
             "score": 100_000,
-            "duration_s": 10,  # 400 очков/с — потолок профиля
+            "duration_s": 10,  # 10 000 очк/с — выше потолка профиля (5000)
         },
     )
     assert response.status_code == 422
