@@ -30,55 +30,41 @@
     } catch (e) { /* старые клиенты — просто играем */ }
   }
 
-  /** @param {string} text */
-  function toast(text) {
-    var el = document.createElement('div');
-    el.className = 'ui';
-    el.textContent = text;
-    el.style.cssText =
-      'position:fixed;left:50%;transform:translateX(-50%);' +
-      'bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:50;' +
-      'padding:8px 14px;border-radius:999px;background:rgba(10,14,26,.72);' +
-      'border:1px solid rgba(255,255,255,.18);color:#eef2fb;' +
-      'font:700 11px/1 "Unbounded",ui-rounded,"Segoe UI",system-ui,sans-serif;' +
-      'letter-spacing:.08em;text-transform:uppercase;pointer-events:none;' +
-      'opacity:0;transition:opacity .25s ease';
-    document.body.appendChild(el);
-    requestAnimationFrame(function () { el.style.opacity = '1'; });
-    setTimeout(function () {
-      el.style.opacity = '0';
-      setTimeout(function () { el.remove(); }, 400);
-    }, 2200);
-  }
-
-  /** @param {number} best */
-  function submitScore(best) {
+  // Фаза 0: один заезд — один POST со статистикой (дистанция, длительность,
+  // причина конца, лучший множитель). Место в топе уходит в карточку
+  // результата DOM-событием cowskate:rank — модули игры про Telegram не знают.
+  /** @param {import('./game/types').RunEndDetail} d итоги заезда */
+  function submitScore(d) {
     if (!session && !initData) return; // нет идентичности — локальный заезд
-    if (!(best > 0)) return;
+    if (!(d.score > 0)) return; // нулевые заезды в топ не несём
     fetch('/api/score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session: session,
         init_data: initData || null,
-        score: best,
+        score: d.score,
+        distance_m: Math.round(d.distM),
+        duration_s: Math.ceil(d.durationS),
+        crash_reason: d.crashReason || 'idle',
+        max_mult: d.stats ? d.stats.maxMult : null,
       }),
       keepalive: true,
     })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (res) {
         if (!res) return;
-        toast(
-          res.is_new_best
-            ? '🏆 Рекорд! #' + res.rank + ' в общем топе'
-            : 'Счёт принят · #' + res.rank + ' в общем топе'
+        document.dispatchEvent(
+          new CustomEvent('cowskate:rank', {
+            detail: { n: d.n, rank: res.rank, prevRank: res.prev_rank },
+          })
         );
       })
-      .catch(function () { /* сеть мигнула — рекорд остался локально */ });
+      .catch(function () { /* сеть мигнула — заезд остался локально */ });
   }
 
   document.addEventListener('cowskate:run-end', function (e) {
-    submitScore(e.detail && e.detail.best);
+    if (e.detail) submitScore(e.detail);
   });
 
   // ------------------------------------------------------------------ top

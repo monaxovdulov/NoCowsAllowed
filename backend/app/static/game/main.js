@@ -36,15 +36,17 @@ import {
   stepLines,
   stepParticles,
 } from './effects.js';
+import { initRun, stepRun } from './run.js';
 import { initScore } from './score.js';
 import { render } from './render.js';
 import { coachStep, initUi } from './ui.js';
 import { initTutorial, tutorialStep } from './tutorial.js';
 
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
-// исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
+// исполнения при emit — спавн-правила, эффекты, заезд, счёт, потом DOM.
 initFeatures();
 initEffects();
+initRun();
 initScore();
 initUi();
 initTutorial();
@@ -118,6 +120,7 @@ function stepPhysics(dt, gi) {
 /** @param {number} dt шаг кадра, секунды */
 function update(dt) {
   stepSpeed(dt);
+  stepRun(dt); // дистанция и конец заезда по тишине — до физики
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);

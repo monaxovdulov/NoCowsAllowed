@@ -13,6 +13,7 @@ export const TURBO_PUMP = 0.16, // запаса за один тап
   TURBO_EXTRA = 2.6, // +cowH/с к целевой скорости при полной шкале
   TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 export const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
+export const M_PER_COWH = 1.5; // метров в «росте коровы» — шкала дистанции заезда
 export const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 export const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */

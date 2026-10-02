@@ -47,6 +47,10 @@ export const bestEl = /** @type {HTMLElement} */ (
   document.getElementById('best')
 );
 /** @type {HTMLElement} */
+export const distEl = /** @type {HTMLElement} */ (
+  document.getElementById('dist')
+);
+/** @type {HTMLElement} */
 export const autoEl = /** @type {HTMLElement} */ (
   document.getElementById('auto')
 );
@@ -171,6 +175,7 @@ export const state = {
   clearSpawnX: 0,
   score: 0,
   best: 0,
+  run: null,
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachText: null,

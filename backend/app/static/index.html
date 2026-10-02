@@ -137,6 +137,14 @@
         font-weight: 800;
         font-variant-numeric: tabular-nums;
       }
+      .dist {
+        font-weight: 500;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.78;
+      }
 
       .auto {
         position: fixed;
@@ -270,6 +278,10 @@
         font-weight: 800;
         font-size: 21px;
         letter-spacing: 0.04em;
+      }
+      .result .newBest {
+        color: var(--gold);
+        font-weight: 800;
       }
       .cta.dim,
       .coach.dim,
@@ -576,6 +588,7 @@
 
     <div class="hud ui" id="hud">
       <span class="score" id="score">0</span>
+      <span class="dist" id="dist" hidden></span>
       <span class="best">рекорд <b id="best">0</b></span>
     </div>
     <div class="auto ui" id="auto">Демо</div>

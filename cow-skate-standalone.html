@@ -133,6 +133,14 @@
         font-weight: 800;
         font-variant-numeric: tabular-nums;
       }
+      .dist {
+        font-weight: 500;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.78;
+      }
 
       .auto {
         position: fixed;
@@ -266,6 +274,10 @@
         font-weight: 800;
         font-size: 21px;
         letter-spacing: 0.04em;
+      }
+      .result .newBest {
+        color: var(--gold);
+        font-weight: 800;
       }
       .cta.dim,
       .coach.dim,
@@ -572,6 +584,7 @@
 
     <div class="hud ui" id="hud">
       <span class="score" id="score">0</span>
+      <span class="dist" id="dist" hidden></span>
       <span class="best">рекорд <b id="best">0</b></span>
     </div>
     <div class="auto ui" id="auto">Демо</div>
@@ -852,6 +865,7 @@ const TURBO_PUMP = 0.16, // запаса за один тап
   TURBO_EXTRA = 2.6, // +cowH/с к целевой скорости при полной шкале
   TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
+const M_PER_COWH = 1.5; // метров в «росте коровы» — шкала дистанции заезда
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */
@@ -971,6 +985,10 @@ const scoreEl = /** @type {HTMLElement} */ (
 /** @type {HTMLElement} */
 const bestEl = /** @type {HTMLElement} */ (
   document.getElementById('best')
+);
+/** @type {HTMLElement} */
+const distEl = /** @type {HTMLElement} */ (
+  document.getElementById('dist')
 );
 /** @type {HTMLElement} */
 const autoEl = /** @type {HTMLElement} */ (
@@ -1097,6 +1115,7 @@ const state = {
   clearSpawnX: 0,
   score: 0,
   best: 0,
+  run: null,
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachText: null,
@@ -4246,32 +4265,121 @@ function drawWarnings() {
   ctx.globalAlpha = 1;
 }
 
+// ---- game/run.js
+// ---------------------------------------------------------------- run
+// Жизненный цикл заезда (продукт-план, фаза 0, PD1): заезд — сущность
+// модели, владелец state.run. Старт — первый ввод из демо или после крэша
+// (ui.js:touched → startRun); конец — крэш ('crash') или перехват
+// автопилота ('idle'). Рекорд пишется и DOM-событие cowskate:run-end
+// уходит ровно один раз — здесь; мост шлёт статистику на /api/score.
+
+// Номер заезда в сессии: карточка результата и мост сверяют его, чтобы
+// запоздалый ответ /api/score не попал в карточку следующего заезда.
+let runN = 0;
+
+/** Новый заезд: сброс счёта и мягкий разгон — на каждый заезд, не только первый. */
+function startRun() {
+  runN += 1;
+  state.run = {
+    n: runN,
+    t0: state.t,
+    distM: 0,
+    lives: 1, // фаза 1 (PD2) поднимет до RUN_LIVES
+    stats: {
+      tricks: 0,
+      obstacles: 0,
+      loops: 0,
+      coins: 0,
+      maxMult: 1,
+      crashes: 0,
+    },
+  };
+  state.score = 0;
+  state.playT0 = state.t;
+  emit('run-start', { n: runN });
+}
+
+/**
+ * Закрывает заезд и публикует результат — ровно один раз на заезд.
+ * @param {import('./types').RunEndReason} reason чем кончился
+ * @param {import('./types').CrashReason | null} [crashReason] уточнение при crash
+ */
+function endRun(reason, crashReason = null) {
+  const run = state.run;
+  if (!run) return;
+  state.run = null;
+  const score = state.score;
+  const isNewBest = score > state.best;
+  if (isNewBest) {
+    state.best = score;
+    writeBest(score);
+  }
+  /** @type {import('./types').RunEndDetail} */
+  const detail = {
+    n: run.n,
+    score,
+    best: state.best,
+    isNewBest,
+    distM: run.distM,
+    durationS: state.t - run.t0,
+    stats: run.stats,
+    reason,
+    crashReason,
+  };
+  emit('run-end', detail);
+  document.dispatchEvent(new CustomEvent('cowskate:run-end', { detail }));
+}
+
+/**
+ * Кадр заезда (вызов — main.js:update): метры и перехват автопилота.
+ * @param {number} dt шаг кадра, секунды
+ */
+function stepRun(dt) {
+  const run = state.run;
+  if (!run) return;
+  if (state.mode !== 'crash') run.distM += state.speed * dt * M_PER_COWH;
+  // 4.5 с без ввода → playerMode() ложь: заезд игрока кончился, дальше
+  // едет демо — и счёт заезда не должен «висеть» незакрытым
+  if (!playerMode()) endRun('idle');
+}
+
+/** Подписки статистики заезда на события модели (композиция — в main.js). */
+function initRun() {
+  on('score', (d) => {
+    const run = state.run;
+    if (!run) return;
+    run.stats.tricks += d.tricks;
+    if (d.mult > run.stats.maxMult) run.stats.maxMult = d.mult;
+  });
+  on('obstacle-clear', () => {
+    if (state.run) state.run.stats.obstacles += 1;
+  });
+  on('ride-exit', (d) => {
+    if (state.run && d.result === 'exit' && d.ok) state.run.stats.loops += 1;
+  });
+  on('crash', (d) => {
+    const run = state.run;
+    if (!run) return;
+    run.stats.crashes += 1;
+    endRun('crash', d.reason);
+  });
+}
+
 // ---- game/score.js
 // ---------------------------------------------------------------- score
-// Модель счёта и рекорда (карта, этап 3): DOM — в ui.js, всплывашки —
-// в effects.js; оба слоя реагируют на событие 'score'.
+// Модель счёта (карта, этап 3): DOM — в ui.js, всплывашки — в effects.js;
+// оба слоя реагируют на событие 'score'. Рекорд и завершение заезда — в
+// run.js (фаза 0): счёт пишется только внутри заезда.
 
 /**
  * @param {number} pts очки (уже с учётом множителя комбо)
  * @param {number} [mult] множитель комбо — для показа «×N»
+ * @param {number} [tricks] приземлённые трюки в этом начислении — статистика заезда
  */
-function addScore(pts, mult = 1) {
+function addScore(pts, mult = 1, tricks = 0) {
+  if (!state.run) return; // демо и промежуток между заездами не считают
   state.score += pts;
-  emit('score', { points: pts, mult, total: state.score });
-  if (state.score > state.best) endRun();
-}
-
-/** Обновляет рекорд и шлёт событие конца заезда (счёт уходит в Telegram). */
-function endRun() {
-  if (state.score > state.best) {
-    state.best = state.score;
-    writeBest(state.best);
-    document.dispatchEvent(
-      new CustomEvent('cowskate:run-end', {
-        detail: { score: state.score, best: state.best },
-      }),
-    );
-  }
+  emit('score', { points: pts, mult, total: state.score, tricks });
 }
 
 /** Начисляет очки за трюки воздуха при приземлении. */
@@ -4282,22 +4390,15 @@ function award() {
   for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
   state.airTricks = [];
   state.airBonus = 0;
-  if (!pts || !playerMode()) return;
+  if (!pts) return;
   const mult = Math.max(1, tricks.length);
-  addScore(pts * mult, mult);
+  addScore(pts * mult, mult, tricks.length);
 }
 
 /** Подписывает счёт на события модели (композиция — в main.js). */
 function initScore() {
   on('land', award);
-  on('obstacle-clear', () => {
-    if (playerMode()) addScore(50);
-  });
-  on('crash', () => {
-    if (!playerMode()) return;
-    endRun();
-    state.score = 0;
-  });
+  on('obstacle-clear', () => addScore(50));
 }
 
 // ---- game/ui.js
@@ -4309,10 +4410,11 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
 const shown = {
   score: -1,
   best: -1,
+  dist: -1,
   auto: null,
   cta: null,
   res: null,
@@ -4327,6 +4429,13 @@ function hud() {
   if (state.best !== shown.best) {
     bestEl.textContent = state.best.toLocaleString('ru-RU');
     shown.best = state.best;
+  }
+  // дистанция текущего заезда — мелко под счётом, перерисовка по метру
+  const dist = state.run ? Math.floor(state.run.distM) : -1;
+  if (dist !== shown.dist) {
+    distEl.hidden = dist < 0;
+    distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
+    shown.dist = dist;
   }
   const auto = !playerMode();
   if (auto !== shown.auto) {
@@ -4372,12 +4481,34 @@ function hud() {
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
-// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
-/** @param {number} sc очки заезда */
-function showResult(sc) {
-  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${state.best.toLocaleString('ru-RU')}</span>`;
+// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт».
+// Место в топе приходит позже (cowskate:rank) — дописывается в [data-rank].
+let cardRun = 0; // заезд, чья карточка на экране — отсекает чужой rank
+/**
+ * @param {number} n
+ * @returns {string} «N трюк/трюка/трюков»
+ */
+function tricksWord(n) {
+  const t10 = n % 10,
+    t100 = n % 100;
+  const w =
+    t10 === 1 && t100 !== 11
+      ? 'трюк'
+      : t10 >= 2 && t10 <= 4 && (t100 < 10 || t100 >= 20)
+        ? 'трюка'
+        : 'трюков';
+  return `${n} ${w}`;
+}
+/** @param {import('./types').RunEndDetail} d итоги заезда */
+function showResult(d) {
+  cardRun = d.n;
+  const stat = [`${Math.floor(d.distM).toLocaleString('ru-RU')} м`];
+  if (d.stats.maxMult > 1) stat.push(`×${d.stats.maxMult}`);
+  if (d.stats.tricks) stat.push(tricksWord(d.stats.tricks));
+  const crown = d.isNewBest ? '<span class="newBest">Новый рекорд!</span>' : '';
+  resultEl.innerHTML = `<b>Заезд: ${d.score.toLocaleString('ru-RU')}</b>${crown}<span>${stat.join(' · ')}</span><span data-rank></span>`;
   resultEl.classList.remove('dim');
-  state.resultUntil = state.t + 2.6;
+  state.resultUntil = state.t + 3.5;
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
@@ -4411,9 +4542,22 @@ function coachStep() {
 // DOM-реакции на события модели (композиция — в main.js).
 function initUi() {
   on('score', () => bumpScore());
+  on('run-end', (d) => {
+    if (d.reason === 'crash') showResult(d);
+  });
+  // место в общем топе приходит асинхронно из /api/score (telegram-bridge)
+  document.addEventListener('cowskate:rank', (e) => {
+    const { n, rank, prevRank } = e.detail;
+    if (n !== cardRun) return; // ответ за прошлый заезд — карточка уже другая
+    const rankEl = resultEl.querySelector('[data-rank]');
+    if (rankEl)
+      rankEl.textContent =
+        prevRank && prevRank !== rank
+          ? `#${rank} в общем топе (было #${prevRank})`
+          : `#${rank} в общем топе`;
+  });
   on('crash', (d) => {
     if (!playerMode()) return;
-    showResult(d.score);
     setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
   });
 }
@@ -4424,10 +4568,10 @@ let holdTimer = 0,
   holdPid = -1, // pointerId касания на canvas — чужие пальцы не снимают холд
   gasPid = -1;
 function touched() {
-  if (!playerMode()) {
-    state.score = 0;
-    state.playT0 = state.t;
-  } // новый заезд — с мягкого разгона
+  // перехват автопилота мог случиться между тиками stepRun — закрываем
+  // заезд здесь, чтобы ввод честно начинал новый
+  if (state.run && !playerMode()) endRun('idle');
+  if (!state.run) startRun(); // первый ввод из демо или рестарт после крэша
   state.isTouched0 = true;
   state.lastInput = state.t;
   state.autoSeq = [];
@@ -5232,9 +5376,10 @@ function initTutorial() {
 
 // ---- game/main.js
 // Подписки слоёв на события модели (карта, этап 3): порядок = порядок
-// исполнения при emit — спавн-правила, эффекты, дальше счёт, потом DOM.
+// исполнения при emit — спавн-правила, эффекты, заезд, счёт, потом DOM.
 initFeatures();
 initEffects();
+initRun();
 initScore();
 initUi();
 initTutorial();
@@ -5308,6 +5453,7 @@ function stepPhysics(dt, gi) {
 /** @param {number} dt шаг кадра, секунды */
 function update(dt) {
   stepSpeed(dt);
+  stepRun(dt); // дистанция и конец заезда по тишине — до физики
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);

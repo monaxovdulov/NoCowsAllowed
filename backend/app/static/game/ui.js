@@ -5,6 +5,7 @@ import {
   coachEl,
   ctaEl,
   cv,
+  distEl,
   feats,
   gasEl,
   geometry,
@@ -21,6 +22,7 @@ import { on } from './events.js';
 import { boardX } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { jump, trick } from './player.js';
+import { endRun, startRun } from './run.js';
 
 // ---------------------------------------------------------------- score
 /** Визуальный «бамп» счётчика очков при начислении. */
@@ -30,10 +32,11 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
 const shown = {
   score: -1,
   best: -1,
+  dist: -1,
   auto: null,
   cta: null,
   res: null,
@@ -48,6 +51,13 @@ export function hud() {
   if (state.best !== shown.best) {
     bestEl.textContent = state.best.toLocaleString('ru-RU');
     shown.best = state.best;
+  }
+  // дистанция текущего заезда — мелко под счётом, перерисовка по метру
+  const dist = state.run ? Math.floor(state.run.distM) : -1;
+  if (dist !== shown.dist) {
+    distEl.hidden = dist < 0;
+    distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
+    shown.dist = dist;
   }
   const auto = !playerMode();
   if (auto !== shown.auto) {
@@ -93,12 +103,34 @@ export function hud() {
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
-// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт»
-/** @param {number} sc очки заезда */
-function showResult(sc) {
-  resultEl.innerHTML = `<b>Заезд: ${sc.toLocaleString('ru-RU')}</b><span>рекорд ${state.best.toLocaleString('ru-RU')}</span>`;
+// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт».
+// Место в топе приходит позже (cowskate:rank) — дописывается в [data-rank].
+let cardRun = 0; // заезд, чья карточка на экране — отсекает чужой rank
+/**
+ * @param {number} n
+ * @returns {string} «N трюк/трюка/трюков»
+ */
+function tricksWord(n) {
+  const t10 = n % 10,
+    t100 = n % 100;
+  const w =
+    t10 === 1 && t100 !== 11
+      ? 'трюк'
+      : t10 >= 2 && t10 <= 4 && (t100 < 10 || t100 >= 20)
+        ? 'трюка'
+        : 'трюков';
+  return `${n} ${w}`;
+}
+/** @param {import('./types').RunEndDetail} d итоги заезда */
+function showResult(d) {
+  cardRun = d.n;
+  const stat = [`${Math.floor(d.distM).toLocaleString('ru-RU')} м`];
+  if (d.stats.maxMult > 1) stat.push(`×${d.stats.maxMult}`);
+  if (d.stats.tricks) stat.push(tricksWord(d.stats.tricks));
+  const crown = d.isNewBest ? '<span class="newBest">Новый рекорд!</span>' : '';
+  resultEl.innerHTML = `<b>Заезд: ${d.score.toLocaleString('ru-RU')}</b>${crown}<span>${stat.join(' · ')}</span><span data-rank></span>`;
   resultEl.classList.remove('dim');
-  state.resultUntil = state.t + 2.6;
+  state.resultUntil = state.t + 3.5;
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
@@ -132,9 +164,22 @@ export function coachStep() {
 // DOM-реакции на события модели (композиция — в main.js).
 export function initUi() {
   on('score', () => bumpScore());
+  on('run-end', (d) => {
+    if (d.reason === 'crash') showResult(d);
+  });
+  // место в общем топе приходит асинхронно из /api/score (telegram-bridge)
+  document.addEventListener('cowskate:rank', (e) => {
+    const { n, rank, prevRank } = e.detail;
+    if (n !== cardRun) return; // ответ за прошлый заезд — карточка уже другая
+    const rankEl = resultEl.querySelector('[data-rank]');
+    if (rankEl)
+      rankEl.textContent =
+        prevRank && prevRank !== rank
+          ? `#${rank} в общем топе (было #${prevRank})`
+          : `#${rank} в общем топе`;
+  });
   on('crash', (d) => {
     if (!playerMode()) return;
-    showResult(d.score);
     setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
   });
 }
@@ -145,10 +190,10 @@ let holdTimer = 0,
   holdPid = -1, // pointerId касания на canvas — чужие пальцы не снимают холд
   gasPid = -1;
 function touched() {
-  if (!playerMode()) {
-    state.score = 0;
-    state.playT0 = state.t;
-  } // новый заезд — с мягкого разгона
+  // перехват автопилота мог случиться между тиками stepRun — закрываем
+  // заезд здесь, чтобы ввод честно начинал новый
+  if (state.run && !playerMode()) endRun('idle');
+  if (!state.run) startRun(); // первый ввод из демо или рестарт после крэша
   state.isTouched0 = true;
   state.lastInput = state.t;
   state.autoSeq = [];

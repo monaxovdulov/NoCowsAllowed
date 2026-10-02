@@ -144,6 +144,30 @@ export interface CrashState extends BoardSnap {
   snap: BoardSnap | null;
 }
 
+// ---------------------------------------------------------------- заезд
+
+// Статистика одного заезда (продукт-план, фаза 0): в конце уходит на
+// сервер — один ряд ScoreRun. coins/maxMult заполнят фазы 1–3.
+export interface RunStats {
+  tricks: number; // приземлённые трюки (без 'double')
+  obstacles: number; // взятые препятствия
+  loops: number; // пройденные петли
+  coins: number; // фаза 3
+  maxMult: number; // лучший множитель начисления за заезд
+  crashes: number;
+}
+
+export interface RunState {
+  n: number; // номер заезда в сессии, с 1
+  t0: number; // state.t старта
+  distM: number; // пройдено метров (speed в cowH/с × M_PER_COWH)
+  lives: number; // фаза 1 (PD2); до неё — 1
+  stats: RunStats;
+}
+
+// Чем кончился заезд: 'crash' — падение, 'idle' — автопилот перехватил.
+export type RunEndReason = 'crash' | 'idle';
+
 // ---------------------------------------------------------------- game state
 
 export interface GameState {
@@ -202,6 +226,9 @@ export interface GameState {
   clearSpawnX: number;
   score: number;
   best: number;
+  // текущий заезд (продукт-план, фаза 0); null — демо/между заездами.
+  // Владелец — run.js (startRun/endRun/stepRun)
+  run: RunState | null;
   isTouched0: boolean;
   playT0: number;
   coachText: string | null;
@@ -485,8 +512,14 @@ export interface GameEventMap {
     score: number;
     wheels: WheelPoint[];
   }>;
-  // очки начислены: points — уже с множителем, total — счёт после начисления
-  score: CustomEvent<{ points: number; mult: number; total: number }>;
+  // очки начислены: points — уже с множителем, total — счёт после
+  // начисления, tricks — приземлённые трюки в этом начислении
+  score: CustomEvent<{
+    points: number;
+    mult: number;
+    total: number;
+    tricks: number;
+  }>;
   // заезд на траекторию ride-конструкции (петля и т.п.)
   'ride-enter': CustomEvent<{ type: string }>;
   // сход с траектории: result 'exit' — доехал; ok=false — откатился назад
@@ -495,6 +528,10 @@ export interface GameEventMap {
   // препятствие полностью пройдено (момент isCleared) — источник очков
   // и статистики заезда
   'obstacle-clear': CustomEvent<{ kind: ObstacleKind }>;
+  // жизненный цикл заезда (run.js): старт — первый ввод из демо,
+  // конец — крэш или перехват автопилота
+  'run-start': CustomEvent<{ n: number }>;
+  'run-end': CustomEvent<RunEndDetail>;
 }
 
 // Тип полезной нагрузки события по его имени (для emit/on в events.js).
@@ -504,8 +541,22 @@ export type EventDetail<K extends keyof GameEventMap> =
 // ---------------------------------------------------------------- events
 
 export interface RunEndDetail {
-  score: number;
-  best: number;
+  n: number; // номер заезда в сессии — мост/карточка сверяют его
+  score: number; // счёт заезда (не рекорд)
+  best: number; // рекорд после записи
+  isNewBest: boolean;
+  distM: number;
+  durationS: number;
+  stats: RunStats;
+  reason: RunEndReason;
+  crashReason: CrashReason | null;
+}
+
+// Ответ /api/score, привязанный к заезду (мост → карточка результата).
+export interface RankDetail {
+  n: number; // номер заезда из run-end
+  rank: number;
+  prevRank: number | null;
 }
 
 // ---------------------------------------------------------------- telegram
@@ -530,6 +581,7 @@ export interface TelegramGameProxy {
 declare global {
   interface DocumentEventMap {
     'cowskate:run-end': CustomEvent<RunEndDetail>;
+    'cowskate:rank': CustomEvent<RankDetail>;
   }
 
   interface Window {
