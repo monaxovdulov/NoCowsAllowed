@@ -10,8 +10,9 @@ Telegram HTML5-игра (корова на скейте) + бот с сорев�
   пакет `cowskate-backend` в uv-workspace (root `pyproject.toml`).
 - `backend/app/static/` — игра: `index.html` (DOM + CSS, грузит
   `<script type="module" src="game/main.js">`), `game/*.js` — ES-модули без
-  сборки (assets, utils, constants, state, layout, sprites, player, features,
-  effects, render, ui, tutorial, main), `telegram-bridge.js` (Mini App init,
+  сборки (assets, utils, constants, events, state, layout, camera, sprites,
+  pose, player, features, track/\*, run, score, combo, effects, render,
+  storage, ui, tutorial, main), `telegram-bridge.js` (Mini App init,
   отправка счёта по событию `cowskate:run-end`, оверлей топа), `leaders.html`
   (публичный топ).
 - Игровые сессии — HMAC-подписанный токен `?s=` в URL, выдаётся в
