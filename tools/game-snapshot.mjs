@@ -273,6 +273,8 @@ const initHook = ({ seed, coarse, tutored }) => {
         hintClass: el('hint').className,
         tutorClass: el('tutor').className,
         tutorTitle: el('tutorTitle').textContent,
+        zoneText: el('zone').textContent,
+        zoneClass: el('zone').className,
       },
     };
   };

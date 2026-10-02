@@ -10,7 +10,6 @@ import { glowImg, OBR, obSprites, shadowImg } from '../sprites.js';
 const OBS_ENTRIES = /** @type {import('../types').ObstacleEntry[]} */ (
   Object.entries(OBS)
 );
-const OBS_TOTAL = OBS_ENTRIES.reduce((a, [, o]) => a + o.wt, 0);
 
 /** @param {import('../types').ObstacleFeature} f центр по мировой оси */
 const mid = (f) => (f.x0 + f.x1) / 2;
@@ -106,10 +105,15 @@ export const obstacleSpec = {
   weight: 76,
   minGapBeforeCowH: 7.5,
   plan(ctx) {
-    let r = ctx.rand(0, OBS_TOTAL);
+    // «высокие» и длинные виды входят в спавн со своей зоны (OBS.minZone)
+    let total = 0;
+    for (const [, o] of OBS_ENTRIES)
+      if ((o.minZone ?? 1) <= ctx.zone) total += o.wt;
+    let r = ctx.rand(0, total);
     /** @type {import('../types').ObstacleKind} */
     let kind = 'cone';
     for (const [k, o] of OBS_ENTRIES) {
+      if ((o.minZone ?? 1) > ctx.zone) continue;
       r -= o.wt;
       if (r <= 0) {
         kind = k;

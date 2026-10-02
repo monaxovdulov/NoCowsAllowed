@@ -49,6 +49,8 @@
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
         background: var(--bg);
+        /* смена тона по зонам (фаза 2): ui.js ставит CSS-фильтр */
+        transition: filter 0.9s ease;
       }
       /* Пост-эффекты DOM-слоями: блум/виньетку/зерно смешивает композитор,
      и canvas не тратит fullscreen-проходы с дорогими blend-режимами */
@@ -360,9 +362,34 @@
         color: var(--gold);
         font-weight: 800;
       }
+      /* баннер рубежа зоны — «ЗОНА N» по центру на ~1.2 с (фаза 2) */
+      .zone {
+        position: fixed;
+        left: 50%;
+        top: 17%;
+        transform: translateX(-50%);
+        font-weight: 800;
+        font-size: 30px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--gold);
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        will-change: opacity;
+      }
+      .zone:not(.dim) {
+        animation: zoneIn 0.34s ease-out;
+      }
+      @keyframes zoneIn {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) scale(1.35);
+        }
+      }
       .cta.dim,
       .coach.dim,
-      .result.dim {
+      .result.dim,
+      .zone.dim {
         opacity: 0;
       }
 
@@ -694,6 +721,7 @@
     </div>
     <div class="coach ui dim" id="coach"></div>
     <div class="result ui dim" id="result"></div>
+    <div class="zone ui dim" id="zone"></div>
     <div class="boost ui dim" id="boost">
       <div class="turbo"><i id="turboBar"></i></div>
       <button type="button" id="gas" aria-label="Газ — жми часто для турбо">
@@ -974,6 +1002,16 @@ const COMBO_WINDOW_S = 3.0, // окно цепи между действиями
   CLOSE_GAP_COWH = 0.08; // зазор «впритык» над препятствием, росты коровы
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
+// Кривая сложности (продукт-план, фаза 2): зона = 1 + floor(distM/ZONE_M),
+// таблица параметров — game/difficulty.js.
+const ZONE_M = 500, // метров заезда на одну зону
+  ZONE_BREATHE_S = 4, // чистая трасса после баннера зоны, секунды
+  ZONE_BANNER_S = 1.2, // показ баннера «ЗОНА N»
+  P_PATTERN = 0.25; // вероятность паттерна вместо одиночной конструкции
+// Защита от «нечестных» ситуаций: зазор между конструкциями не короче
+// полёта олли при текущей скорости минус 0.25 с.
+const OLLIE_FLIGHT_S = (2 * OLLIE_V) / GRAV; // длительность обычного прыжка, с
+const MIN_FEAT_GAP_S = OLLIE_FLIGHT_S - 0.25; // зазор между конструкциями, с
 /** @type {import('./types').TrickTable} */
 const TRICKS = {
   spin: { name: '360', durationS: 0.5, pts: 100 },
@@ -987,8 +1025,9 @@ const OBS = {
   hay: { w: 0.42, h: 0.29, wt: 2 },
   tire: { w: 0.26, h: 0.26, wt: 2 },
   can: { w: 0.18, h: 0.3, wt: 2 },
-  barrier: { w: 0.46, h: 0.31, wt: 1.4, tall: true },
-  cones: { w: 0.85, h: 0.24, wt: 1.4, long: true },
+  // высокие/длинные («×2») — со второй зоны (продукт-план, фаза 2)
+  barrier: { w: 0.46, h: 0.31, wt: 1.4, minZone: 2, tall: true },
+  cones: { w: 0.85, h: 0.24, wt: 1.4, minZone: 2, long: true },
 };
 
 // ---- game/storage.js
@@ -1146,6 +1185,10 @@ const comboPotEl = /** @type {HTMLElement} */ (
 const comboTimerEl = /** @type {HTMLElement} */ (
   document.getElementById('comboTimer')
 );
+/** @type {HTMLElement} баннер «ЗОНА N» на рубеже сложности */
+const zoneEl = /** @type {HTMLElement} */ (
+  document.getElementById('zone')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -1244,6 +1287,7 @@ const state = {
   score: 0,
   best: 0,
   run: null,
+  zone: 1, // зона сложности — ведёт difficulty.js (фаза 2)
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachText: null,
@@ -2511,7 +2555,6 @@ const rampSpec = {
 const OBS_ENTRIES = /** @type {import('../types').ObstacleEntry[]} */ (
   Object.entries(OBS)
 );
-const OBS_TOTAL = OBS_ENTRIES.reduce((a, [, o]) => a + o.wt, 0);
 
 /** @param {import('../types').ObstacleFeature} f центр по мировой оси */
 const mid = (f) => (f.x0 + f.x1) / 2;
@@ -2607,10 +2650,15 @@ const obstacleSpec = {
   weight: 76,
   minGapBeforeCowH: 7.5,
   plan(ctx) {
-    let r = ctx.rand(0, OBS_TOTAL);
+    // «высокие» и длинные виды входят в спавн со своей зоны (OBS.minZone)
+    let total = 0;
+    for (const [, o] of OBS_ENTRIES)
+      if ((o.minZone ?? 1) <= ctx.zone) total += o.wt;
+    let r = ctx.rand(0, total);
     /** @type {import('../types').ObstacleKind} */
     let kind = 'cone';
     for (const [k, o] of OBS_ENTRIES) {
+      if ((o.minZone ?? 1) > ctx.zone) continue;
       r -= o.wt;
       if (r <= 0) {
         kind = k;
@@ -4153,6 +4201,135 @@ function bumpAt(i, strength) {
   if (Math.random() < 0.45) sparks(w.x, w.y, w.z, 4);
 }
 
+// ---- game/track/patterns.js
+// Паттерны трассы (продукт-план, фаза 2): готовые связки конструкций.
+// Это данные, а не новые виды: каждый элемент проходит обычный spec.plan
+// — движок типов паттерна не знает. Поля элемента:
+//   type — вид из FEATURE_TYPES;
+//   dataOverride — перезапись полей data после plan(); значение-массив —
+//     случайный элемент (через pick, тот же поток Math.random);
+//   gapAfterCowH — зазор ПОСЛЕ элемента в ростах коровы: число или
+//     [min, max]; без него — плановый зазор вида.
+// minZone — с какой зоны паттерн доступен; weight — вес в выборе.
+/** @type {import('../types').SpawnPattern[]} */
+const PATTERNS = [
+  // ритм «прыжок-прыжок»: два низких препятствия вплотную
+  {
+    id: 'pair',
+    minZone: 2,
+    weight: 3,
+    items: [
+      {
+        type: 'ob',
+        dataOverride: { kind: ['cone', 'hay', 'tire', 'can'] },
+        gapAfterCowH: [3.2, 3.8],
+      },
+      {
+        type: 'ob',
+        dataOverride: { kind: ['cone', 'hay', 'tire', 'can'] },
+      },
+    ],
+  },
+  // «трюк, который надо докрутить»: вылет с кикера — препятствие стоит
+  // в зоне приземления
+  {
+    id: 'kickgap',
+    minZone: 2,
+    weight: 3,
+    items: [{ type: 'ramp', gapAfterCowH: [4.6, 5.6] }, { type: 'ob' }],
+  },
+  // цепь без пауз: три конуса в размеренном ритме — кормит комбо
+  {
+    id: 'ladder',
+    minZone: 3,
+    weight: 2,
+    items: [
+      { type: 'ob', dataOverride: { kind: 'cone' }, gapAfterCowH: 4.5 },
+      { type: 'ob', dataOverride: { kind: 'cone' }, gapAfterCowH: 4.5 },
+      { type: 'ob', dataOverride: { kind: 'cone' } },
+    ],
+  },
+  // «туннель газа»: три препятствия подряд, за ними разбег к петле —
+  // «ГАЗ» и прыжки одновременно (ширину разбега держит minGapBefore петли)
+  {
+    id: 'gasrun',
+    minZone: 3,
+    weight: 2,
+    items: [
+      {
+        type: 'ob',
+        dataOverride: { kind: ['cone', 'hay', 'tire', 'can'] },
+        gapAfterCowH: [3.6, 4.4],
+      },
+      {
+        type: 'ob',
+        dataOverride: { kind: ['cone', 'hay', 'tire', 'can'] },
+        gapAfterCowH: [3.6, 4.4],
+      },
+      {
+        type: 'ob',
+        dataOverride: { kind: ['cone', 'hay', 'tire', 'can'] },
+      },
+      { type: 'loop' },
+    ],
+  },
+];
+
+// ---- game/difficulty.js
+// ------------------------------------------------------------ difficulty
+// Кривая сложности заезда (продукт-план, фаза 2): зона растёт с метрами —
+// zone = 1 + floor(distM / ZONE_M). params(zone) — чистая функция номера
+// зоны: скорость, зазоры, веса видов и доступные паттерны. Подъём зоны —
+// событие 'zone' (передышка спавна — features.js, +1 к цепи — combo.js,
+// баннер и тон сцены — ui.js); сброс зоны на новый заезд идёт молча.
+
+// ?zone=N — отладочный старт сразу в зоне N (как ?feat=)
+const ZONE0 = Math.max(
+  1,
+  parseInt(new URLSearchParams(location.search).get('zone') || '', 10) || 1,
+);
+
+/**
+ * Параметры зоны — чистая функция (таблица фазы 2 в продукт-плане):
+ * крейсер +0.3 cowH/с за зону (потолок 6.0), зазоры ×0.93 (пол 0.65),
+ * потолок газа +0.3 (потолок 9.0).
+ * weights — множители spec.weight на зоне (0 — вид не спавнится, нет
+ * ключа — вес вида как в спеке); доступность видов препятствий режет
+ * сама спека по ctx.zone.
+ * @param {number} zone номер зоны (>= 1)
+ * @returns {import('./types').ZoneParams}
+ */
+function params(zone) {
+  return {
+    cruise: Math.min(6.0, 4.2 + 0.3 * (zone - 1)),
+    maxSpd: Math.min(9.0, 7.6 + 0.3 * (zone - 1)),
+    gapK: Math.max(0.65, 0.93 ** (zone - 1)),
+    weights: { loop: zone >= 2 ? 1 : 0 },
+    patterns: PATTERNS.filter((p) => p.minZone <= zone),
+  };
+}
+
+// текущие параметры — кэш на кадр-уровень, пересчёт при смене зоны
+let cur = params(ZONE0);
+/** @returns {import('./types').ZoneParams} параметры текущей зоны */
+const zoneParams = () => cur;
+
+/** @returns {number} номер зоны по дистанции заезда (в демо — базовая) */
+const zoneNow = () => ZONE0 + Math.floor((state.run?.distM ?? 0) / ZONE_M);
+
+/**
+ * Кадр кривой сложности (вызов — main.js:update после stepRun, до
+ * спавна): подъём публикует 'zone', падение (конец заезда) — молча.
+ */
+function stepDifficulty() {
+  const z = zoneNow();
+  if (z === state.zone) return;
+  const rising = z > state.zone;
+  state.zone = z;
+  cur = params(z);
+  if (rising) emit('zone', { zone: z });
+}
+
 // ---- game/features.js
 // ---------------------------------------------------------------- road features
 // Движок не знает видов конструкций: всё видоспецифичное — в спеках
@@ -4177,17 +4354,39 @@ function createFeature(type, x0, x1, data) {
 const FEAT0 = new URLSearchParams(location.search).get('feat');
 let feat0pending = !!(FEAT0 && FEATURE_TYPES[FEAT0]);
 
-// выбор вида по весам таблицы FEATURE_TYPES
+// выбор вида по весам таблицы FEATURE_TYPES с множителями зоны
+// (weights из difficulty.params: 0 — вид на этой зоне не спавнится)
 const SPECS = Object.values(FEATURE_TYPES);
-const TOTAL_W = SPECS.reduce((a, s) => a + s.weight, 0);
 const FALLBACK = FEATURE_TYPES.ob;
-function pickSpec() {
-  let r = Math.random() * TOTAL_W;
+/**
+ * @param {import('./types').ZoneParams} dp параметры текущей зоны
+ * @returns {import('./types').FeatureTypeSpec}
+ */
+function pickSpec(dp) {
+  let total = 0;
+  for (const s of SPECS) total += s.weight * (dp.weights[s.type] ?? 1);
+  let r = Math.random() * total;
   for (const s of SPECS) {
-    r -= s.weight;
+    r -= s.weight * (dp.weights[s.type] ?? 1);
     if (r <= 0) return s;
   }
   return FALLBACK;
+}
+/**
+ * Выбор паттерна по весам (фаза 2): паттерн — данные, элементы идут
+ * через обычный spec.plan в placeFeature.
+ * @param {import('./types').SpawnPattern[]} pats допустимые на зоне
+ * @returns {import('./types').SpawnPattern}
+ */
+function pickPattern(pats) {
+  let total = 0;
+  for (const p of pats) total += p.weight;
+  let r = Math.random() * total;
+  for (const p of pats) {
+    r -= p.weight;
+    if (r <= 0) return p;
+  }
+  return /** @type {import('./types').SpawnPattern} */ (pats.at(-1));
 }
 /** x0 последней спец-конструкции (для рейт-лимита). */
 function lastSpecialX() {
@@ -4205,6 +4404,85 @@ function initFeatures() {
   on('land', () => {
     state.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * geometry.cowH;
   });
+  // рубеж зоны — передышка: снимаем конструкции, которые ещё не
+  // показались из-за правого края (видимые играются до конца), и даём
+  // ZONE_BREATHE_S чистой трассы после баннера
+  on('zone', () => {
+    const Xb = boardX();
+    compactInPlace(feats, (f) => f.x0 <= Xb || obPos(f.x0)[0] <= X1());
+    const clear = Xb + ZONE_BREATHE_S * state.speed * geometry.cowH;
+    state.clearSpawnX = Math.max(state.clearSpawnX, clear);
+    state.nextSpawnX = Math.max(state.nextSpawnX, clear);
+  });
+}
+
+/**
+ * Одна конструкция на трассе: место с учётом зазоров (minGapBefore вида
+ * и защита «полёт олли − 0.25 с» при текущей скорости), план вида, фича
+ * и точка следующего спавна. Элемент паттерна (item) перезаписывает
+ * поля data и зазор после него; рейт-лимит спец-конструкций на элементы
+ * паттерна не действует — связка сама владеет своим ритмом.
+ * @param {import('./types').FeatureTypeSpec} spec выбранный вид
+ * @param {number} minGapPx защитный зазор до предыдущей конструкции, px
+ * @param {import('./types').ZoneParams} dp параметры текущей зоны
+ * @param {boolean} forced форс-спавн ?feat= — веса и рейт-лимиты молчат
+ * @param {import('./types').PatternItem} [item] элемент паттерна
+ */
+function placeFeature(spec, minGapPx, dp, forced, item) {
+  const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
+  let X = Math.max(
+    state.nextSpawnX,
+    prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+    prevX1 + minGapPx,
+  );
+  // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
+  if (
+    !forced &&
+    !item &&
+    spec.special &&
+    X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
+  ) {
+    spec = FALLBACK;
+    X = Math.max(
+      state.nextSpawnX,
+      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+      prevX1 + minGapPx,
+    );
+  }
+  const plan = spec.plan({
+    X,
+    cowH: geometry.cowH,
+    spdN: state.spdN,
+    zone: state.zone,
+    gapK: dp.gapK,
+    rand,
+  });
+  if (item?.dataOverride) {
+    /** @type {Record<string, unknown>} */
+    const over = {};
+    for (const [k, v] of Object.entries(item.dataOverride))
+      over[k] = Array.isArray(v) ? pick(v) : v;
+    Object.assign(/** @type {Record<string, unknown>} */ (plan.data), over);
+  }
+  const f = createFeature(
+    spec.type,
+    X,
+    X + plan.lengthCowH * geometry.cowH,
+    plan.data,
+  );
+  // реестр стирает вид: на границе спавна приводим к известному объединению
+  feats.push(
+    /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
+  );
+  const gapCowH =
+    item?.gapAfterCowH === undefined
+      ? plan.gapAfterCowH
+      : Array.isArray(item.gapAfterCowH)
+        ? rand(item.gapAfterCowH[0], item.gapAfterCowH[1])
+        : item.gapAfterCowH;
+  // gapK зоны умножается здесь — одна точка для плановых и паттерновых
+  // зазоров (план фазы 2), сами спеки gapK не применяют
+  state.nextSpawnX = f.x1 + gapCowH * dp.gapK * geometry.cowH;
 }
 
 function spawnFeatures() {
@@ -4215,6 +4493,8 @@ function spawnFeatures() {
       W * 1.5 - geometry.vx,
       geometry.zEdge * 1.15 * (W - geometry.vx) + 2 * geometry.cowH,
     );
+  const dp = zoneParams(),
+    minGapPx = MIN_FEAT_GAP_S * state.speed * geometry.cowH;
   while (state.nextSpawnX < ahead) {
     if (state.nextSpawnX < state.clearSpawnX)
       state.nextSpawnX = state.clearSpawnX;
@@ -4223,36 +4503,17 @@ function spawnFeatures() {
       ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
       : null;
     feat0pending = false;
-    let spec = forced || pickSpec();
-    const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
-    let X = Math.max(
-      state.nextSpawnX,
-      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
-    );
-    // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
-    if (
-      !forced &&
-      spec.special &&
-      X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
-    ) {
-      spec = FALLBACK;
-      X = Math.max(
-        state.nextSpawnX,
-        prevX1 + spec.minGapBeforeCowH * geometry.cowH,
-      );
+    // там, где зоне доступны паттерны, слот с шансом P_PATTERN — связка
+    const pat =
+      !forced && dp.patterns.length > 0 && Math.random() < P_PATTERN
+        ? pickPattern(dp.patterns)
+        : null;
+    if (pat) {
+      for (const item of pat.items)
+        placeFeature(FEATURE_TYPES[item.type], minGapPx, dp, false, item);
+    } else {
+      placeFeature(forced || pickSpec(dp), minGapPx, dp, !!forced);
     }
-    const plan = spec.plan({ X, cowH: geometry.cowH, spdN: state.spdN, rand });
-    const f = createFeature(
-      spec.type,
-      X,
-      X + plan.lengthCowH * geometry.cowH,
-      plan.data,
-    );
-    // реестр стирает вид: на границе спавна приводим к известному объединению
-    feats.push(
-      /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
-    );
-    state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
   // ушедшие за левый край конструкции — компактизация на месте, без splice
   compactInPlace(feats, (f) => geometry.vx + (f.x1 - state.camX) >= -W * 0.5);
@@ -4684,6 +4945,11 @@ function initCombo() {
       tricks.length - (d.dirty ? 1 : 0) + (airFrom === 'launch' ? 1 : 0),
     );
   });
+  // рубеж зоны (фаза 2): +1 к живой цепи — награда за дистанцию;
+  // мёртвую цепь рубеж не воскрешает (n=0 → бейдж «×1 +0» был бы мусором)
+  on('zone', () => {
+    if (state.combo.n > 0) feed(0, 1);
+  });
   // крэш сжигает несданный горшок — жизни считает run.js
   on('crash', () => {
     if (state.combo.pot > 0) emit('combo-lost', { points: state.combo.pot });
@@ -4700,7 +4966,17 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number}} */
+// Тон сцены по зонам (фаза 2): день → закат → сумерки → ночь, циклом
+// с пятой. CSS-фильтр на #scene — sprites.js не трогаем. Переход —
+// transition в стилях canvas.
+const ZONE_TINTS = [
+  'none', // день
+  'sepia(0.32) saturate(1.35) hue-rotate(-12deg) brightness(0.96)', // закат
+  'hue-rotate(-24deg) saturate(0.85) brightness(0.8)', // сумерки
+  'hue-rotate(-38deg) saturate(0.55) brightness(0.58) contrast(1.05)', // ночь
+];
+let zoneUntil = 0; // state.t, до которого висит баннер «ЗОНА N»
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
 const shown = {
   score: -1,
   best: -1,
@@ -4713,6 +4989,7 @@ const shown = {
   cOn: null,
   cMult: 1,
   cPot: 0,
+  zone: 0,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
@@ -4764,6 +5041,16 @@ function hud() {
   }
   if (cOn)
     comboTimerEl.style.transform = `scaleX(${clamp(c.timer / COMBO_WINDOW_S, 0, 1)})`;
+  // тон сцены следует за номером зоны — включая отладочный ?zone=N и
+  // молчаливый сброс на новый заезд (они идут мимо события 'zone')
+  if (state.zone !== shown.zone) {
+    cv.style.filter = ZONE_TINTS[(state.zone - 1) % ZONE_TINTS.length];
+    shown.zone = state.zone;
+  }
+  if (zoneUntil && state.t > zoneUntil) {
+    zoneEl.classList.add('dim');
+    zoneUntil = 0;
+  }
   const auto = !playerMode();
   if (auto !== shown.auto) {
     autoEl.hidden = !auto;
@@ -4869,6 +5156,14 @@ function coachStep() {
 // DOM-реакции на события модели (композиция — в main.js).
 function initUi() {
   on('score', () => bumpScore());
+  // баннер рубежа зоны — «ЗОНА N» по центру на ZONE_BANNER_S секунд
+  on('zone', (d) => {
+    zoneEl.textContent = `ЗОНА ${d.zone}`;
+    zoneEl.classList.add('dim'); // перезапуск анимации
+    void zoneEl.offsetWidth;
+    zoneEl.classList.remove('dim');
+    zoneUntil = state.t + ZONE_BANNER_S;
+  });
   on('run-end', (d) => {
     if (d.reason === 'crash') showResult(d);
   });
@@ -5622,7 +5917,7 @@ const GATES = [
 const byId = new Map(GATES.map((g) => [g.id, g]));
 
 /** @type {Set<string>} ids уже показанных гейтов */
-const shown = new Set();
+const shownGates = new Set();
 /** @type {Gate[]} сработавшие условия, ждут земли */
 const queue = [];
 /** @type {Gate | null} открытая сейчас карточка */
@@ -5630,21 +5925,22 @@ let active = null,
   cooldownUntil = 0;
 
 /** @returns {boolean} все гейты показаны — обучение завершено */
-const done = () => GATES.every((g) => shown.has(g.id));
+const done = () => GATES.every((g) => shownGates.has(g.id));
 
-const persist = () => writeTutored(shown);
+const persist = () => writeTutored(shownGates);
 
 /** @param {string} id поставить гейт в очередь, если новый и ещё не ждёт */
 function enqueue(id) {
   const g = byId.get(id);
-  if (g && !shown.has(id) && g !== active && !queue.includes(g)) queue.push(g);
+  if (g && !shownGates.has(id) && g !== active && !queue.includes(g))
+    queue.push(g);
 }
 
 /** @param {Gate} g открыть карточку и заморозить мир */
 function openGate(g) {
   if (!tutorEl || !tutorTitle || !tutorText || !tutorOk) return;
   active = g;
-  shown.add(g.id);
+  shownGates.add(g.id);
   persist();
   // тикер-тренер под карточкой не нужен
   coachEl.classList.add('dim');
@@ -5671,7 +5967,7 @@ function closeGate() {
 }
 
 function skipAll() {
-  for (const g of GATES) shown.add(g.id);
+  for (const g of GATES) shownGates.add(g.id);
   queue.length = 0;
   persist();
   closeGate();
@@ -5683,7 +5979,7 @@ function tutorialStep() {
   const Xb = boardX(),
     V = Math.max(1, state.speed * geometry.cowH);
   for (const g of GATES) {
-    if (!g.when || shown.has(g.id) || g === active || queue.includes(g))
+    if (!g.when || shownGates.has(g.id) || g === active || queue.includes(g))
       continue;
     if (g.when(Xb, V)) queue.push(g);
   }
@@ -5695,10 +5991,10 @@ function tutorialStep() {
 /** Подписки и кнопки карточки (композиция — в main.js). */
 function initTutorial() {
   if (!tutorEl || !tutorOk || !tutorSkip) return;
-  for (const id of readTutored()) shown.add(id);
+  for (const id of readTutored()) shownGates.add(id);
   // ?tut=reset — переиграть обучение (ручная проверка)
   if (new URLSearchParams(location.search).get('tut') === 'reset') {
-    shown.clear();
+    shownGates.clear();
     persist();
   }
   tutorOk.addEventListener('click', closeGate);
@@ -5744,21 +6040,23 @@ function relayout() {
  */
 function stepSpeed(dt) {
   state.t += dt;
+  // крейсерская и потолок газа — из параметров текущей зоны (фаза 2)
+  const dp = zoneParams();
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
   const rampT = state.playT0
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
-  const cruise = lerp(3.3, CRUISE, rampT);
+  const cruise = lerp(3.3, dp.cruise, rampT);
   // турбо-запас: зажатый «ГАЗ» качает непрерывно, запас горит в добавку
   if (state.gasHeld && state.mode !== 'crash')
     state.turbo = Math.min(1, state.turbo + dt * TURBO_HOLD);
   state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
   const target = Math.min(
-    MAXSPD + TURBO_EXTRA,
+    dp.maxSpd + TURBO_EXTRA,
     (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
-        ? MAXSPD
+        ? dp.maxSpd
         : state.throttle < 0
           ? MINSPD
           : reduce
@@ -5772,6 +6070,8 @@ function stepSpeed(dt) {
       Math.exp(
         -dt * (state.mode === 'crash' ? 3 : state.throttle > 0 ? 1.3 : 0.9),
       ));
+  // boost/spdN нормируются на базовые константы, а не на зону — визуал
+  // скорости (линии, ухо, пыль) растёт вместе с настоящей скоростью
   state.boost = clamp((state.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
   state.spdN = state.speed / CRUISE;
   state.camX += state.speed * geometry.cowH * dt;
@@ -5800,6 +6100,7 @@ function stepPhysics(dt, gi) {
 function update(dt) {
   stepSpeed(dt);
   stepRun(dt); // дистанция и конец заезда по тишине — до физики
+  stepDifficulty(); // рубеж зоны — до спавна: новые правила сразу в деле
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);

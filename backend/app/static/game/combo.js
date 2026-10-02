@@ -114,6 +114,11 @@ export function initCombo() {
       tricks.length - (d.dirty ? 1 : 0) + (airFrom === 'launch' ? 1 : 0),
     );
   });
+  // рубеж зоны (фаза 2): +1 к живой цепи — награда за дистанцию;
+  // мёртвую цепь рубеж не воскрешает (n=0 → бейдж «×1 +0» был бы мусором)
+  on('zone', () => {
+    if (state.combo.n > 0) feed(0, 1);
+  });
   // крэш сжигает несданный горшок — жизни считает run.js
   on('crash', () => {
     if (state.combo.pot > 0) emit('combo-lost', { points: state.combo.pot });

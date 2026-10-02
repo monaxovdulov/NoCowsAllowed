@@ -21,8 +21,14 @@ import {
   state,
   scoreEl,
   turboBarEl,
+  zoneEl,
 } from './state.js';
-import { COMBO_WINDOW_S, RUN_LIVES, TURBO_PUMP } from './constants.js';
+import {
+  COMBO_WINDOW_S,
+  RUN_LIVES,
+  TURBO_PUMP,
+  ZONE_BANNER_S,
+} from './constants.js';
 import { clamp } from './utils.js';
 import { on } from './events.js';
 import { boardX } from './layout.js';
@@ -38,7 +44,17 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number}} */
+// Тон сцены по зонам (фаза 2): день → закат → сумерки → ночь, циклом
+// с пятой. CSS-фильтр на #scene — sprites.js не трогаем. Переход —
+// transition в стилях canvas.
+const ZONE_TINTS = [
+  'none', // день
+  'sepia(0.32) saturate(1.35) hue-rotate(-12deg) brightness(0.96)', // закат
+  'hue-rotate(-24deg) saturate(0.85) brightness(0.8)', // сумерки
+  'hue-rotate(-38deg) saturate(0.55) brightness(0.58) contrast(1.05)', // ночь
+];
+let zoneUntil = 0; // state.t, до которого висит баннер «ЗОНА N»
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
 const shown = {
   score: -1,
   best: -1,
@@ -51,6 +67,7 @@ const shown = {
   cOn: null,
   cMult: 1,
   cPot: 0,
+  zone: 0,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
@@ -102,6 +119,16 @@ export function hud() {
   }
   if (cOn)
     comboTimerEl.style.transform = `scaleX(${clamp(c.timer / COMBO_WINDOW_S, 0, 1)})`;
+  // тон сцены следует за номером зоны — включая отладочный ?zone=N и
+  // молчаливый сброс на новый заезд (они идут мимо события 'zone')
+  if (state.zone !== shown.zone) {
+    cv.style.filter = ZONE_TINTS[(state.zone - 1) % ZONE_TINTS.length];
+    shown.zone = state.zone;
+  }
+  if (zoneUntil && state.t > zoneUntil) {
+    zoneEl.classList.add('dim');
+    zoneUntil = 0;
+  }
   const auto = !playerMode();
   if (auto !== shown.auto) {
     autoEl.hidden = !auto;
@@ -207,6 +234,14 @@ export function coachStep() {
 // DOM-реакции на события модели (композиция — в main.js).
 export function initUi() {
   on('score', () => bumpScore());
+  // баннер рубежа зоны — «ЗОНА N» по центру на ZONE_BANNER_S секунд
+  on('zone', (d) => {
+    zoneEl.textContent = `ЗОНА ${d.zone}`;
+    zoneEl.classList.add('dim'); // перезапуск анимации
+    void zoneEl.offsetWidth;
+    zoneEl.classList.remove('dim');
+    zoneUntil = state.t + ZONE_BANNER_S;
+  });
   on('run-end', (d) => {
     if (d.reason === 'crash') showResult(d);
   });

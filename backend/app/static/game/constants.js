@@ -26,6 +26,16 @@ export const COMBO_WINDOW_S = 3.0, // окно цепи между действ�
   CLOSE_GAP_COWH = 0.08; // зазор «впритык» над препятствием, росты коровы
 export const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 export const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
+// Кривая сложности (продукт-план, фаза 2): зона = 1 + floor(distM/ZONE_M),
+// таблица параметров — game/difficulty.js.
+export const ZONE_M = 500, // метров заезда на одну зону
+  ZONE_BREATHE_S = 4, // чистая трасса после баннера зоны, секунды
+  ZONE_BANNER_S = 1.2, // показ баннера «ЗОНА N»
+  P_PATTERN = 0.25; // вероятность паттерна вместо одиночной конструкции
+// Защита от «нечестных» ситуаций: зазор между конструкциями не короче
+// полёта олли при текущей скорости минус 0.25 с.
+export const OLLIE_FLIGHT_S = (2 * OLLIE_V) / GRAV; // длительность обычного прыжка, с
+export const MIN_FEAT_GAP_S = OLLIE_FLIGHT_S - 0.25; // зазор между конструкциями, с
 /** @type {import('./types').TrickTable} */
 export const TRICKS = {
   spin: { name: '360', durationS: 0.5, pts: 100 },
@@ -39,6 +49,7 @@ export const OBS = {
   hay: { w: 0.42, h: 0.29, wt: 2 },
   tire: { w: 0.26, h: 0.26, wt: 2 },
   can: { w: 0.18, h: 0.3, wt: 2 },
-  barrier: { w: 0.46, h: 0.31, wt: 1.4, tall: true },
-  cones: { w: 0.85, h: 0.24, wt: 1.4, long: true },
+  // высокие/длинные («×2») — со второй зоны (продукт-план, фаза 2)
+  barrier: { w: 0.46, h: 0.31, wt: 1.4, minZone: 2, tall: true },
+  cones: { w: 0.85, h: 0.24, wt: 1.4, minZone: 2, long: true },
 };

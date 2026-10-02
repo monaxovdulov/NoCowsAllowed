@@ -46,6 +46,7 @@ import {
 } from './effects.js';
 import { initRun, stepRun } from './run.js';
 import { initCombo, stepCombo } from './combo.js';
+import { stepDifficulty, zoneParams } from './difficulty.js';
 import { render } from './render.js';
 import { coachStep, initUi } from './ui.js';
 import { initTutorial, tutorialStep } from './tutorial.js';
@@ -73,21 +74,23 @@ function relayout() {
  */
 function stepSpeed(dt) {
   state.t += dt;
+  // крейсерская и потолок газа — из параметров текущей зоны (фаза 2)
+  const dp = zoneParams();
   // мягкий старт заезда: ~14 с до крейсерской — время заметить препятствие и среагировать
   const rampT = state.playT0
     ? smooth(clamp((state.t - state.playT0) / 14, 0, 1))
     : 1;
-  const cruise = lerp(3.3, CRUISE, rampT);
+  const cruise = lerp(3.3, dp.cruise, rampT);
   // турбо-запас: зажатый «ГАЗ» качает непрерывно, запас горит в добавку
   if (state.gasHeld && state.mode !== 'crash')
     state.turbo = Math.min(1, state.turbo + dt * TURBO_HOLD);
   state.turbo = Math.max(0, state.turbo - dt * TURBO_DRAIN);
   const target = Math.min(
-    MAXSPD + TURBO_EXTRA,
+    dp.maxSpd + TURBO_EXTRA,
     (state.mode === 'crash'
       ? 1.3
       : state.throttle > 0
-        ? MAXSPD
+        ? dp.maxSpd
         : state.throttle < 0
           ? MINSPD
           : reduce
@@ -101,6 +104,8 @@ function stepSpeed(dt) {
       Math.exp(
         -dt * (state.mode === 'crash' ? 3 : state.throttle > 0 ? 1.3 : 0.9),
       ));
+  // boost/spdN нормируются на базовые константы, а не на зону — визуал
+  // скорости (линии, ухо, пыль) растёт вместе с настоящей скоростью
   state.boost = clamp((state.speed - CRUISE) / (MAXSPD - CRUISE), 0, 1);
   state.spdN = state.speed / CRUISE;
   state.camX += state.speed * geometry.cowH * dt;
@@ -129,6 +134,7 @@ function stepPhysics(dt, gi) {
 function update(dt) {
   stepSpeed(dt);
   stepRun(dt); // дистанция и конец заезда по тишине — до физики
+  stepDifficulty(); // рубеж зоны — до спавна: новые правила сразу в деле
   spawnFeatures();
   const gi = groundInfo(boardX());
   stepGround(gi);

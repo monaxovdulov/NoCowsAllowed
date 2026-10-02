@@ -11,8 +11,8 @@
         {
           "label": "demo",
           "frame": 360,
-          "scene": "f2e87e3b50d506e5a89ebd50032ac885a7989a85c8604d7bbac2e2cd8ace1a3c",
-          "bloom": "65d4aee87eb37a12bf982245aa383b118e90278fb30d024256d1b795d00dea2a",
+          "scene": "b15af4d1dfbb1979925043f3148410eaf14213d81fdd807ef51f6dea7f1877a9",
+          "bloom": "289f59ac0cb95cd85508b399a4447958258e6b368f7450fa0d4251617f2b93b3",
           "hud": {
             "score": "0",
             "best": "0",
@@ -25,14 +25,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "jump",
           "frame": 460,
-          "scene": "0a0b38ab8291615de0d88b234aee0675570918ca58e658d1f88e67427ee3d187",
-          "bloom": "d8f9ba0207054e28a1d68800580e04c16d2999e7eaadd4a3874489037f3f6fbe",
+          "scene": "4c76e9edf1f42dcbd232d111c98aa12ea25259418fc10456660e154f477fb34c",
+          "bloom": "3ff17c84e4cbb19305fcd24627308797478b3ed6638fc6c2bd75ee6d8ef69e80",
           "hud": {
             "score": "0",
             "best": "0",
@@ -45,7 +47,9 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
@@ -65,14 +69,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "boost",
           "frame": 753,
-          "scene": "31212920797483e51b4be0c26e79488a95e65ccd475e4f4cf734ad4834a5c7c4",
-          "bloom": "165a5080fb962878c1e0fb1de2b671aaf3a9ab1d95e203cc281e2dc603626680",
+          "scene": "015f165ef29f4563910f82bdd1fd75cb036122c265ce8bffd0d5826849a7864c",
+          "bloom": "32284c712277bccdb0f2981067a0cef1aa4f57c0c897690ee87589497a0d849a",
           "hud": {
             "score": "0",
             "best": "0",
@@ -85,14 +91,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "flip",
           "frame": 903,
-          "scene": "2b287d8d7683c3d0486789b08dbdaad8076ded9e966bab89c5a6cfcbf4e2ba45",
-          "bloom": "12f0231fa1db171b38ccc0e9c1f0e9db95f3e954a18764adb9b087230711f2d4",
+          "scene": "61195038d97c8e7f21cde2860364fce5274e1feda6b8fabd5e858529c209e909",
+          "bloom": "339276a9587329a421e4780e0b7f8a5cd1b420ab0f0e9d4fffdd052308c94152",
           "hud": {
             "score": "0",
             "best": "0",
@@ -105,14 +113,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "run",
           "frame": 1623,
-          "scene": "3f1d0b5ebfea9c1a44e9936d822b89f0d5e2dd5e727f5c649bdb67efe21307e1",
-          "bloom": "5e46a6624d68aeaf8b07b1c8bd483d2ac3a7e0a9228a87619706e531a433d9f2",
+          "scene": "c938b7c6552acb814e0e715b93284721d4c14f6e4b3c8939a8ece1ead1f3f2b6",
+          "bloom": "c4fd8dfa4e9d2d830916594044d723b4442837ff3f76564d0ac706e24a9b1bb3",
           "hud": {
             "score": "0",
             "best": "0",
@@ -121,18 +131,20 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "",
+            "resultHtml": "<b>Заезд: 0</b><span>35 м · 1 трюк</span><span data-rank=\"\"></span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "c12adf03a4b0fd7b29e18437e3d48b20f882521b2c10646374727e12276218cb",
-          "bloom": "5b558c9dbd3f3c18038f01e6f7618c3f7f51e64836600f72a21b3441eca5a7a8",
+          "scene": "d20906ce7bae3fa83f1ad4bf5cd28e0bcaf23ebf0db808a32b9e61611986e9e1",
+          "bloom": "dd933f14d7c45f2c7ac177ed4c8fad7ae87e80a1da7073a6db3ab92e887acdc8",
           "hud": {
             "score": "0",
             "best": "0",
@@ -141,11 +153,13 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "",
+            "resultHtml": "<b>Заезд: 0</b><span>35 м · 1 трюк</span><span data-rank=\"\"></span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         }
       ]
@@ -159,8 +173,8 @@
         {
           "label": "demo",
           "frame": 360,
-          "scene": "ae8da096252a97183b14328b8ea793f59af64de8f5ea3bf3d30d971fe6e09a3f",
-          "bloom": "61309470c7e2b2310638cb35eba62f33963f1582e32b5eba25da2ac49e148692",
+          "scene": "40f2c40b94d3e6165b3408c4b074cf4f965536c773800672121aae2195a7e357",
+          "bloom": "86098284dde7a3a51a012392665ada46cc209a6e6cda949e54d61697b53ff782",
           "hud": {
             "score": "0",
             "best": "0",
@@ -173,14 +187,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "jump",
           "frame": 460,
-          "scene": "e976b015db3d85dcc6108ad39bad67492e24ba3fb52d8e7727330334c359f5c0",
-          "bloom": "a540fa68875a901cfad00092325fcca359a34d1b55d30f6bf55d8d132736f0c6",
+          "scene": "b812a5f5d0e535d32f34dd29b3bbd00cc82a3e21bd025e09107810c89a97bfa3",
+          "bloom": "916ab117fa50f83d17ea103175f556b196f9fbc3c89f9605c892841b74f840c3",
           "hud": {
             "score": "0",
             "best": "0",
@@ -193,14 +209,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "double-360",
           "frame": 603,
-          "scene": "4b535e7c03656f4724c978ff6abafa61d006663c6501aff2faa0489455af55e1",
-          "bloom": "a2da07d784a1c27afd293eb1742752f44fa0f1d0165a26b69dc9af6f3113205f",
+          "scene": "465b88ea39e056d70208fbfef1f2ee13f253e5a796ea9b9d23adda6893aa7705",
+          "bloom": "2cb7c93a42642640bc98c4bb27e9ca089dccc4c8ca010542ec4727e31cc240af",
           "hud": {
             "score": "0",
             "best": "0",
@@ -213,14 +231,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "boost",
           "frame": 753,
-          "scene": "c10dce74809283a1b5ecb7570ede0f409ddc923bd0fbfa3562ab991d6be4aff6",
-          "bloom": "7092962b223dad52ed246102063fb031d94d79566b417bc60e39b26d7fa1c3ad",
+          "scene": "e7c6bafa6fc76726c278c7c24b775948389edd1ce1895bfc6e620d05474edab9",
+          "bloom": "1ad835329b4de04fe15c3d84ac3ee35943252e4a23b0e6be04c9ffc41ec237b0",
           "hud": {
             "score": "0",
             "best": "0",
@@ -233,14 +253,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "flip",
           "frame": 903,
-          "scene": "208692a33dfeb8b3bafe02582d67ef1d9ac33ce6bb620d63b87da6b49cf47129",
-          "bloom": "e79b88e3c6c119cd210baea839a23afe3f3a2ad04cb6388b2fd8c33f922afff7",
+          "scene": "8c1192cc40f3b02b1b64dcdaa2bbe144721910d28fdcd3e709da9788ec3a423d",
+          "bloom": "3f81159a7dda16cc9a2d015117363deabf372df6e4dc2ea526592d7918ccb38c",
           "hud": {
             "score": "0",
             "best": "0",
@@ -248,19 +270,21 @@
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
-            "coachClass": "coach ui dim",
+            "coachClass": "coach ui",
             "resultHtml": "",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "run",
           "frame": 1623,
-          "scene": "3302d56658f8be7a0ac5491b14f1d07eec65ba746c7d3123a169db731d643c05",
-          "bloom": "7a3fc1412f1e71ff30e23a6c150781038e9dacfa1a8ba4ad4cb20c569c58d91b",
+          "scene": "aa5b1e653d960c387a04be82c645fb59a1f853eefa982a5c169710223ad50c70",
+          "bloom": "4e2892340a489b3194e9319c6691523ea935c5a8fe3a4f1ebe20817288e48657",
           "hud": {
             "score": "0",
             "best": "0",
@@ -269,18 +293,20 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "",
+            "resultHtml": "<b>Заезд: 0</b><span>41 м · 1 трюк</span><span data-rank=\"\"></span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "7f5b11a1b3542ecb13ca80c1ba22d9b0766bdfeed298e7a0ca891a8cc5e9a4e4",
-          "bloom": "24421b50c23ef41fd104983cb7f893fde50a4bd9c0bd5547e89fde7a058ba862",
+          "scene": "1fb7582ef180c2461b82434e70a764bf775ccd44b44ce2c53b3ad63d3514ee2d",
+          "bloom": "e53aaaa04ed636d1a47a872b3808316e05fac868bccecdfc47982f24c859aca4",
           "hud": {
             "score": "0",
             "best": "0",
@@ -289,11 +315,13 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "",
+            "resultHtml": "<b>Заезд: 0</b><span>41 м · 1 трюк</span><span data-rank=\"\"></span>",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": ""
+            "tutorTitle": "",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         }
       ]
@@ -321,14 +349,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui on",
-            "tutorTitle": "Корова на скейте"
+            "tutorTitle": "Корова на скейте",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "mid",
           "frame": 1820,
-          "scene": "aa179d27a2619351a1cc89518908e59db860a76a2e15fe633f9c59444fd8c6a0",
-          "bloom": "bb60e88929749e4bdc85efe4fbe60c0e2446361cf596634236451204ee3ae650",
+          "scene": "5f843ff5de3fdbc201afa6482b1e8d1445850f0cce4457bb27b0516a8e4df0f7",
+          "bloom": "fb260f90b43b191e6c9b79c11a42afd165ef3f8984096bf23922ff102b644f47",
           "hud": {
             "score": "0",
             "best": "0",
@@ -341,14 +371,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Мёртвая петля!"
+            "tutorTitle": "Минус жизнь",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "gate-open",
           "frame": 2220,
-          "scene": "204a16fa6ba65d555244986500ce377305b07bd83a43c85cbbefc958638f973b",
-          "bloom": "5bff95232a6e2568eac8d0114732f4eea8fc88ad41f5a5f5fb11ba14c9be170c",
+          "scene": "b2544bc7fae24ec321fd7a0c7b2cabd7bb21a1dbf79b015515d09285dcc5644d",
+          "bloom": "a87fa04bb4504e54e7db36a1dabefd9e246c2c34cb0c03e455e740241bbff5fa",
           "hud": {
             "score": "0",
             "best": "0",
@@ -361,14 +393,16 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Мёртвая петля!"
+            "tutorTitle": "Минус жизнь",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         },
         {
           "label": "end",
           "frame": 2920,
-          "scene": "9496ec9e577b577bb8a560ff2469519ad50fcd4a573294b6b40a38c9de38f25a",
-          "bloom": "27fba435981abbd11091236abfa479e6965a9205e903dfc7be86d41828fbc0c4",
+          "scene": "8cb79c9dde1049fb057b1e9fa74242d9b7688772cae8ed0b015fd69a37ba27d8",
+          "bloom": "9b928880e48ee2795a199e3a387b562ecc1a4603dd9be94e50d3ccba2f44d239",
           "hud": {
             "score": "0",
             "best": "0",
@@ -381,7 +415,9 @@
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
-            "tutorTitle": "Мёртвая петля!"
+            "tutorTitle": "Минус жизнь",
+            "zoneText": "",
+            "zoneClass": "zone ui dim"
           }
         }
       ]

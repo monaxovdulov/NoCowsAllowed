@@ -115,7 +115,7 @@ const GATES = [
 const byId = new Map(GATES.map((g) => [g.id, g]));
 
 /** @type {Set<string>} ids уже показанных гейтов */
-const shown = new Set();
+const shownGates = new Set();
 /** @type {Gate[]} сработавшие условия, ждут земли */
 const queue = [];
 /** @type {Gate | null} открытая сейчас карточка */
@@ -123,21 +123,22 @@ let active = null,
   cooldownUntil = 0;
 
 /** @returns {boolean} все гейты показаны — обучение завершено */
-const done = () => GATES.every((g) => shown.has(g.id));
+const done = () => GATES.every((g) => shownGates.has(g.id));
 
-const persist = () => writeTutored(shown);
+const persist = () => writeTutored(shownGates);
 
 /** @param {string} id поставить гейт в очередь, если новый и ещё не ждёт */
 function enqueue(id) {
   const g = byId.get(id);
-  if (g && !shown.has(id) && g !== active && !queue.includes(g)) queue.push(g);
+  if (g && !shownGates.has(id) && g !== active && !queue.includes(g))
+    queue.push(g);
 }
 
 /** @param {Gate} g открыть карточку и заморозить мир */
 function openGate(g) {
   if (!tutorEl || !tutorTitle || !tutorText || !tutorOk) return;
   active = g;
-  shown.add(g.id);
+  shownGates.add(g.id);
   persist();
   // тикер-тренер под карточкой не нужен
   coachEl.classList.add('dim');
@@ -164,7 +165,7 @@ function closeGate() {
 }
 
 function skipAll() {
-  for (const g of GATES) shown.add(g.id);
+  for (const g of GATES) shownGates.add(g.id);
   queue.length = 0;
   persist();
   closeGate();
@@ -176,7 +177,7 @@ export function tutorialStep() {
   const Xb = boardX(),
     V = Math.max(1, state.speed * geometry.cowH);
   for (const g of GATES) {
-    if (!g.when || shown.has(g.id) || g === active || queue.includes(g))
+    if (!g.when || shownGates.has(g.id) || g === active || queue.includes(g))
       continue;
     if (g.when(Xb, V)) queue.push(g);
   }
@@ -188,10 +189,10 @@ export function tutorialStep() {
 /** Подписки и кнопки карточки (композиция — в main.js). */
 export function initTutorial() {
   if (!tutorEl || !tutorOk || !tutorSkip) return;
-  for (const id of readTutored()) shown.add(id);
+  for (const id of readTutored()) shownGates.add(id);
   // ?tut=reset — переиграть обучение (ручная проверка)
   if (new URLSearchParams(location.search).get('tut') === 'reset') {
-    shown.clear();
+    shownGates.clear();
     persist();
   }
   tutorOk.addEventListener('click', closeGate);

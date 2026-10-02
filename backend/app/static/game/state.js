@@ -100,6 +100,10 @@ export const comboPotEl = /** @type {HTMLElement} */ (
 export const comboTimerEl = /** @type {HTMLElement} */ (
   document.getElementById('comboTimer')
 );
+/** @type {HTMLElement} баннер «ЗОНА N» на рубеже сложности */
+export const zoneEl = /** @type {HTMLElement} */ (
+  document.getElementById('zone')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 export let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -198,6 +202,7 @@ export const state = {
   score: 0,
   best: 0,
   run: null,
+  zone: 1, // зона сложности — ведёт difficulty.js (фаза 2)
   isTouched0: false,
   playT0: 0, // первый ввод и начало первого заезда
   coachText: null,

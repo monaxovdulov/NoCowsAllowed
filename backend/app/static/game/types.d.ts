@@ -58,6 +58,8 @@ export interface ObstacleSpec {
   w: number;
   h: number;
   wt: number;
+  // с какой зоны вид допускается в спавн (без поля — с первой)
+  minZone?: number;
   tall?: boolean;
   long?: boolean;
 }
@@ -246,6 +248,9 @@ export interface GameState {
   // текущий заезд (продукт-план, фаза 0); null — демо/между заездами.
   // Владелец — run.js (startRun/endRun/stepRun)
   run: RunState | null;
+  // зона сложности (фаза 2; владелец — difficulty.js): растёт с дистанцией
+  // заезда, ?zone=N — отладочный старт сразу в зоне N
+  zone: number;
   isTouched0: boolean;
   playT0: number;
   coachText: string | null;
@@ -437,7 +442,40 @@ export interface SpawnContext {
   X: number;
   cowH: number;
   spdN: number;
+  // фаза 2: зона трассы и множитель зазоров из difficulty.params;
+  // gapK применяет spawnFeatures (одна точка), в контексте — для спек,
+  // которым понадобится поправка внутри plan
+  zone: number;
+  gapK: number;
   rand(min: number, max: number): number;
+}
+
+// Паттерн спавна (фаза 2): связка конструкций как данные — каждый
+// элемент проходит обычный spec.plan, движок типов паттерна не знает.
+export interface PatternItem {
+  type: string; // вид из FEATURE_TYPES
+  // перезапись полей data после plan(); значение-массив — случайный элемент
+  dataOverride?: Record<string, unknown>;
+  // зазор после элемента в ростах коровы: число или [min, max];
+  // без поля — плановый gapAfterCowH вида
+  gapAfterCowH?: number | [number, number];
+}
+
+export interface SpawnPattern {
+  id: string;
+  minZone: number; // с какой зоны паттерн доступен
+  weight: number; // вес в выборе среди допустимых
+  items: PatternItem[];
+}
+
+// Параметры зоны сложности (фаза 2) — чистая difficulty.params(zone).
+export interface ZoneParams {
+  cruise: number; // крейсерская скорость, cowH/с
+  maxSpd: number; // потолок скорости с зажатым газом, cowH/с
+  gapK: number; // множитель зазоров между конструкциями
+  // множители spec.weight на зоне (0 — вид не спавнится)
+  weights: Partial<Record<string, number>>;
+  patterns: SpawnPattern[]; // паттерны, доступные на зоне
 }
 
 export interface SpawnPlan<TData> {
@@ -556,6 +594,9 @@ export interface GameEventMap {
   // препятствие полностью пройдено (момент isCleared) — источник очков
   // и статистики заезда; close — пролёт «впритык» (зазор < CLOSE_GAP_COWH)
   'obstacle-clear': CustomEvent<{ kind: ObstacleKind; close: boolean }>;
+  // рубеж сложности (difficulty.js): подъём зоны — передышка спавна,
+  // +1 к цепи, баннер и смена тона сцены
+  zone: CustomEvent<{ zone: number }>;
   // жизненный цикл заезда (run.js): старт — первый ввод из демо,
   // конец — крэш или перехват автопилота
   'run-start': CustomEvent<{ n: number }>;

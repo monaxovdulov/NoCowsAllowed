@@ -1,10 +1,17 @@
-import { clamp, compactInPlace, rand, smooth, TAU } from './utils.js';
-import { CLEAR_AFTER_LAND_COWH, SPECIAL_EVERY_COWH } from './constants.js';
+import { clamp, compactInPlace, pick, rand, smooth, TAU } from './utils.js';
+import {
+  CLEAR_AFTER_LAND_COWH,
+  MIN_FEAT_GAP_S,
+  P_PATTERN,
+  SPECIAL_EVERY_COWH,
+  ZONE_BREATHE_S,
+} from './constants.js';
 import { cracks, ctx, feats, geometry, state } from './state.js';
 import { CAM } from './camera.js';
 import { META } from './assets.js';
 import { on } from './events.js';
-import { boardX, DPR, obZ, W, xAt, yAt, zAt } from './layout.js';
+import { boardX, DPR, obPos, obZ, W, X1, xAt, yAt, zAt } from './layout.js';
+import { zoneParams } from './difficulty.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { bumpAt, enterCrash, enterRide } from './player.js';
 import { poseMatrix } from './pose.js';
@@ -33,17 +40,39 @@ export function createFeature(type, x0, x1, data) {
 const FEAT0 = new URLSearchParams(location.search).get('feat');
 let feat0pending = !!(FEAT0 && FEATURE_TYPES[FEAT0]);
 
-// выбор вида по весам таблицы FEATURE_TYPES
+// выбор вида по весам таблицы FEATURE_TYPES с множителями зоны
+// (weights из difficulty.params: 0 — вид на этой зоне не спавнится)
 const SPECS = Object.values(FEATURE_TYPES);
-const TOTAL_W = SPECS.reduce((a, s) => a + s.weight, 0);
 const FALLBACK = FEATURE_TYPES.ob;
-function pickSpec() {
-  let r = Math.random() * TOTAL_W;
+/**
+ * @param {import('./types').ZoneParams} dp параметры текущей зоны
+ * @returns {import('./types').FeatureTypeSpec}
+ */
+function pickSpec(dp) {
+  let total = 0;
+  for (const s of SPECS) total += s.weight * (dp.weights[s.type] ?? 1);
+  let r = Math.random() * total;
   for (const s of SPECS) {
-    r -= s.weight;
+    r -= s.weight * (dp.weights[s.type] ?? 1);
     if (r <= 0) return s;
   }
   return FALLBACK;
+}
+/**
+ * Выбор паттерна по весам (фаза 2): паттерн — данные, элементы идут
+ * через обычный spec.plan в placeFeature.
+ * @param {import('./types').SpawnPattern[]} pats допустимые на зоне
+ * @returns {import('./types').SpawnPattern}
+ */
+function pickPattern(pats) {
+  let total = 0;
+  for (const p of pats) total += p.weight;
+  let r = Math.random() * total;
+  for (const p of pats) {
+    r -= p.weight;
+    if (r <= 0) return p;
+  }
+  return /** @type {import('./types').SpawnPattern} */ (pats.at(-1));
 }
 /** x0 последней спец-конструкции (для рейт-лимита). */
 function lastSpecialX() {
@@ -61,6 +90,85 @@ export function initFeatures() {
   on('land', () => {
     state.clearSpawnX = boardX() + CLEAR_AFTER_LAND_COWH * geometry.cowH;
   });
+  // рубеж зоны — передышка: снимаем конструкции, которые ещё не
+  // показались из-за правого края (видимые играются до конца), и даём
+  // ZONE_BREATHE_S чистой трассы после баннера
+  on('zone', () => {
+    const Xb = boardX();
+    compactInPlace(feats, (f) => f.x0 <= Xb || obPos(f.x0)[0] <= X1());
+    const clear = Xb + ZONE_BREATHE_S * state.speed * geometry.cowH;
+    state.clearSpawnX = Math.max(state.clearSpawnX, clear);
+    state.nextSpawnX = Math.max(state.nextSpawnX, clear);
+  });
+}
+
+/**
+ * Одна конструкция на трассе: место с учётом зазоров (minGapBefore вида
+ * и защита «полёт олли − 0.25 с» при текущей скорости), план вида, фича
+ * и точка следующего спавна. Элемент паттерна (item) перезаписывает
+ * поля data и зазор после него; рейт-лимит спец-конструкций на элементы
+ * паттерна не действует — связка сама владеет своим ритмом.
+ * @param {import('./types').FeatureTypeSpec} spec выбранный вид
+ * @param {number} minGapPx защитный зазор до предыдущей конструкции, px
+ * @param {import('./types').ZoneParams} dp параметры текущей зоны
+ * @param {boolean} forced форс-спавн ?feat= — веса и рейт-лимиты молчат
+ * @param {import('./types').PatternItem} [item] элемент паттерна
+ */
+function placeFeature(spec, minGapPx, dp, forced, item) {
+  const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
+  let X = Math.max(
+    state.nextSpawnX,
+    prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+    prevX1 + minGapPx,
+  );
+  // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
+  if (
+    !forced &&
+    !item &&
+    spec.special &&
+    X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
+  ) {
+    spec = FALLBACK;
+    X = Math.max(
+      state.nextSpawnX,
+      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
+      prevX1 + minGapPx,
+    );
+  }
+  const plan = spec.plan({
+    X,
+    cowH: geometry.cowH,
+    spdN: state.spdN,
+    zone: state.zone,
+    gapK: dp.gapK,
+    rand,
+  });
+  if (item?.dataOverride) {
+    /** @type {Record<string, unknown>} */
+    const over = {};
+    for (const [k, v] of Object.entries(item.dataOverride))
+      over[k] = Array.isArray(v) ? pick(v) : v;
+    Object.assign(/** @type {Record<string, unknown>} */ (plan.data), over);
+  }
+  const f = createFeature(
+    spec.type,
+    X,
+    X + plan.lengthCowH * geometry.cowH,
+    plan.data,
+  );
+  // реестр стирает вид: на границе спавна приводим к известному объединению
+  feats.push(
+    /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
+  );
+  const gapCowH =
+    item?.gapAfterCowH === undefined
+      ? plan.gapAfterCowH
+      : Array.isArray(item.gapAfterCowH)
+        ? rand(item.gapAfterCowH[0], item.gapAfterCowH[1])
+        : item.gapAfterCowH;
+  // gapK зоны умножается здесь — одна точка для плановых и паттерновых
+  // зазоров (план фазы 2), сами спеки gapK не применяют
+  state.nextSpawnX = f.x1 + gapCowH * dp.gapK * geometry.cowH;
 }
 
 export function spawnFeatures() {
@@ -71,6 +179,8 @@ export function spawnFeatures() {
       W * 1.5 - geometry.vx,
       geometry.zEdge * 1.15 * (W - geometry.vx) + 2 * geometry.cowH,
     );
+  const dp = zoneParams(),
+    minGapPx = MIN_FEAT_GAP_S * state.speed * geometry.cowH;
   while (state.nextSpawnX < ahead) {
     if (state.nextSpawnX < state.clearSpawnX)
       state.nextSpawnX = state.clearSpawnX;
@@ -79,36 +189,17 @@ export function spawnFeatures() {
       ? FEATURE_TYPES[/** @type {string} */ (FEAT0)]
       : null;
     feat0pending = false;
-    let spec = forced || pickSpec();
-    const prevX1 = feats.length ? feats[feats.length - 1].x1 : -Infinity;
-    let X = Math.max(
-      state.nextSpawnX,
-      prevX1 + spec.minGapBeforeCowH * geometry.cowH,
-    );
-    // не больше одной спец-конструкции на SPECIAL_EVERY_COWH ростов
-    if (
-      !forced &&
-      spec.special &&
-      X - lastSpecialX() < SPECIAL_EVERY_COWH * geometry.cowH
-    ) {
-      spec = FALLBACK;
-      X = Math.max(
-        state.nextSpawnX,
-        prevX1 + spec.minGapBeforeCowH * geometry.cowH,
-      );
+    // там, где зоне доступны паттерны, слот с шансом P_PATTERN — связка
+    const pat =
+      !forced && dp.patterns.length > 0 && Math.random() < P_PATTERN
+        ? pickPattern(dp.patterns)
+        : null;
+    if (pat) {
+      for (const item of pat.items)
+        placeFeature(FEATURE_TYPES[item.type], minGapPx, dp, false, item);
+    } else {
+      placeFeature(forced || pickSpec(dp), minGapPx, dp, !!forced);
     }
-    const plan = spec.plan({ X, cowH: geometry.cowH, spdN: state.spdN, rand });
-    const f = createFeature(
-      spec.type,
-      X,
-      X + plan.lengthCowH * geometry.cowH,
-      plan.data,
-    );
-    // реестр стирает вид: на границе спавна приводим к известному объединению
-    feats.push(
-      /** @type {import('./types').AnyFeature} */ (/** @type {unknown} */ (f)),
-    );
-    state.nextSpawnX = f.x1 + plan.gapAfterCowH * geometry.cowH;
   }
   // ушедшие за левый край конструкции — компактизация на месте, без splice
   compactInPlace(feats, (f) => geometry.vx + (f.x1 - state.camX) >= -W * 0.5);
