@@ -45,7 +45,7 @@ import {
   stepParticles,
 } from './effects.js';
 import { initRun, stepRun } from './run.js';
-import { initScore } from './score.js';
+import { initCombo, stepCombo } from './combo.js';
 import { render } from './render.js';
 import { coachStep, initUi } from './ui.js';
 import { initTutorial, tutorialStep } from './tutorial.js';
@@ -55,7 +55,7 @@ import { initTutorial, tutorialStep } from './tutorial.js';
 initFeatures();
 initEffects();
 initRun();
-initScore();
+initCombo();
 initUi();
 initTutorial();
 
@@ -134,6 +134,7 @@ function update(dt) {
   stepGround(gi);
   checkRideEntry();
   stepPhysics(dt, gi);
+  stepCombo(dt); // окно цепи тикает на ровном ходу — после смен режимов
   stepHistory(dt);
   stepCracks();
   stepFlying(dt);

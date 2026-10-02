@@ -372,6 +372,9 @@ export function drawParticles() {
 // Реакции на события модели (композиция — в main.js). Порядок регистрации
 // задаёт порядок исполнения: эффекты идут первыми, как раньше шли
 // прямые вызовы из player.js.
+// последний показанный множитель цепи — для попапа «×N» при росте
+let comboMultSeen = 1;
+
 export function initEffects() {
   on('airborne', (d) => {
     const w = wheelsScreen();
@@ -392,6 +395,10 @@ export function initEffects() {
   });
   on('land', (d) => {
     if (onFeature() || d.impact <= 0) return;
+    // оценка приземления (фаза 1): идеально — трюк кончился заранее,
+    // нечисто — дожали при касании
+    if (d.perfect) popup('ИДЕАЛЬНО', 'trick');
+    else if (d.dirty) popup('НЕЧИСТО', 'pts');
     const w = wheelsScreen(),
       k = clamp(d.impact / 2.4, 0.6, 1.8);
     for (const p of w) {
@@ -406,8 +413,27 @@ export function initEffects() {
       sparks(p.x, p.y, p.z, 8);
     }
   });
-  on('score', (d) => {
-    popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
+  // комбо-цепь: рост множителя, сдача горшка, сгорание при крэше
+  on('combo', (d) => {
+    if (d.mult > comboMultSeen) popup(`×${d.mult}`, 'trick');
+    comboMultSeen = d.mult;
+  });
+  on('combo-bank', (d) => {
+    comboMultSeen = 1;
+    popup(`КОМБО +${d.points.toLocaleString('ru-RU')}`, 'pts');
+  });
+  on('combo-lost', (d) => {
+    comboMultSeen = 1;
+    popup(`−${d.points.toLocaleString('ru-RU')}`, 'crash');
+  });
+  on('life-lost', (d) => {
+    popup(
+      d.lives > 0 ? `ЖИЗНЕЙ ОСТАЛОСЬ: ${d.lives}` : 'ПОСЛЕДНЕЕ ПАДЕНИЕ!',
+      'crash',
+    );
+  });
+  on('obstacle-clear', (d) => {
+    if (d.close) popup('ВПРИТЫК', 'trick');
   });
   on('ride-exit', (d) => {
     if (d.result === 'fail') return; // срыв — попап покажет crash

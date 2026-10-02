@@ -1,7 +1,7 @@
 // Препятствие: перепрыгнуть (`collide`), сбитое — летит обломком
 // (`step`, `drawFlying`), маркер-подсказка над спрайтом и значок у края.
 import { clamp, rand } from '../utils.js';
-import { GRAV, OBS } from '../constants.js';
+import { CLOSE_GAP_COWH, GRAV, OBS } from '../constants.js';
 import { emit } from '../events.js';
 import { ctx, geometry, state } from '../state.js';
 import { boardX, obPos, X0, X1 } from '../layout.js';
@@ -118,7 +118,13 @@ export const obstacleSpec = {
     }
     const o = OBS[kind];
     return {
-      data: { kind, isOver: false, isCleared: false, fly: null },
+      data: {
+        kind,
+        isOver: false,
+        isCleared: false,
+        minGap: Infinity,
+        fly: null,
+      },
       lengthCowH: o.w,
       gapAfterCowH: ctx.rand(7.5, 13) * Math.max(1, 0.8 * ctx.spdN),
     };
@@ -138,13 +144,18 @@ export const obstacleSpec = {
         return 'hit';
       }
       d.isOver = true;
+      // зазор над верхом в ближайшей точке пролёта — для бонуса «впритык»
+      d.minGap = Math.min(d.minGap, h - o.h);
       return 'over';
     }
     if (d.isOver && !d.isCleared && X - hb >= feat.x1) {
       d.isCleared = true;
       // взятое препятствие — сразу, а не при приземлении: быстрый
       // отклик учит лучше; очки и статистика — на подписчиках события
-      emit('obstacle-clear', { kind: d.kind });
+      emit('obstacle-clear', {
+        kind: d.kind,
+        close: d.minGap < CLOSE_GAP_COWH,
+      });
     }
     return 'clear';
   },

@@ -141,6 +141,87 @@
         font-variant-numeric: tabular-nums;
         opacity: 0.78;
       }
+      /* жизни заезда — колокольчики гаснут по одной при крэше */
+      .lives {
+        display: inline-flex;
+        gap: 4px;
+        font-size: 14px;
+        line-height: 1;
+      }
+      .lives[hidden] {
+        display: none;
+      }
+      .lives i {
+        font-style: normal;
+        transition:
+          opacity 0.3s ease,
+          filter 0.3s ease;
+      }
+      .lives i.off {
+        opacity: 0.18;
+        filter: grayscale(1);
+      }
+      /* бейдж комбо-цепи: ×N, горшок и полоска окна; скрыт при n === 0 */
+      .combo {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 1px;
+      }
+      .combo[hidden] {
+        display: none;
+      }
+      .combo b {
+        font-weight: 800;
+        font-size: 17px;
+        line-height: 1;
+        color: var(--gold);
+        font-variant-numeric: tabular-nums;
+        transform-origin: left center;
+      }
+      .combo .pot {
+        font-weight: 700;
+        font-size: 11px;
+        color: var(--gold);
+        font-variant-numeric: tabular-nums;
+      }
+      .combo .bar {
+        width: 56px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.16);
+        overflow: hidden;
+      }
+      .combo .bar i {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--gold);
+        transform-origin: left;
+      }
+      /* жёлтый → оранжевый → красный на ×6+ */
+      .combo.hot b,
+      .combo.hot .pot {
+        color: #ff8a3d;
+      }
+      .combo.hot .bar i {
+        background: #ff8a3d;
+      }
+      .combo.max b,
+      .combo.max .pot {
+        color: #ff5a4a;
+      }
+      .combo.max .bar i {
+        background: #ff5a4a;
+      }
+      .combo.bump b {
+        animation: comboPulse 0.22s ease;
+      }
+      @keyframes comboPulse {
+        40% {
+          transform: scale(1.3);
+        }
+      }
 
       .auto {
         position: fixed;
@@ -584,6 +665,12 @@
 
     <div class="hud ui" id="hud">
       <span class="score" id="score">0</span>
+      <span class="lives" id="lives" hidden> <i>🔔</i><i>🔔</i><i>🔔</i> </span>
+      <div class="combo" id="combo" hidden>
+        <b id="comboMult">×1</b>
+        <span class="pot" id="comboPot">+0</span>
+        <span class="bar"><i id="comboTimer"></i></span>
+      </div>
       <span class="dist" id="dist" hidden></span>
       <span class="best">рекорд <b id="best">0</b></span>
     </div>
@@ -866,6 +953,16 @@ const TURBO_PUMP = 0.16, // запаса за один тап
   TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
 const M_PER_COWH = 1.5; // метров в «росте коровы» — шкала дистанции заезда
+const RUN_LIVES = 3; // жизней на заезд (PD2): крэш −1, конец на 0
+// Комбо-цепь (PD3/PD4): действия копятся в горшке по множителю, пауза на
+// ровном ходу сдаёт горшок в счёт, крэш — сжигает.
+const COMBO_WINDOW_S = 3.0, // окно цепи между действиями
+  COMBO_MULT_MAX = 8, // потолок множителя цепи
+  REPEAT_DECAY = 0.5, // k-й повтор трюка в цепи: pts × decay^(k-1)
+  VARIETY_BONUS = 1.25, // ≥2 разных вида трюков в одном вылете
+  PERFECT_BONUS = 1.5, // трюк завершён ≥PERFECT_WINDOW_S до касания
+  PERFECT_WINDOW_S = 0.12,
+  CLOSE_GAP_COWH = 0.08; // зазор «впритык» над препятствием, росты коровы
 const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */
@@ -1020,6 +1117,26 @@ const gasEl = /** @type {HTMLButtonElement} */ (
 const turboBarEl = /** @type {HTMLElement} */ (
   document.getElementById('turboBar')
 );
+/** @type {HTMLElement} колокольчики жизней заезда */
+const livesEl = /** @type {HTMLElement} */ (
+  document.getElementById('lives')
+);
+/** @type {HTMLElement} бейдж комбо-цепи */
+const comboEl = /** @type {HTMLElement} */ (
+  document.getElementById('combo')
+);
+/** @type {HTMLElement} множитель цепи в бейдже */
+const comboMultEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboMult')
+);
+/** @type {HTMLElement} горшок цепи в бейдже */
+const comboPotEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboPot')
+);
+/** @type {HTMLElement} полоска окна цепи в бейдже */
+const comboTimerEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboTimer')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -1097,6 +1214,8 @@ const state = {
   trickQ: null,
   airTricks: [],
   airBonus: 0,
+  trickEndT: -1,
+  combo: { pot: 0, n: 0, mult: 1, timer: 0, used: {} },
   crash: null,
   ride: null,
   invuln: 0,
@@ -2491,7 +2610,13 @@ const obstacleSpec = {
     }
     const o = OBS[kind];
     return {
-      data: { kind, isOver: false, isCleared: false, fly: null },
+      data: {
+        kind,
+        isOver: false,
+        isCleared: false,
+        minGap: Infinity,
+        fly: null,
+      },
       lengthCowH: o.w,
       gapAfterCowH: ctx.rand(7.5, 13) * Math.max(1, 0.8 * ctx.spdN),
     };
@@ -2511,13 +2636,18 @@ const obstacleSpec = {
         return 'hit';
       }
       d.isOver = true;
+      // зазор над верхом в ближайшей точке пролёта — для бонуса «впритык»
+      d.minGap = Math.min(d.minGap, h - o.h);
       return 'over';
     }
     if (d.isOver && !d.isCleared && X - hb >= feat.x1) {
       d.isCleared = true;
       // взятое препятствие — сразу, а не при приземлении: быстрый
       // отклик учит лучше; очки и статистика — на подписчиках события
-      emit('obstacle-clear', { kind: d.kind });
+      emit('obstacle-clear', {
+        kind: d.kind,
+        close: d.minGap < CLOSE_GAP_COWH,
+      });
     }
     return 'clear';
   },
@@ -3335,6 +3465,9 @@ function drawParticles() {
 // Реакции на события модели (композиция — в main.js). Порядок регистрации
 // задаёт порядок исполнения: эффекты идут первыми, как раньше шли
 // прямые вызовы из player.js.
+// последний показанный множитель цепи — для попапа «×N» при росте
+let comboMultSeen = 1;
+
 function initEffects() {
   on('airborne', (d) => {
     const w = wheelsScreen();
@@ -3355,6 +3488,10 @@ function initEffects() {
   });
   on('land', (d) => {
     if (onFeature() || d.impact <= 0) return;
+    // оценка приземления (фаза 1): идеально — трюк кончился заранее,
+    // нечисто — дожали при касании
+    if (d.perfect) popup('ИДЕАЛЬНО', 'trick');
+    else if (d.dirty) popup('НЕЧИСТО', 'pts');
     const w = wheelsScreen(),
       k = clamp(d.impact / 2.4, 0.6, 1.8);
     for (const p of w) {
@@ -3369,8 +3506,27 @@ function initEffects() {
       sparks(p.x, p.y, p.z, 8);
     }
   });
-  on('score', (d) => {
-    popup(d.mult > 1 ? `+${d.points}  ×${d.mult}` : `+${d.points}`, 'pts');
+  // комбо-цепь: рост множителя, сдача горшка, сгорание при крэше
+  on('combo', (d) => {
+    if (d.mult > comboMultSeen) popup(`×${d.mult}`, 'trick');
+    comboMultSeen = d.mult;
+  });
+  on('combo-bank', (d) => {
+    comboMultSeen = 1;
+    popup(`КОМБО +${d.points.toLocaleString('ru-RU')}`, 'pts');
+  });
+  on('combo-lost', (d) => {
+    comboMultSeen = 1;
+    popup(`−${d.points.toLocaleString('ru-RU')}`, 'crash');
+  });
+  on('life-lost', (d) => {
+    popup(
+      d.lives > 0 ? `ЖИЗНЕЙ ОСТАЛОСЬ: ${d.lives}` : 'ПОСЛЕДНЕЕ ПАДЕНИЕ!',
+      'crash',
+    );
+  });
+  on('obstacle-clear', (d) => {
+    if (d.close) popup('ВПРИТЫК', 'trick');
   });
   on('ride-exit', (d) => {
     if (d.result === 'fail') return; // срыв — попап покажет crash
@@ -3429,17 +3585,20 @@ function timeToLand() {
 /** @param {'jump' | 'launch'} from чем вызван взлёт */
 function enterAir(from) {
   state.mode = 'air';
+  state.trickEndT = -1; // в этом вылете трюков ещё не завершали
   emit('airborne', { from });
 }
 /**
  * @param {number} g высота поверхности под доской (росты коровы)
  * @param {number} impact скорость касания; 0 — возврат после крэша
+ * @param {boolean} [perfect] трюки кончились за PERFECT_WINDOW_S до касания
+ * @param {boolean} [dirty] последний трюк дожали при касании
  */
-function enterGround(g, impact) {
+function enterGround(g, impact, perfect = false, dirty = false) {
   state.mode = 'ground';
   state.h = g;
   state.isOnRamp = g > 0.001;
-  emit('land', { impact });
+  emit('land', { impact, perfect, dirty });
 }
 /**
  * @param {import('./types').CrashReason} reason причина падения
@@ -3479,10 +3638,11 @@ function enterCrash(reason) {
   state.jumps = 0;
   state.airTricks = [];
   state.airBonus = 0;
+  state.trickEndT = -1;
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
-  state.turbo = 0; // заезд кончился — турбо-запас сгорает
+  state.turbo = 0; // падение — накопленное турбо сгорает
   state.gasHeld = false;
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
@@ -3542,7 +3702,6 @@ function exitRide(ride, p, res) {
   }
   state.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
   if (Math.abs(p.h) < 0.06) {
-    if (v > 0) state.airBonus += 150; // прошёл конструкцию
     state.hV = 0;
     enterGround(0, 0);
   } else {
@@ -3550,6 +3709,7 @@ function exitRide(ride, p, res) {
     state.airT = 0;
     state.jumps = 1;
     state.airDurationS = timeToLand();
+    state.airBonus += 40; // вылет с конструкции — как выход с рампы
     enterAir('launch');
   }
 }
@@ -3654,6 +3814,7 @@ function finishTrick() {
   state.kick = 0;
   state.kickDrop = 0;
   state.airTricks.push(tr.kind);
+  state.trickEndT = state.airT; // момент завершения — для «идеального» land
   if (state.mode === 'ride') state.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
   state.trick = null;
@@ -3709,6 +3870,9 @@ function launch() {
 }
 /** @param {number} g высота земли под доской (росты коровы) */
 function land(g) {
+  // недокрученный к касанию трюк дожимаем — очки за него есть, но цепь
+  // его не засчитывает (combo.js читает dirty из события land)
+  const dirty = !!state.trick;
   if (state.trick) {
     if (state.trick.t / state.trick.durationS > 0.8) finishTrick();
     else {
@@ -3717,6 +3881,12 @@ function land(g) {
       return;
     }
   }
+  // «идеальное» приземление: последний трюк завершился раньше, чем за
+  // PERFECT_WINDOW_S до касания — дожатый трюк идеальным не считается
+  const perfect =
+    !dirty &&
+    state.trickEndT >= 0 &&
+    state.airT - state.trickEndT >= PERFECT_WINDOW_S;
   state.trickQ = null;
   const impact = -state.hV;
   state.hV = 0;
@@ -3728,7 +3898,7 @@ function land(g) {
   state.shake = Math.min(1.8, state.shake + 0.5 + 0.22 * impact);
   state.earV -= 3.4;
   state.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
-  enterGround(g, impact);
+  enterGround(g, impact, perfect, dirty);
 }
 
 // ---------------------------------------------------------------- crash
@@ -4291,7 +4461,7 @@ function startRun() {
     n: runN,
     t0: state.t,
     distM: 0,
-    lives: 1, // фаза 1 (PD2) поднимет до RUN_LIVES
+    lives: RUN_LIVES,
     stats: {
       tricks: 0,
       obstacles: 0,
@@ -4352,11 +4522,16 @@ function stepRun(dt) {
 
 /** Подписки статистики заезда на события модели (композиция — в main.js). */
 function initRun() {
-  on('score', (d) => {
+  // приземлённые трюки (без 'double') — в момент land, очки копит combo.js
+  on('land', () => {
     const run = state.run;
     if (!run) return;
-    run.stats.tricks += d.tricks;
-    if (d.mult > run.stats.maxMult) run.stats.maxMult = d.mult;
+    run.stats.tricks += state.airTricks.filter((k) => k !== 'double').length;
+  });
+  // множитель заезда — максимум цепи, а не сданного начисления
+  on('combo', (d) => {
+    const run = state.run;
+    if (run && d.mult > run.stats.maxMult) run.stats.maxMult = d.mult;
   });
   on('obstacle-clear', () => {
     if (state.run) state.run.stats.obstacles += 1;
@@ -4364,48 +4539,147 @@ function initRun() {
   on('ride-exit', (d) => {
     if (state.run && d.result === 'exit' && d.ok) state.run.stats.loops += 1;
   });
+  // PD2: крэш отнимает жизнь, заезд кончается только на нуле жизней.
+  // Несданное комбо при этом сжигает combo.js по тому же событию.
   on('crash', (d) => {
     const run = state.run;
     if (!run) return;
     run.stats.crashes += 1;
-    endRun('crash', d.reason);
+    run.lives -= 1;
+    emit('life-lost', { lives: run.lives });
+    if (run.lives <= 0) endRun('crash', d.reason);
   });
 }
 
 // ---- game/score.js
 // ---------------------------------------------------------------- score
 // Модель счёта (карта, этап 3): DOM — в ui.js, всплывашки — в effects.js;
-// оба слоя реагируют на событие 'score'. Рекорд и завершение заезда — в
-// run.js (фаза 0): счёт пишется только внутри заезда.
+// оба слоя реагируют на событие 'score'. Начисление за действия с фазы 1
+// идёт через комбо-цепь (combo.js) — сюда попадает только сданный горшок.
+// Рекорд и завершение заезда — в run.js (фаза 0): счёт пишется только
+// внутри заезда.
 
 /**
- * @param {number} pts очки (уже с учётом множителя комбо)
- * @param {number} [mult] множитель комбо — для показа «×N»
- * @param {number} [tricks] приземлённые трюки в этом начислении — статистика заезда
+ * @param {number} pts очки (уже с учётом множителя цепи)
+ * @param {number} [mult] множитель цепи на момент сдачи — для показа «×N»
  */
-function addScore(pts, mult = 1, tricks = 0) {
+function addScore(pts, mult = 1) {
   if (!state.run) return; // демо и промежуток между заездами не считают
   state.score += pts;
-  emit('score', { points: pts, mult, total: state.score, tricks });
+  emit('score', { points: pts, mult, total: state.score });
 }
 
-/** Начисляет очки за трюки воздуха при приземлении. */
-function award() {
-  const list = state.airTricks,
-    tricks = list.filter((k) => k !== 'double');
-  let pts = state.airBonus;
-  for (const k of list) pts += k === 'double' ? 30 : TRICKS[k].pts;
-  state.airTricks = [];
-  state.airBonus = 0;
-  if (!pts) return;
-  const mult = Math.max(1, tricks.length);
-  addScore(pts * mult, mult, tricks.length);
+// ---- game/combo.js
+// ---------------------------------------------------------------- combo
+// Комбо-цепь (продукт-план, фаза 1, PD3/PD4), владелец state.combo:
+// каждое действие кладёт базу в горшок по текущему множителю и растит
+// счётчик цепи n (mult = 1 + floor(n/3), потолок COMBO_MULT_MAX). Окно
+// COMBO_WINDOW_S тикает только на ровном асфальте — в воздухе и на
+// конструкциях цепь стоит, длинный полёт её не рвёт. Истёк → горшок
+// сдаётся в счёт через addScore (вне заезда молчит), крэш — сжигает.
+//
+// Повтор одного трюка в цепи дешевеет (REPEAT_DECAY), разнообразие в
+// вылете и «идеальное» приземление дороже — спам одного действия
+// проигрывает миксу и точному таймингу.
+
+// Откуда взлетели в текущем вылете: 'double' не перезаписывает — это
+// продолжение того же прыжка. Нужен для действия «вылет с рампы».
+/** @type {'jump' | 'launch'} */
+let airFrom = 'jump';
+
+/** Гасим цепь: горшок обработан (сдан или сгорел), повторы забываем. */
+function drop() {
+  const c = state.combo;
+  c.pot = 0;
+  c.n = 0;
+  c.mult = 1;
+  c.timer = 0;
+  c.used = {};
 }
 
-/** Подписывает счёт на события модели (композиция — в main.js). */
-function initScore() {
-  on('land', award);
-  on('obstacle-clear', () => addScore(50));
+/**
+ * Одно действие цепи: база идёт в горшок по множителю на момент действия,
+ * затем n поднимает множитель следующих.
+ * @param {number} base базовые очки действия
+ * @param {number} [nDelta] прирост счётчика цепи (двойной прыжок — 0)
+ */
+function feed(base, nDelta = 1) {
+  const c = state.combo;
+  c.pot += Math.round(base * c.mult);
+  c.n += nDelta;
+  c.mult = Math.min(COMBO_MULT_MAX, 1 + Math.floor(c.n / 3));
+  c.timer = COMBO_WINDOW_S;
+  emit('combo', { mult: c.mult, pot: c.pot, n: c.n });
+}
+
+/** Сдача горшка в счёт — только по таймауту цепи. */
+function bank() {
+  const c = state.combo;
+  if (c.pot > 0) {
+    addScore(c.pot, c.mult);
+    emit('combo-bank', { points: c.pot, mult: c.mult });
+  }
+  drop();
+}
+
+/**
+ * Кадр цепи (вызов — main.js:update): окно тикает только на ровном
+ * ходу — в воздухе, на рампе и в ride цепь дождётся действия.
+ * @param {number} dt шаг кадра, секунды
+ */
+function stepCombo(dt) {
+  const c = state.combo;
+  if (c.n <= 0) return;
+  if (onFlat()) c.timer -= dt;
+  if (c.timer <= 0) bank();
+}
+
+/** Подписки цепи на события модели (композиция — в main.js). */
+function initCombo() {
+  on('run-start', drop); // новый заезд — чистая цепь
+  on('airborne', (d) => {
+    // двойной прыжок — продолжение вылета, источник не меняем
+    if (d.from !== 'double') airFrom = d.from;
+  });
+  on('ride-enter', () => {
+    airFrom = 'jump'; // съехали с воздуха на дугу — «вылет» уже не наш
+  });
+  // препятствие взято: +25 к базе за пролёт впритык
+  on('obstacle-clear', (d) => feed(d.close ? 75 : 50));
+  // двойной прыжок кормит горшок, но цепь не растит
+  on('trick', (d) => {
+    if (d.kind === 'double') feed(30, 0);
+  });
+  // петля пройдена — жирное действие цепи
+  on('ride-exit', (d) => {
+    if (d.result === 'exit' && d.ok) feed(150, 2);
+  });
+  // приземление — главное действие цепи: трюки вылета с распадом
+  // повторов + бонусы вылета (рампа, петля) + разнообразие + идеальность
+  on('land', (d) => {
+    const tricks = /** @type {import('./types').TrickKind[]} */ (
+      state.airTricks.filter((k) => k !== 'double')
+    );
+    if (!tricks.length && !state.airBonus) return; // пустой хоп — мимо цепи
+    const used = state.combo.used;
+    let base = state.airBonus;
+    for (const k of tricks) {
+      base += TRICKS[k].pts * REPEAT_DECAY ** (used[k] || 0);
+      used[k] = (used[k] || 0) + 1;
+    }
+    if (new Set(tricks).size >= 2) base *= VARIETY_BONUS;
+    if (d.perfect) base *= PERFECT_BONUS;
+    // дожатый трюк засчитывает очки, но цепь не растит
+    feed(
+      base,
+      tricks.length - (d.dirty ? 1 : 0) + (airFrom === 'launch' ? 1 : 0),
+    );
+  });
+  // крэш сжигает несданный горшок — жизни считает run.js
+  on('crash', () => {
+    if (state.combo.pot > 0) emit('combo-lost', { points: state.combo.pot });
+    drop();
+  });
 }
 
 // ---- game/ui.js
@@ -4417,7 +4691,7 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number}} */
 const shown = {
   score: -1,
   best: -1,
@@ -4426,6 +4700,10 @@ const shown = {
   cta: null,
   res: null,
   boost: null,
+  lives: -1,
+  cOn: null,
+  cMult: 1,
+  cPot: 0,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
@@ -4444,6 +4722,39 @@ function hud() {
     distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
     shown.dist = dist;
   }
+  // колокольчики жизней — только в заезде, гаснут по одной при крэше
+  const lives = state.run ? state.run.lives : -1;
+  if (lives !== shown.lives) {
+    livesEl.hidden = lives < 0;
+    for (let i = 0; i < RUN_LIVES; i++)
+      livesEl.children[i].classList.toggle('off', i >= lives);
+    shown.lives = lives;
+  }
+  // бейдж комбо-цепи: виден, пока цепь жива; цвет растёт с множителем
+  const c = state.combo,
+    cOn = c.n > 0;
+  if (cOn !== shown.cOn) {
+    comboEl.hidden = !cOn;
+    shown.cOn = cOn;
+  }
+  if (c.mult !== shown.cMult) {
+    comboMultEl.textContent = `×${c.mult}`;
+    // пульс бейджа при росте множителя (сброс цепи не анимируем)
+    if (c.mult > shown.cMult) {
+      comboEl.classList.remove('bump');
+      void comboEl.offsetWidth;
+      comboEl.classList.add('bump');
+    }
+    comboEl.classList.toggle('hot', c.mult >= 4 && c.mult < 6);
+    comboEl.classList.toggle('max', c.mult >= 6);
+    shown.cMult = c.mult;
+  }
+  if (c.pot !== shown.cPot) {
+    comboPotEl.textContent = `+${c.pot.toLocaleString('ru-RU')}`;
+    shown.cPot = c.pot;
+  }
+  if (cOn)
+    comboTimerEl.style.transform = `scaleX(${clamp(c.timer / COMBO_WINDOW_S, 0, 1)})`;
   const auto = !playerMode();
   if (auto !== shown.auto) {
     autoEl.hidden = !auto;
@@ -5285,6 +5596,18 @@ const GATES = [
     text: 'Обычной скорости не хватит — качай кнопку «ГАЗ» заранее и держи зажатой, чтобы разогнаться и проехать круг.',
     when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
   },
+  {
+    id: 'combo',
+    title: 'Цепочка!',
+    text: 'Делай действия без пауз — множитель растёт. Пауза сдаёт накопленное в счёт, упадёшь — несданное сгорит.',
+    when: null, // встаёт в очередь по событию combo при n >= 3
+  },
+  {
+    id: 'lives',
+    title: 'Минус жизнь',
+    text: 'Их три на заезд — колокольчики под счётом. Несданное комбо сгорело, но счёт остался.',
+    when: null, // встаёт в очередь по событию life-lost
+  },
 ];
 /** @type {Map<string, Gate>} */
 const byId = new Map(GATES.map((g) => [g.id, g]));
@@ -5379,6 +5702,13 @@ function initTutorial() {
   on('land', (d) => {
     if (d.impact > 0.4 && playerMode()) enqueue('double');
   });
+  // фаза 1: цепь впервые выросла до ×2 (три действия) — объясняем правила
+  on('combo', (d) => {
+    if (d.n >= 3 && playerMode()) enqueue('combo');
+  });
+  on('life-lost', () => {
+    if (playerMode()) enqueue('lives');
+  });
 }
 
 // ---- game/main.js
@@ -5387,7 +5717,7 @@ function initTutorial() {
 initFeatures();
 initEffects();
 initRun();
-initScore();
+initCombo();
 initUi();
 initTutorial();
 
@@ -5466,6 +5796,7 @@ function update(dt) {
   stepGround(gi);
   checkRideEntry();
   stepPhysics(dt, gi);
+  stepCombo(dt); // окно цепи тикает на ровном ходу — после смен режимов
   stepHistory(dt);
   stepCracks();
   stepFlying(dt);

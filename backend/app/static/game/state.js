@@ -80,6 +80,26 @@ export const gasEl = /** @type {HTMLButtonElement} */ (
 export const turboBarEl = /** @type {HTMLElement} */ (
   document.getElementById('turboBar')
 );
+/** @type {HTMLElement} колокольчики жизней заезда */
+export const livesEl = /** @type {HTMLElement} */ (
+  document.getElementById('lives')
+);
+/** @type {HTMLElement} бейдж комбо-цепи */
+export const comboEl = /** @type {HTMLElement} */ (
+  document.getElementById('combo')
+);
+/** @type {HTMLElement} множитель цепи в бейдже */
+export const comboMultEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboMult')
+);
+/** @type {HTMLElement} горшок цепи в бейдже */
+export const comboPotEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboPot')
+);
+/** @type {HTMLElement} полоска окна цепи в бейдже */
+export const comboTimerEl = /** @type {HTMLElement} */ (
+  document.getElementById('comboTimer')
+);
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 export let reduce = mqReduce.matches;
 if (mqReduce.addEventListener)
@@ -157,6 +177,8 @@ export const state = {
   trickQ: null,
   airTricks: [],
   airBonus: 0,
+  trickEndT: -1,
+  combo: { pot: 0, n: 0, mult: 1, timer: 0, used: {} },
   crash: null,
   ride: null,
   invuln: 0,

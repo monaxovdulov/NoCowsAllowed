@@ -4,7 +4,7 @@
 // (ui.js:touched → startRun); конец — крэш ('crash') или перехват
 // автопилота ('idle'). Рекорд пишется и DOM-событие cowskate:run-end
 // уходит ровно один раз — здесь; мост шлёт статистику на /api/score.
-import { M_PER_COWH } from './constants.js';
+import { M_PER_COWH, RUN_LIVES } from './constants.js';
 import { emit, on } from './events.js';
 import { playerMode, state } from './state.js';
 import { writeBest } from './storage.js';
@@ -20,7 +20,7 @@ export function startRun() {
     n: runN,
     t0: state.t,
     distM: 0,
-    lives: 1, // фаза 1 (PD2) поднимет до RUN_LIVES
+    lives: RUN_LIVES,
     stats: {
       tricks: 0,
       obstacles: 0,
@@ -81,11 +81,16 @@ export function stepRun(dt) {
 
 /** Подписки статистики заезда на события модели (композиция — в main.js). */
 export function initRun() {
-  on('score', (d) => {
+  // приземлённые трюки (без 'double') — в момент land, очки копит combo.js
+  on('land', () => {
     const run = state.run;
     if (!run) return;
-    run.stats.tricks += d.tricks;
-    if (d.mult > run.stats.maxMult) run.stats.maxMult = d.mult;
+    run.stats.tricks += state.airTricks.filter((k) => k !== 'double').length;
+  });
+  // множитель заезда — максимум цепи, а не сданного начисления
+  on('combo', (d) => {
+    const run = state.run;
+    if (run && d.mult > run.stats.maxMult) run.stats.maxMult = d.mult;
   });
   on('obstacle-clear', () => {
     if (state.run) state.run.stats.obstacles += 1;
@@ -93,10 +98,14 @@ export function initRun() {
   on('ride-exit', (d) => {
     if (state.run && d.result === 'exit' && d.ok) state.run.stats.loops += 1;
   });
+  // PD2: крэш отнимает жизнь, заезд кончается только на нуле жизней.
+  // Несданное комбо при этом сжигает combo.js по тому же событию.
   on('crash', (d) => {
     const run = state.run;
     if (!run) return;
     run.stats.crashes += 1;
-    endRun('crash', d.reason);
+    run.lives -= 1;
+    emit('life-lost', { lives: run.lives });
+    if (run.lives <= 0) endRun('crash', d.reason);
   });
 }

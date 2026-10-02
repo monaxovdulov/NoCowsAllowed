@@ -16,6 +16,7 @@ import {
   MAXSPD,
   MINSPD,
   OLLIE_V,
+  PERFECT_WINDOW_S,
   TRICKS,
 } from './constants.js';
 import { emit } from './events.js';
@@ -43,17 +44,20 @@ function timeToLand() {
 /** @param {'jump' | 'launch'} from чем вызван взлёт */
 function enterAir(from) {
   state.mode = 'air';
+  state.trickEndT = -1; // в этом вылете трюков ещё не завершали
   emit('airborne', { from });
 }
 /**
  * @param {number} g высота поверхности под доской (росты коровы)
  * @param {number} impact скорость касания; 0 — возврат после крэша
+ * @param {boolean} [perfect] трюки кончились за PERFECT_WINDOW_S до касания
+ * @param {boolean} [dirty] последний трюк дожали при касании
  */
-function enterGround(g, impact) {
+function enterGround(g, impact, perfect = false, dirty = false) {
   state.mode = 'ground';
   state.h = g;
   state.isOnRamp = g > 0.001;
-  emit('land', { impact });
+  emit('land', { impact, perfect, dirty });
 }
 /**
  * @param {import('./types').CrashReason} reason причина падения
@@ -93,10 +97,11 @@ export function enterCrash(reason) {
   state.jumps = 0;
   state.airTricks = [];
   state.airBonus = 0;
+  state.trickEndT = -1;
   state.autoSeq = [];
   state.autoDouble = 0;
   state.autoAfter = null;
-  state.turbo = 0; // заезд кончился — турбо-запас сгорает
+  state.turbo = 0; // падение — накопленное турбо сгорает
   state.gasHeld = false;
   state.hV = Math.max(state.hV, 0) + 1.7;
   state.shake = 1.8;
@@ -156,7 +161,6 @@ function exitRide(ride, p, res) {
   }
   state.speed = clamp(Math.abs(v), MINSPD, MAXSPD);
   if (Math.abs(p.h) < 0.06) {
-    if (v > 0) state.airBonus += 150; // прошёл конструкцию
     state.hV = 0;
     enterGround(0, 0);
   } else {
@@ -164,6 +168,7 @@ function exitRide(ride, p, res) {
     state.airT = 0;
     state.jumps = 1;
     state.airDurationS = timeToLand();
+    state.airBonus += 40; // вылет с конструкции — как выход с рампы
     enterAir('launch');
   }
 }
@@ -268,6 +273,7 @@ function finishTrick() {
   state.kick = 0;
   state.kickDrop = 0;
   state.airTricks.push(tr.kind);
+  state.trickEndT = state.airT; // момент завершения — для «идеального» land
   if (state.mode === 'ride') state.airBonus += 100; // трюк на конструкции дороже
   emit('trick', { kind: tr.kind });
   state.trick = null;
@@ -323,6 +329,9 @@ export function launch() {
 }
 /** @param {number} g высота земли под доской (росты коровы) */
 function land(g) {
+  // недокрученный к касанию трюк дожимаем — очки за него есть, но цепь
+  // его не засчитывает (combo.js читает dirty из события land)
+  const dirty = !!state.trick;
   if (state.trick) {
     if (state.trick.t / state.trick.durationS > 0.8) finishTrick();
     else {
@@ -331,6 +340,12 @@ function land(g) {
       return;
     }
   }
+  // «идеальное» приземление: последний трюк завершился раньше, чем за
+  // PERFECT_WINDOW_S до касания — дожатый трюк идеальным не считается
+  const perfect =
+    !dirty &&
+    state.trickEndT >= 0 &&
+    state.airT - state.trickEndT >= PERFECT_WINDOW_S;
   state.trickQ = null;
   const impact = -state.hV;
   state.hV = 0;
@@ -342,7 +357,7 @@ function land(g) {
   state.shake = Math.min(1.8, state.shake + 0.5 + 0.22 * impact);
   state.earV -= 3.4;
   state.tagV += (Math.random() < 0.5 ? -1 : 1) * 4.5;
-  enterGround(g, impact);
+  enterGround(g, impact, perfect, dirty);
 }
 
 // ---------------------------------------------------------------- crash

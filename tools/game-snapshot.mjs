@@ -123,7 +123,15 @@ const initHook = ({ seed, coarse, tutored }) => {
     try {
       localStorage.setItem(
         'cow-skate-tut',
-        JSON.stringify(['start', 'ob', 'double', 'ramp', 'loop']),
+        JSON.stringify([
+          'start',
+          'ob',
+          'double',
+          'ramp',
+          'loop',
+          'combo',
+          'lives',
+        ]),
       );
     } catch (e) {
       /* storage недоступен — тогда гейты просто не встанут */

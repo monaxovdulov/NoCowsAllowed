@@ -14,6 +14,16 @@ export const TURBO_PUMP = 0.16, // запаса за один тап
   TURBO_RIDE_ACC = 5.4; // cowH/с² вдоль траектории ride при полной шкале
 export const AUTO_DELAY_S = 4.5; // через столько секунд без касаний рулит автопилот
 export const M_PER_COWH = 1.5; // метров в «росте коровы» — шкала дистанции заезда
+export const RUN_LIVES = 3; // жизней на заезд (PD2): крэш −1, конец на 0
+// Комбо-цепь (PD3/PD4): действия копятся в горшке по множителю, пауза на
+// ровном ходу сдаёт горшок в счёт, крэш — сжигает.
+export const COMBO_WINDOW_S = 3.0, // окно цепи между действиями
+  COMBO_MULT_MAX = 8, // потолок множителя цепи
+  REPEAT_DECAY = 0.5, // k-й повтор трюка в цепи: pts × decay^(k-1)
+  VARIETY_BONUS = 1.25, // ≥2 разных вида трюков в одном вылете
+  PERFECT_BONUS = 1.5, // трюк завершён ≥PERFECT_WINDOW_S до касания
+  PERFECT_WINDOW_S = 0.12,
+  CLOSE_GAP_COWH = 0.08; // зазор «впритык» над препятствием, росты коровы
 export const SPECIAL_EVERY_COWH = 36; // не чаще одной спец-конструкции на столько ростов коровы
 export const CLEAR_AFTER_LAND_COWH = 7; // чистая зона спавна после приземления
 /** @type {import('./types').TrickTable} */

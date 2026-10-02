@@ -161,8 +161,19 @@ export interface RunState {
   n: number; // номер заезда в сессии, с 1
   t0: number; // state.t старта
   distM: number; // пройдено метров (speed в cowH/с × M_PER_COWH)
-  lives: number; // фаза 1 (PD2); до неё — 1
+  lives: number; // PD2: крэш −1, заезд кончается на 0
   stats: RunStats;
+}
+
+// Комбо-цепь заезда (продукт-план, фаза 1, PD3): очки действий копятся
+// в горшке по текущему множителю; пауза COMBO_WINDOW_S на ровном ходу
+// сдаёт горшок в счёт, крэш сжигает. Владелец — game/combo.js.
+export interface ComboState {
+  pot: number; // несданные очки цепи (уже с множителем)
+  n: number; // число действий в цепи
+  mult: number; // текущий множитель = min(8, 1 + floor(n/3))
+  timer: number; // секунд до закрытия цепи (тикает на ровном ходу)
+  used: Partial<Record<TrickKind, number>>; // повторы трюков в цепи (PD4)
 }
 
 // Чем кончился заезд: 'crash' — падение, 'idle' — автопилот перехватил.
@@ -209,6 +220,12 @@ export interface GameState {
   trickQ: TrickKind | null;
   airTricks: AirMove[];
   airBonus: number;
+  // airT последнего естественно завершённого трюка (−1 — в вылете не было):
+  // по нему land() отличает «идеальное» приземление от дожатого (фаза 1)
+  trickEndT: number;
+  // текущая комбо-цепь (владелец — combo.js); живёт и в демо — реклама
+  // механики, но в счёт сдаётся только внутри заезда (addScore)
+  combo: ComboState;
   crash: CrashState | null;
   ride: RideState | null;
   invuln: number;
@@ -374,6 +391,9 @@ export interface ObstacleData {
   kind: ObstacleKind;
   isOver: boolean;
   isCleared: boolean;
+  // минимальный зазор над верхом препятствия за время пролёта, cowH
+  // (фаза 1, «впритык» — бонус к базе препятствия)
+  minGap: number;
   fly: FlyState | null;
 }
 
@@ -499,8 +519,10 @@ export interface FeatureTypeSpec<
 
 export interface GameEventMap {
   // приземление на поверхность (impact = -hV в момент касания; 0 — возврат
-  // после крэша, не настоящее приземление)
-  land: CustomEvent<{ impact: number }>;
+  // после крэша или сход с конструкции, не настоящее приземление).
+  // perfect — последний трюк завершён ≥PERFECT_WINDOW_S до касания;
+  // dirty — трюк докрутили «дожимом» при касании (очки есть, n не растёт)
+  land: CustomEvent<{ impact: number; perfect: boolean; dirty: boolean }>;
   // взлетели: jump — олли, double — второй прыжок в воздухе, launch — вылет с конструкции
   airborne: CustomEvent<{ from: 'jump' | 'double' | 'launch' }>;
   // трюк завершён (включая 'double' — всплывает «ДВОЙНОЙ»)
@@ -512,22 +534,28 @@ export interface GameEventMap {
     score: number;
     wheels: WheelPoint[];
   }>;
-  // очки начислены: points — уже с множителем, total — счёт после
-  // начисления, tricks — приземлённые трюки в этом начислении
+  // очки начислены в счёт заезда: points — уже с множителем цепи,
+  // mult — множитель цепи на момент сдачи, total — счёт после начисления
   score: CustomEvent<{
     points: number;
     mult: number;
     total: number;
-    tricks: number;
   }>;
+  // комбо-цепь (combo.js): рост — каждое действие; bank — горшок сдан
+  // в счёт по таймауту; lost — горшок сгорел при крэше
+  combo: CustomEvent<{ mult: number; pot: number; n: number }>;
+  'combo-bank': CustomEvent<{ points: number; mult: number }>;
+  'combo-lost': CustomEvent<{ points: number }>;
+  // жизнь потеряна при крэше (заезд продолжается, пока lives > 0)
+  'life-lost': CustomEvent<{ lives: number }>;
   // заезд на траекторию ride-конструкции (петля и т.п.)
   'ride-enter': CustomEvent<{ type: string }>;
   // сход с траектории: result 'exit' — доехал; ok=false — откатился назад
   // (недобор скорости без крэша); result 'fail' — срыв → будет crash
   'ride-exit': CustomEvent<{ type: string; result: RideStep; ok: boolean }>;
   // препятствие полностью пройдено (момент isCleared) — источник очков
-  // и статистики заезда
-  'obstacle-clear': CustomEvent<{ kind: ObstacleKind }>;
+  // и статистики заезда; close — пролёт «впритык» (зазор < CLOSE_GAP_COWH)
+  'obstacle-clear': CustomEvent<{ kind: ObstacleKind; close: boolean }>;
   // жизненный цикл заезда (run.js): старт — первый ввод из демо,
   // конец — крэш или перехват автопилота
   'run-start': CustomEvent<{ n: number }>;

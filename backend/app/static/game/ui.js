@@ -3,6 +3,10 @@ import {
   bestEl,
   boostEl,
   coachEl,
+  comboEl,
+  comboMultEl,
+  comboPotEl,
+  comboTimerEl,
   ctaEl,
   cv,
   distEl,
@@ -11,13 +15,15 @@ import {
   geometry,
   hintEl,
   hudEl,
+  livesEl,
   playerMode,
   resultEl,
   state,
   scoreEl,
   turboBarEl,
 } from './state.js';
-import { TURBO_PUMP } from './constants.js';
+import { COMBO_WINDOW_S, RUN_LIVES, TURBO_PUMP } from './constants.js';
+import { clamp } from './utils.js';
 import { on } from './events.js';
 import { boardX } from './layout.js';
 import { FEATURE_TYPES } from './track/index.js';
@@ -32,7 +38,7 @@ function bumpScore() {
   scoreEl.classList.add('bump');
   setTimeout(() => scoreEl.classList.remove('bump'), 200);
 }
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null}} */
+/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number}} */
 const shown = {
   score: -1,
   best: -1,
@@ -41,6 +47,10 @@ const shown = {
   cta: null,
   res: null,
   boost: null,
+  lives: -1,
+  cOn: null,
+  cMult: 1,
+  cPot: 0,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
@@ -59,6 +69,39 @@ export function hud() {
     distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
     shown.dist = dist;
   }
+  // колокольчики жизней — только в заезде, гаснут по одной при крэше
+  const lives = state.run ? state.run.lives : -1;
+  if (lives !== shown.lives) {
+    livesEl.hidden = lives < 0;
+    for (let i = 0; i < RUN_LIVES; i++)
+      livesEl.children[i].classList.toggle('off', i >= lives);
+    shown.lives = lives;
+  }
+  // бейдж комбо-цепи: виден, пока цепь жива; цвет растёт с множителем
+  const c = state.combo,
+    cOn = c.n > 0;
+  if (cOn !== shown.cOn) {
+    comboEl.hidden = !cOn;
+    shown.cOn = cOn;
+  }
+  if (c.mult !== shown.cMult) {
+    comboMultEl.textContent = `×${c.mult}`;
+    // пульс бейджа при росте множителя (сброс цепи не анимируем)
+    if (c.mult > shown.cMult) {
+      comboEl.classList.remove('bump');
+      void comboEl.offsetWidth;
+      comboEl.classList.add('bump');
+    }
+    comboEl.classList.toggle('hot', c.mult >= 4 && c.mult < 6);
+    comboEl.classList.toggle('max', c.mult >= 6);
+    shown.cMult = c.mult;
+  }
+  if (c.pot !== shown.cPot) {
+    comboPotEl.textContent = `+${c.pot.toLocaleString('ru-RU')}`;
+    shown.cPot = c.pot;
+  }
+  if (cOn)
+    comboTimerEl.style.transform = `scaleX(${clamp(c.timer / COMBO_WINDOW_S, 0, 1)})`;
   const auto = !playerMode();
   if (auto !== shown.auto) {
     autoEl.hidden = !auto;
