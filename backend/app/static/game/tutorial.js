@@ -123,6 +123,7 @@ function enqueue(id) {
 
 /** @param {Gate} g открыть карточку и заморозить мир */
 function openGate(g) {
+  if (!tutorEl || !tutorTitle || !tutorText || !tutorOk) return;
   active = g;
   shown.add(g.id);
   persist();
@@ -139,7 +140,7 @@ function openGate(g) {
 
 function closeGate() {
   active = null;
-  tutorEl.classList.remove('on');
+  if (tutorEl) tutorEl.classList.remove('on');
   state.isPaused = false;
   cooldownUntil = state.t + GAP_S;
   // фокус со скрытой кнопки убираем — иначе пробел «дожмёт» невидимую «Понял»
@@ -174,7 +175,7 @@ export function tutorialStep() {
 
 /** Подписки и кнопки карточки (композиция — в main.js). */
 export function initTutorial() {
-  if (!tutorEl) return;
+  if (!tutorEl || !tutorOk || !tutorSkip) return;
   for (const id of readTutored()) shown.add(id);
   // ?tut=reset — переиграть обучение (ручная проверка)
   if (new URLSearchParams(location.search).get('tut') === 'reset') {
