@@ -2,10 +2,10 @@
 // (`step`, `drawFlying`), маркер-подсказка над спрайтом и значок у края.
 import { clamp, rand } from '../utils.js';
 import { GRAV, OBS } from '../constants.js';
-import { ctx, geometry, playerMode, state } from '../state.js';
+import { emit } from '../events.js';
+import { ctx, geometry, state } from '../state.js';
 import { boardX, obPos, X0, X1 } from '../layout.js';
 import { glowImg, OBR, obSprites, shadowImg } from '../sprites.js';
-import { addScore } from '../score.js';
 
 const OBS_ENTRIES = /** @type {import('../types').ObstacleEntry[]} */ (
   Object.entries(OBS)
@@ -142,8 +142,9 @@ export const obstacleSpec = {
     }
     if (d.isOver && !d.isCleared && X - hb >= feat.x1) {
       d.isCleared = true;
-      // очки за взятое препятствие — сразу, а не при приземлении: быстрый отклик учит лучше
-      if (playerMode()) addScore(50);
+      // взятое препятствие — сразу, а не при приземлении: быстрый
+      // отклик учит лучше; очки и статистика — на подписчиках события
+      emit('obstacle-clear', { kind: d.kind });
     }
     return 'clear';
   },

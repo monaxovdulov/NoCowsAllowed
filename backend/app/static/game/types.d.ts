@@ -492,6 +492,9 @@ export interface GameEventMap {
   // сход с траектории: result 'exit' — доехал; ok=false — откатился назад
   // (недобор скорости без крэша); result 'fail' — срыв → будет crash
   'ride-exit': CustomEvent<{ type: string; result: RideStep; ok: boolean }>;
+  // препятствие полностью пройдено (момент isCleared) — источник очков
+  // и статистики заезда
+  'obstacle-clear': CustomEvent<{ kind: ObstacleKind }>;
 }
 
 // Тип полезной нагрузки события по его имени (для emit/on в events.js).

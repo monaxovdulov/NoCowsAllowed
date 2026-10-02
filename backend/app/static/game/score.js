@@ -46,6 +46,9 @@ function award() {
 /** Подписывает счёт на события модели (композиция — в main.js). */
 export function initScore() {
   on('land', award);
+  on('obstacle-clear', () => {
+    if (playerMode()) addScore(50);
+  });
   on('crash', () => {
     if (!playerMode()) return;
     endRun();
