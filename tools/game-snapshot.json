@@ -121,8 +121,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "c938b7c6552acb814e0e715b93284721d4c14f6e4b3c8939a8ece1ead1f3f2b6",
-          "bloom": "c4fd8dfa4e9d2d830916594044d723b4442837ff3f76564d0ac706e24a9b1bb3",
+          "scene": "fa1a912d57b744e8c60dfe3495cb7ce1d373be51dccd8814a8638ef2e710a526",
+          "bloom": "dd14c8c96e5493477cbb3a4acbd96433b23ced48bc7061f923166b8ae8926109",
           "hud": {
             "score": "0",
             "best": "0",
@@ -143,8 +143,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "d20906ce7bae3fa83f1ad4bf5cd28e0bcaf23ebf0db808a32b9e61611986e9e1",
-          "bloom": "dd933f14d7c45f2c7ac177ed4c8fad7ae87e80a1da7073a6db3ab92e887acdc8",
+          "scene": "647fb1d2e2e1a036654a7aed9c56257a2da5575df348ae55659905505c64b1b2",
+          "bloom": "08d4643988bdf7ed5eec992d354f8e590b64fbdf2668f7cf306edb5ec56d9b0f",
           "hud": {
             "score": "0",
             "best": "0",
@@ -239,8 +239,8 @@
         {
           "label": "boost",
           "frame": 753,
-          "scene": "e7c6bafa6fc76726c278c7c24b775948389edd1ce1895bfc6e620d05474edab9",
-          "bloom": "1ad835329b4de04fe15c3d84ac3ee35943252e4a23b0e6be04c9ffc41ec237b0",
+          "scene": "d82024431fbbd976ecba80a30baf2c89b872835801a04853d214539c6ecc6a9b",
+          "bloom": "7e41b94591042df7bb99131a44bf7c0b5e4335c641d4abc0c03b364c3d4f69a9",
           "hud": {
             "score": "0",
             "best": "0",
@@ -248,7 +248,7 @@
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
-            "coachClass": "coach ui",
+            "coachClass": "coach ui dim",
             "resultHtml": "",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
@@ -261,8 +261,8 @@
         {
           "label": "flip",
           "frame": 903,
-          "scene": "8c1192cc40f3b02b1b64dcdaa2bbe144721910d28fdcd3e709da9788ec3a423d",
-          "bloom": "3f81159a7dda16cc9a2d015117363deabf372df6e4dc2ea526592d7918ccb38c",
+          "scene": "2ed09e351a6088d9ddf7316af39e7864fca9ba081f94b3430a4e97fcb556ceba",
+          "bloom": "5627750fff362a6ed47d6c51c50713a35759a801bd4210bb32c16893fd1145bd",
           "hud": {
             "score": "0",
             "best": "0",
@@ -270,7 +270,7 @@
             "hudClass": "hud ui",
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
-            "coachClass": "coach ui",
+            "coachClass": "coach ui dim",
             "resultHtml": "",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
@@ -283,8 +283,8 @@
         {
           "label": "run",
           "frame": 1623,
-          "scene": "aa5b1e653d960c387a04be82c645fb59a1f853eefa982a5c169710223ad50c70",
-          "bloom": "4e2892340a489b3194e9319c6691523ea935c5a8fe3a4f1ebe20817288e48657",
+          "scene": "16d4aa8d33658c115a10088afe14f8f3659b3ab74cea06a9d518450913418f86",
+          "bloom": "77a3c902b42a708cd64a0a56a66869a88379467f60498329d2181d5afceac7f0",
           "hud": {
             "score": "0",
             "best": "0",
@@ -293,7 +293,7 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 0</b><span>41 м · 1 трюк</span><span data-rank=\"\"></span>",
+            "resultHtml": "",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",
@@ -305,8 +305,8 @@
         {
           "label": "back-to-demo",
           "frame": 2043,
-          "scene": "1fb7582ef180c2461b82434e70a764bf775ccd44b44ce2c53b3ad63d3514ee2d",
-          "bloom": "e53aaaa04ed636d1a47a872b3808316e05fac868bccecdfc47982f24c859aca4",
+          "scene": "4142b23542a234f0f40ad285f3484c751938b059316a05bd1cfa85fcee1f0e18",
+          "bloom": "28d558a08c9479eb0805c75796341a63bfb4b3af26e7f351a034d7a3e6d2b0be",
           "hud": {
             "score": "0",
             "best": "0",
@@ -315,7 +315,7 @@
             "ctaClass": "cta ui dim",
             "coachText": "СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ",
             "coachClass": "coach ui dim",
-            "resultHtml": "<b>Заезд: 0</b><span>41 м · 1 трюк</span><span data-rank=\"\"></span>",
+            "resultHtml": "",
             "resultClass": "result ui dim",
             "hintClass": "hint ui dim",
             "tutorClass": "tutor ui",

@@ -98,6 +98,10 @@ export function initRun() {
   on('ride-exit', (d) => {
     if (state.run && d.result === 'exit' && d.ok) state.run.stats.loops += 1;
   });
+  // клеверы заезда (фаза 3)
+  on('coin', () => {
+    if (state.run) state.run.stats.coins += 1;
+  });
   // PD2: крэш отнимает жизнь, заезд кончается только на нуле жизней.
   // Несданное комбо при этом сжигает combo.js по тому же событию.
   on('crash', (d) => {

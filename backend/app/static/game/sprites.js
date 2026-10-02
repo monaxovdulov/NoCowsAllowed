@@ -564,6 +564,77 @@ function buildObSprites() {
     obSprites[kind] = sprite(OBS[kind].w, OBS[kind].h, OB_PAINT[kind]);
 }
 
+// четырёхлистный клевер (фаза 3): сердечки-листы сочного зелёного,
+// тёмная обводка и блик — читается на тёмном асфальте; золотой для
+// вершины петли
+/**
+ * @param {CanvasRenderingContext2D} g
+ * @param {number} w
+ * @param {number} h
+ * @param {boolean} gold золотой вариант (вершина петли)
+ */
+function cloverTo(g, w, h, gold) {
+  const cx = w / 2,
+    cy = h * 0.46,
+    L = w * 0.4; // длина листа от центра
+  // черенок
+  g.strokeStyle = gold ? '#7a5410' : '#1d5a24';
+  g.lineWidth = w * 0.07;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(cx + w * 0.02, cy + L * 0.25);
+  g.quadraticCurveTo(cx + w * 0.16, cy + L * 0.95, cx + w * 0.05, h * 0.98);
+  g.stroke();
+  const lg = g.createRadialGradient(
+    cx - L * 0.4,
+    cy - L * 0.5,
+    L * 0.15,
+    cx,
+    cy,
+    L * 1.25,
+  );
+  if (gold) {
+    lg.addColorStop(0, '#fff3ae');
+    lg.addColorStop(0.45, '#ffd84a');
+    lg.addColorStop(1, '#c78d12');
+  } else {
+    lg.addColorStop(0, '#9df06e');
+    lg.addColorStop(0.45, '#46c93f');
+    lg.addColorStop(1, '#177d23');
+  }
+  // лист — «сердечко» наружу: лопасти и выемка на внешнем крае
+  for (let i = 0; i < 4; i++) {
+    g.save();
+    g.translate(cx, cy);
+    g.rotate((i * Math.PI) / 2 + Math.PI / 4);
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.bezierCurveTo(-L * 0.8, -L * 0.3, -L * 0.58, -L * 1.02, 0, -L * 0.72);
+    g.bezierCurveTo(L * 0.58, -L * 1.02, L * 0.8, -L * 0.3, 0, 0);
+    g.closePath();
+    g.fillStyle = lg;
+    g.fill();
+    g.strokeStyle = gold ? 'rgba(92,60,6,0.9)' : 'rgba(10,52,18,0.9)';
+    g.lineWidth = w * 0.028;
+    g.stroke();
+    g.restore();
+  }
+  // блик на верхнем левом листе
+  g.fillStyle = gold ? 'rgba(255,252,230,0.85)' : 'rgba(230,255,215,0.7)';
+  g.beginPath();
+  g.ellipse(cx - L * 0.34, cy - L * 0.36, L * 0.13, L * 0.07, -0.7, 0, TAU);
+  g.fill();
+}
+
+/** @type {import('./types').ObstacleSprite} */
+export let cloverImg;
+/** @type {import('./types').ObstacleSprite} */
+export let cloverGoldImg;
+function buildCloverSprites() {
+  cloverImg = sprite(0.22, 0.24, (g, w, h) => cloverTo(g, w, h, false));
+  cloverGoldImg = sprite(0.26, 0.28, (g, w, h) => cloverTo(g, w, h, true));
+}
+
 // ---------------------------------------------------------------- size-dependent buffers
 /** @type {HTMLCanvasElement} */
 export let skyCv;
@@ -920,6 +991,7 @@ export function initAssets(loaded) {
   fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
+  buildCloverSprites();
   buildCowCaches();
 }
 export function initShadow() {

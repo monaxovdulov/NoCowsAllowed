@@ -69,4 +69,20 @@ export const PATTERNS = [
       { type: 'loop' },
     ],
   },
+  // дуга клевера над кикером (фаза 3): россыпь вплотную за рампой —
+  // plan сам строит дугу по параболе вылета от кромки предыдущей фичи
+  {
+    id: 'kickclover',
+    minZone: 2,
+    weight: 2,
+    items: [{ type: 'ramp', gapAfterCowH: 0 }, { type: 'coins' }],
+  },
+  // золотой клевер на вершине петли: та же ставка вплотную за loop —
+  // plan кладёт точку на вершину дуги по данным хозяина
+  {
+    id: 'goldloop',
+    minZone: 2,
+    weight: 2,
+    items: [{ type: 'loop', gapAfterCowH: 0 }, { type: 'coins' }],
+  },
 ];

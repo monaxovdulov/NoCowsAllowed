@@ -149,12 +149,12 @@ export interface CrashState extends BoardSnap {
 // ---------------------------------------------------------------- заезд
 
 // Статистика одного заезда (продукт-план, фаза 0): в конце уходит на
-// сервер — один ряд ScoreRun. coins/maxMult заполнят фазы 1–3.
+// сервер — один ряд ScoreRun.
 export interface RunStats {
   tricks: number; // приземлённые трюки (без 'double')
   obstacles: number; // взятые препятствия
   loops: number; // пройденные петли
-  coins: number; // фаза 3
+  coins: number; // собранные клеверы (фаза 3)
   maxMult: number; // лучший множитель начисления за заезд
   crashes: number;
 }
@@ -316,6 +316,8 @@ export interface Particle {
   r0: number;
   r1: number;
   a: number;
+  // spark: пара цветов [горячий, остывший] или null — огненное умолчание
+  tint: [string, string] | null;
 }
 
 export type PopKind = 'trick' | 'pts' | 'crash';
@@ -405,7 +407,12 @@ export interface ObstacleData {
 export type RampFeature = TrackFeature<'ramp', RampData>;
 export type ObstacleFeature = TrackFeature<'ob', ObstacleData>;
 export type LoopFeature = TrackFeature<'loop', LoopData>;
-export type AnyFeature = RampFeature | ObstacleFeature | LoopFeature;
+export type CoinsFeature = TrackFeature<'coins', CoinsData>;
+export type AnyFeature =
+  | RampFeature
+  | ObstacleFeature
+  | LoopFeature
+  | CoinsFeature;
 
 export interface LoopData {
   // радиус петли и дистанция от x0 до точки входа (низ круга), cowH
@@ -417,6 +424,19 @@ export interface LoopData {
 
 export interface RailData {
   h: number;
+}
+
+// Клевер (продукт-план, фаза 3): коллектибл-россыпь, а не препятствие.
+// pts — [dx от x0, высота над асфальтом] в cowH; dx < 0 — точка лежит
+// ДО нашего x0 (дуга вылета от кикера, золотой на вершине петли).
+export type CoinsShape = 'line' | 'arc' | 'loopTop';
+export interface CoinsData {
+  shape: CoinsShape;
+  n: number;
+  pts: Vec2[];
+  taken: boolean[];
+  // дуга идёт по параболе двойного прыжка — автопилот жмёт 'double'
+  dbl: boolean;
 }
 
 // Точка траектории катания: мировой X, высота над асфальтом (cowH),
@@ -594,6 +614,15 @@ export interface GameEventMap {
   // препятствие полностью пройдено (момент isCleared) — источник очков
   // и статистики заезда; close — пролёт «впритык» (зазор < CLOSE_GAP_COWH)
   'obstacle-clear': CustomEvent<{ kind: ObstacleKind; close: boolean }>;
+  // клевер собран (фаза 3): x/y/z — экранная позиция (для искр), gold —
+  // золотой с вершины петли, full — этот клевер закрыл россыпь целиком
+  coin: CustomEvent<{
+    x: number;
+    y: number;
+    z: number;
+    gold: boolean;
+    full: boolean;
+  }>;
   // рубеж сложности (difficulty.js): подъём зоны — передышка спавна,
   // +1 к цепи, баннер и смена тона сцены
   zone: CustomEvent<{ zone: number }>;

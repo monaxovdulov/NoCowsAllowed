@@ -2,6 +2,7 @@ import {
   autoEl,
   bestEl,
   boostEl,
+  cloverTotalEl,
   coachEl,
   comboEl,
   comboMultEl,
@@ -32,6 +33,7 @@ import {
 import { clamp } from './utils.js';
 import { on } from './events.js';
 import { boardX } from './layout.js';
+import { readClover, writeClover } from './storage.js';
 import { FEATURE_TYPES } from './track/index.js';
 import { jump, trick } from './player.js';
 import { endRun, startRun } from './run.js';
@@ -54,11 +56,15 @@ const ZONE_TINTS = [
   'hue-rotate(-38deg) saturate(0.55) brightness(0.58) contrast(1.05)', // ночь
 ];
 let zoneUntil = 0; // state.t, до которого висит баннер «ЗОНА N»
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
+// кошелёк клевера (фаза 3): всего собрано за все заезды, живёт в
+// localStorage 'cow-skate-clover' — серверная синхронизация будет в фазе 5
+let cloverWallet = readClover();
+/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
 const shown = {
   score: -1,
   best: -1,
   dist: -1,
+  clover: -1,
   auto: null,
   cta: null,
   res: null,
@@ -85,6 +91,11 @@ export function hud() {
     distEl.hidden = dist < 0;
     distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
     shown.dist = dist;
+  }
+  // кошелёк клевера — общий накопленный баланс, показываем всегда
+  if (cloverWallet !== shown.clover) {
+    cloverTotalEl.textContent = cloverWallet.toLocaleString('ru-RU');
+    shown.clover = cloverWallet;
   }
   // колокольчики жизней — только в заезде, гаснут по одной при крэше
   const lives = state.run ? state.run.lives : -1;
@@ -259,6 +270,11 @@ export function initUi() {
   on('crash', (d) => {
     if (!playerMode()) return;
     setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
+  });
+  // кошелёк клевера: собранный лист — сразу в накопленный баланс
+  on('coin', () => {
+    cloverWallet += 1;
+    writeClover(cloverWallet);
   });
 }
 

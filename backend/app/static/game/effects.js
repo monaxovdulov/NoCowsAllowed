@@ -70,6 +70,7 @@ export function createDust(x, y, z, strength, img) {
   return {
     kind: 'dust',
     img: img || dustImg,
+    tint: null,
     x: x + rand(-6, 6) * geometry.u,
     y: y - rand(0, 8) * geometry.u,
     z,
@@ -86,13 +87,16 @@ export function createDust(x, y, z, strength, img) {
  * @param {number} x
  * @param {number} y
  * @param {number} z
+ * @param {[string, string] | null} [tint] пара цветов (горячий→остыл);
+ *   null — огненное умолчание
  * @returns {import('./types').Particle}
  */
-export function createSpark(x, y, z) {
+export function createSpark(x, y, z, tint = null) {
   const V = state.speed * geometry.cowH;
   return {
     kind: 'spark',
     img: null,
+    tint,
     x,
     y: y - 2 * geometry.u,
     z,
@@ -118,6 +122,7 @@ function createFlame(x, y, z) {
   return {
     kind: 'flame',
     img: fireImg,
+    tint: null,
     x: x + rand(-5, 5) * geometry.u,
     y: y + rand(-5, 3) * geometry.u,
     z,
@@ -139,6 +144,7 @@ export function createRing(x, y) {
   return {
     kind: 'ring',
     img: null,
+    tint: null,
     x,
     y,
     z: 1,
@@ -168,10 +174,11 @@ export function puff(x, y, z, n, strength, img) {
  * @param {number} y
  * @param {number} z
  * @param {number} n
+ * @param {[string, string] | null} [tint] цвет искр, null — огненные
  */
-export function sparks(x, y, z, n) {
+export function sparks(x, y, z, n, tint = null) {
   if (reduce) return;
-  for (let i = 0; i < n; i++) parts.push(createSpark(x, y, z));
+  for (let i = 0; i < n; i++) parts.push(createSpark(x, y, z, tint));
 }
 /**
  * @param {number} x
@@ -357,7 +364,14 @@ export function drawParticles() {
     }
     if (p.kind !== 'spark') continue;
     ctx.globalAlpha = 1 - t;
-    ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
+    const tn = p.tint;
+    ctx.strokeStyle = tn
+      ? t < 0.4
+        ? tn[0]
+        : tn[1]
+      : t < 0.4
+        ? '#fff4d6'
+        : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
@@ -374,6 +388,8 @@ export function drawParticles() {
 // прямые вызовы из player.js.
 // последний показанный множитель цепи — для попапа «×N» при росте
 let comboMultSeen = 1;
+/** Пара цветов клеверных искр (фаза 3): горячий → остыл. */
+const CLOVER_SPARK = /** @type {[string, string]} */ (['#eaffd2', '#42d96b']);
 
 export function initEffects() {
   on('airborne', (d) => {
@@ -438,6 +454,11 @@ export function initEffects() {
   on('ride-exit', (d) => {
     if (d.result === 'fail') return; // срыв — попап покажет crash
     popup(d.ok ? 'ПЕТЛЯ!' : 'НЕ ДОТЯНУЛ!', d.ok ? 'trick' : 'pts');
+  });
+  // сбор клевера (фаза 3): зелёная вспышка, полная россыпь — «ПОВЕЗЛО!»
+  on('coin', (d) => {
+    sparks(d.x, d.y, d.z, d.gold ? 14 : 8, CLOVER_SPARK);
+    if (d.full) popup('ПОВЕЗЛО!', 'trick');
   });
 }
 

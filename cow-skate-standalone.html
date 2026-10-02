@@ -143,6 +143,17 @@
         font-variant-numeric: tabular-nums;
         opacity: 0.78;
       }
+      /* кошелёк клевера (фаза 3): всего собрано, живёт в localStorage */
+      .clover {
+        font-weight: 500;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.78;
+      }
+      .clover b {
+        font-weight: 800;
+      }
       /* жизни заезда — колокольчики гаснут по одной при крэше */
       .lives {
         display: inline-flex;
@@ -708,6 +719,7 @@
         <span class="bar"><i id="comboTimer"></i></span>
       </div>
       <span class="dist" id="dist" hidden></span>
+      <span class="clover" id="clover">🍀 <b id="cloverTotal">0</b></span>
       <span class="best">рекорд <b id="best">0</b></span>
     </div>
     <div class="auto ui" id="auto">Демо</div>
@@ -1008,6 +1020,16 @@ const ZONE_M = 500, // метров заезда на одну зону
   ZONE_BREATHE_S = 4, // чистая трасса после баннера зоны, секунды
   ZONE_BANNER_S = 1.2, // показ баннера «ЗОНА N»
   P_PATTERN = 0.25; // вероятность паттерна вместо одиночной конструкции
+// Клевер (продукт-план, фаза 3): коллектибл-четырёхлистник — первая
+// коллекция. Хитбокс сбора и экономика очков в горшок комбо-цепи.
+const COIN_N = 5, // клеверов в линии/дуге
+  COIN_LINE_H = 0.15, // высота линии над асфальтом, cowH
+  COIN_STEP_COWH = 0.55, // шаг клеверов в линии, cowH
+  COIN_HIT_X = 0.18, // половина хитбокса сбора по X, cowH
+  COIN_HIT_H = 0.25, // …и по высоте, cowH
+  COIN_PTS = 10, // база в горшок цепи за клевер
+  COIN_GOLD_MULT = 5, // золотой клевер петли = COIN_PTS × это
+  COIN_LINE_BONUS = 50; // база за собранную россыпь целиком («ПОВЕЗЛО!»)
 // Защита от «нечестных» ситуаций: зазор между конструкциями не короче
 // полёта олли при текущей скорости минус 0.25 с.
 const OLLIE_FLIGHT_S = (2 * OLLIE_V) / GRAV; // длительность обычного прыжка, с
@@ -1060,6 +1082,27 @@ function readBest() {
 function writeBest(v) {
   try {
     localStorage.setItem(BEST_KEY, String(v));
+  } catch (error) {
+    warnStorage(error);
+  }
+}
+
+const CLOVER_KEY = 'cow-skate-clover';
+/** @returns {number} кошелёк клевера — всего собрано за все заезды (фаза 3) */
+function readClover() {
+  try {
+    const raw = localStorage.getItem(CLOVER_KEY);
+    return Math.max(0, parseInt(raw ?? '', 10) || 0);
+  } catch (error) {
+    warnStorage(error);
+    return 0;
+  }
+}
+
+/** @param {number} v всего собранных клеверов */
+function writeClover(v) {
+  try {
+    localStorage.setItem(CLOVER_KEY, String(v));
   } catch (error) {
     warnStorage(error);
   }
@@ -1134,6 +1177,10 @@ const bestEl = /** @type {HTMLElement} */ (
 /** @type {HTMLElement} */
 const distEl = /** @type {HTMLElement} */ (
   document.getElementById('dist')
+);
+/** @type {HTMLElement} счётчик кошелька клевера в HUD (фаза 3) */
+const cloverTotalEl = /** @type {HTMLElement} */ (
+  document.getElementById('cloverTotal')
 );
 /** @type {HTMLElement} */
 const autoEl = /** @type {HTMLElement} */ (
@@ -1984,6 +2031,77 @@ function buildObSprites() {
     obSprites[kind] = sprite(OBS[kind].w, OBS[kind].h, OB_PAINT[kind]);
 }
 
+// четырёхлистный клевер (фаза 3): сердечки-листы сочного зелёного,
+// тёмная обводка и блик — читается на тёмном асфальте; золотой для
+// вершины петли
+/**
+ * @param {CanvasRenderingContext2D} g
+ * @param {number} w
+ * @param {number} h
+ * @param {boolean} gold золотой вариант (вершина петли)
+ */
+function cloverTo(g, w, h, gold) {
+  const cx = w / 2,
+    cy = h * 0.46,
+    L = w * 0.4; // длина листа от центра
+  // черенок
+  g.strokeStyle = gold ? '#7a5410' : '#1d5a24';
+  g.lineWidth = w * 0.07;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(cx + w * 0.02, cy + L * 0.25);
+  g.quadraticCurveTo(cx + w * 0.16, cy + L * 0.95, cx + w * 0.05, h * 0.98);
+  g.stroke();
+  const lg = g.createRadialGradient(
+    cx - L * 0.4,
+    cy - L * 0.5,
+    L * 0.15,
+    cx,
+    cy,
+    L * 1.25,
+  );
+  if (gold) {
+    lg.addColorStop(0, '#fff3ae');
+    lg.addColorStop(0.45, '#ffd84a');
+    lg.addColorStop(1, '#c78d12');
+  } else {
+    lg.addColorStop(0, '#9df06e');
+    lg.addColorStop(0.45, '#46c93f');
+    lg.addColorStop(1, '#177d23');
+  }
+  // лист — «сердечко» наружу: лопасти и выемка на внешнем крае
+  for (let i = 0; i < 4; i++) {
+    g.save();
+    g.translate(cx, cy);
+    g.rotate((i * Math.PI) / 2 + Math.PI / 4);
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.bezierCurveTo(-L * 0.8, -L * 0.3, -L * 0.58, -L * 1.02, 0, -L * 0.72);
+    g.bezierCurveTo(L * 0.58, -L * 1.02, L * 0.8, -L * 0.3, 0, 0);
+    g.closePath();
+    g.fillStyle = lg;
+    g.fill();
+    g.strokeStyle = gold ? 'rgba(92,60,6,0.9)' : 'rgba(10,52,18,0.9)';
+    g.lineWidth = w * 0.028;
+    g.stroke();
+    g.restore();
+  }
+  // блик на верхнем левом листе
+  g.fillStyle = gold ? 'rgba(255,252,230,0.85)' : 'rgba(230,255,215,0.7)';
+  g.beginPath();
+  g.ellipse(cx - L * 0.34, cy - L * 0.36, L * 0.13, L * 0.07, -0.7, 0, TAU);
+  g.fill();
+}
+
+/** @type {import('./types').ObstacleSprite} */
+let cloverImg;
+/** @type {import('./types').ObstacleSprite} */
+let cloverGoldImg;
+function buildCloverSprites() {
+  cloverImg = sprite(0.22, 0.24, (g, w, h) => cloverTo(g, w, h, false));
+  cloverGoldImg = sprite(0.26, 0.28, (g, w, h) => cloverTo(g, w, h, true));
+}
+
 // ---------------------------------------------------------------- size-dependent buffers
 /** @type {HTMLCanvasElement} */
 let skyCv;
@@ -2340,6 +2458,7 @@ function initAssets(loaded) {
   fireImg = softDot('rgba(255,118,38,1)');
   lineImg = lineStrip();
   buildObSprites();
+  buildCloverSprites();
   buildCowCaches();
 }
 function initShadow() {
@@ -3011,6 +3130,189 @@ const loopSpec = {
   drawFlying: drawLoopFront,
 };
 
+// ---- game/track/coins.js
+// Клевер — четырёхлистники (продукт-план, фаза 3): первая коллекция.
+// Коллектибл, а не препятствие: collide помечает собранные и всегда
+// возвращает 'clear' — сбить клевер нельзя. Формы россыпи (data.shape):
+//   line — 5 клеверов низко над асфальтом: собираются просто ездой;
+//   arc — 5 по параболе прыжка (со 2-й зоны — двойного): «прыгай здесь»;
+//     если прямо перед нами стоит кикер (паттерн ставит вплотную) — дуга
+//     идёт по параболе его вылета;
+//   loopTop — золотой клевер в верхней точке петли (паттерн ставит сразу
+//     за loop): берётся только проездом через вершину.
+// Якорь у обеих «чужих» форм — предыдущая конструкция: plan читает
+// feats.at(-1) и при малом зазоре строит точки от её геометрии (dx < 0 —
+// часть россыпи лежит ДО нашего x0, внутри хозяина).
+// Сбор — событие 'coin': очки в цепь (combo.js), статистика заезда
+// (run.js), искры и попап «ПОВЕЗЛО!» (effects.js), кошелёк HUD (ui.js).
+
+// якорная конструкция считается «хозяином» только вплотную — больше
+// зазора нет ни у одного планового gapAfter, связь ставит паттерн
+const HOST_GAP_COWH = 6;
+
+/**
+ * Парабола прыжка → COIN_N точек дуги, равномерно по времени полёта.
+ * Интегрируем шагами — так «двойной» вписывается естественно: в момент
+ * dblAt скорость перезаряжается ровно как в player.js:jump().
+ * @param {number} v0 вертикальная скорость вылета, cowH/с
+ * @param {number} h0 высота кромки вылета, cowH
+ * @param {number} spd скорость по трассе, cowH/с
+ * @param {number} dblAt момент двойного прыжка, с (0 — обычный)
+ * @returns {import('../types').Vec2[]} [dxCowH, hCowH] от точки вылета
+ */
+function jumpArc(v0, h0, spd, dblAt) {
+  const dt = 1 / 240;
+  /** @type {number[]} */
+  const xs = [];
+  /** @type {number[]} */
+  const hs = [];
+  let t = 0,
+    h = h0,
+    v = v0;
+  while (h > 0 || t === 0) {
+    t += dt;
+    v -= GRAV * dt;
+    if (dblAt > 0 && t >= dblAt) {
+      v = Math.max(v, 0) * 0.3 + DOUBLE_V; // как state.hV в jump()
+      dblAt = 0;
+    }
+    h += v * dt;
+    xs.push(spd * t);
+    hs.push(h);
+  }
+  /** @type {import('../types').Vec2[]} */
+  const pts = [];
+  for (let i = 0; i < COIN_N; i++) {
+    const k = Math.floor(((i + 0.5) / COIN_N) * xs.length);
+    pts.push([xs[k], Math.max(0.06, hs[k])]);
+  }
+  return pts;
+}
+
+/** @type {import('../types').FeatureTypeSpec<import('../types').CoinsData, 'coins'>} */
+const coinsSpec = {
+  type: 'coins',
+  weight: 12, // редкая россыпь — коллекция, а не основа ритма
+  minGapBeforeCowH: 2.5,
+  plan(ctx) {
+    // конструкция прямо перед нами — якорь форм: паттерн ставит клевер
+    // вплотную за кикером (дуга вылета) или петлёй (золотой на вершине)
+    const prev = feats.at(-1),
+      prevGap = prev ? (ctx.X - prev.x1) / ctx.cowH : Infinity;
+    /** @type {import('../types').CoinsShape} */
+    let shape = 'line';
+    /** @type {import('../types').Vec2[]} */
+    let pts;
+    let dbl = false;
+    const spd = Math.max(1, ctx.spdN) * CRUISE;
+    if (prev && prev.type === 'loop' && prevGap < HOST_GAP_COWH) {
+      // вершина петли: θ=π над точкой входа — X входа, h = 2r
+      const d = /** @type {import('../types').LoopData} */ (prev.data);
+      pts = [[(prev.x0 + d.entry * ctx.cowH - ctx.X) / ctx.cowH, 2 * d.r]];
+      shape = 'loopTop';
+    } else if (prev && prev.type === 'ramp' && prevGap < HOST_GAP_COWH) {
+      // дуга над кикером — по параболе вылета от его кромки
+      const d = /** @type {import('../types').RampData} */ (prev.data);
+      const launch = Math.min(3.9, 2.2 + 1.25 * ctx.spdN); // как в launch()
+      pts = jumpArc(launch, d.hr, spd, 0).map(([x, h]) => [x - prevGap, h]);
+      shape = 'arc';
+    } else if (prev && ctx.rand(0, 1) < 0.4) {
+      // «прыгай здесь»: с зоны 2 — по параболе двойного прыжка
+      dbl = ctx.zone >= 2;
+      pts = jumpArc(OLLIE_V, 0, spd, dbl ? 0.25 : 0);
+      shape = 'arc';
+    } else {
+      pts = [];
+      for (let i = 0; i < COIN_N; i++)
+        pts.push([i * COIN_STEP_COWH, COIN_LINE_H]);
+    }
+    return {
+      data: { shape, n: pts.length, pts, taken: pts.map(() => false), dbl },
+      lengthCowH: Math.max(0.4, pts[pts.length - 1][0] + 0.4),
+      gapAfterCowH: ctx.rand(8, 13) * Math.max(1, 0.8 * ctx.spdN),
+    };
+  },
+  // точка сбора — тот же кадровый collide, что и у препятствий, но
+  // хитбокс по точкам россыпи и 'hit' не бывает никогда
+  collide(feat, X, h) {
+    const d = feat.data,
+      cowH = geometry.cowH,
+      hb = COIN_HIT_X * cowH;
+    if (
+      X < feat.x0 + d.pts[0][0] * cowH - hb ||
+      X > feat.x0 + d.pts[d.n - 1][0] * cowH + hb
+    )
+      return 'clear';
+    for (let i = 0; i < d.n; i++) {
+      if (d.taken[i]) continue;
+      const [dx, ch] = d.pts[i],
+        Xc = feat.x0 + dx * cowH;
+      if (Math.abs(X - Xc) >= hb || Math.abs(h - ch) >= COIN_HIT_H) continue;
+      d.taken[i] = true;
+      const [x, y, z] = obPos(Xc);
+      emit('coin', {
+        x,
+        y: y - (ch * cowH) / z,
+        z,
+        gold: d.shape === 'loopTop',
+        full: d.taken.every(Boolean),
+      });
+    }
+    return 'clear';
+  },
+  autopilot(feat) {
+    const d = feat.data;
+    if (feat.x1 <= boardX() || d.taken.every(Boolean)) return null;
+    if (d.shape === 'arc') {
+      // прыжок к началу дуги — пролетели старт, хинт уже не нужен
+      const at = feat.x0 + d.pts[0][0] * geometry.cowH;
+      if (at <= boardX()) return null;
+      return { at, leadS: 0.07, action: d.dbl ? 'double' : 'jump' };
+    }
+    // линия собирается ездой, золотой — дугой петли: флёртиш на подходе
+    // не нужен, конструкция отвечает своим въездом
+    return { at: feat.x0, leadS: 0, action: 'none' };
+  },
+  depth: (feat) => obPos((feat.x0 + feat.x1) / 2)[2],
+  draw(feat, blur) {
+    const d = feat.data,
+      cowH = geometry.cowH,
+      img = d.shape === 'loopTop' ? cloverGoldImg : cloverImg;
+    for (let i = 0; i < d.n; i++) {
+      if (d.taken[i]) continue;
+      const [dx, ch] = d.pts[i],
+        [x, y, z] = obPos(feat.x0 + dx * cowH);
+      if (x < X0() - cowH || x > X1() + cowH) continue;
+      const a = clamp((geometry.zEdge * 1.12 - z) * 2.4, 0, 1); // проступают из дали
+      if (a <= 0.02) continue;
+      const sc = cowH / OBR / z,
+        w = img.width * sc,
+        hh = img.height * sc,
+        // вращение вокруг вертикали — сжатие по X синусом; лёгкий покач
+        sqz = 0.2 + 0.8 * Math.abs(Math.cos(state.t * 2.7 + i * 1.9)),
+        bob = Math.sin(state.t * 2.2 + i * 1.3) * 0.02 * cowH,
+        cy = y - (ch * cowH) / z - bob / z;
+      // свечение под клевером — отделяет спрайт от тёмного асфальта
+      ctx.save();
+      ctx.translate(x, cy);
+      ctx.scale((w * 0.72) / 64, (hh * 0.72) / 64);
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = 0.32 * a;
+      ctx.drawImage(glowImg, -64, -64);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(x, cy);
+      ctx.scale(sqz, 1);
+      // смаз движения — как у препятствий
+      ctx.globalAlpha = 0.26 * a;
+      ctx.drawImage(img, -w / 2 + blur / z, -hh / 2, w, hh);
+      ctx.globalAlpha = a;
+      ctx.drawImage(img, -w / 2, -hh / 2, w, hh);
+      ctx.restore();
+    }
+  },
+};
+
 // ---- game/track/index.js
 // Реестр видов конструкций (карта, этап 5, D4): добавить вид =
 // + запись здесь. Движок не знает типов — диспетчит по этой таблице.
@@ -3020,6 +3322,7 @@ const FEATURE_TYPES = {
   ramp: rampSpec,
   ob: obstacleSpec,
   loop: loopSpec,
+  coins: coinsSpec,
 };
 
 // ---- game/pose.js
@@ -3220,6 +3523,7 @@ function createDust(x, y, z, strength, img) {
   return {
     kind: 'dust',
     img: img || dustImg,
+    tint: null,
     x: x + rand(-6, 6) * geometry.u,
     y: y - rand(0, 8) * geometry.u,
     z,
@@ -3236,13 +3540,16 @@ function createDust(x, y, z, strength, img) {
  * @param {number} x
  * @param {number} y
  * @param {number} z
+ * @param {[string, string] | null} [tint] пара цветов (горячий→остыл);
+ *   null — огненное умолчание
  * @returns {import('./types').Particle}
  */
-function createSpark(x, y, z) {
+function createSpark(x, y, z, tint = null) {
   const V = state.speed * geometry.cowH;
   return {
     kind: 'spark',
     img: null,
+    tint,
     x,
     y: y - 2 * geometry.u,
     z,
@@ -3268,6 +3575,7 @@ function createFlame(x, y, z) {
   return {
     kind: 'flame',
     img: fireImg,
+    tint: null,
     x: x + rand(-5, 5) * geometry.u,
     y: y + rand(-5, 3) * geometry.u,
     z,
@@ -3289,6 +3597,7 @@ function createRing(x, y) {
   return {
     kind: 'ring',
     img: null,
+    tint: null,
     x,
     y,
     z: 1,
@@ -3318,10 +3627,11 @@ function puff(x, y, z, n, strength, img) {
  * @param {number} y
  * @param {number} z
  * @param {number} n
+ * @param {[string, string] | null} [tint] цвет искр, null — огненные
  */
-function sparks(x, y, z, n) {
+function sparks(x, y, z, n, tint = null) {
   if (reduce) return;
-  for (let i = 0; i < n; i++) parts.push(createSpark(x, y, z));
+  for (let i = 0; i < n; i++) parts.push(createSpark(x, y, z, tint));
 }
 /**
  * @param {number} x
@@ -3507,7 +3817,14 @@ function drawParticles() {
     }
     if (p.kind !== 'spark') continue;
     ctx.globalAlpha = 1 - t;
-    ctx.strokeStyle = t < 0.4 ? '#fff4d6' : '#ffb14e';
+    const tn = p.tint;
+    ctx.strokeStyle = tn
+      ? t < 0.4
+        ? tn[0]
+        : tn[1]
+      : t < 0.4
+        ? '#fff4d6'
+        : '#ffb14e';
     ctx.lineWidth = Math.max(1, 1.6 * geometry.u);
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
@@ -3524,6 +3841,8 @@ function drawParticles() {
 // прямые вызовы из player.js.
 // последний показанный множитель цепи — для попапа «×N» при росте
 let comboMultSeen = 1;
+/** Пара цветов клеверных искр (фаза 3): горячий → остыл. */
+const CLOVER_SPARK = /** @type {[string, string]} */ (['#eaffd2', '#42d96b']);
 
 function initEffects() {
   on('airborne', (d) => {
@@ -3588,6 +3907,11 @@ function initEffects() {
   on('ride-exit', (d) => {
     if (d.result === 'fail') return; // срыв — попап покажет crash
     popup(d.ok ? 'ПЕТЛЯ!' : 'НЕ ДОТЯНУЛ!', d.ok ? 'trick' : 'pts');
+  });
+  // сбор клевера (фаза 3): зелёная вспышка, полная россыпь — «ПОВЕЗЛО!»
+  on('coin', (d) => {
+    sparks(d.x, d.y, d.z, d.gold ? 14 : 8, CLOVER_SPARK);
+    if (d.full) popup('ПОВЕЗЛО!', 'trick');
   });
 }
 
@@ -4273,6 +4597,22 @@ const PATTERNS = [
       { type: 'loop' },
     ],
   },
+  // дуга клевера над кикером (фаза 3): россыпь вплотную за рампой —
+  // plan сам строит дугу по параболе вылета от кромки предыдущей фичи
+  {
+    id: 'kickclover',
+    minZone: 2,
+    weight: 2,
+    items: [{ type: 'ramp', gapAfterCowH: 0 }, { type: 'coins' }],
+  },
+  // золотой клевер на вершине петли: та же ставка вплотную за loop —
+  // plan кладёт точку на вершину дуги по данным хозяина
+  {
+    id: 'goldloop',
+    minZone: 2,
+    weight: 2,
+    items: [{ type: 'loop', gapAfterCowH: 0 }, { type: 'coins' }],
+  },
 ];
 
 // ---- game/difficulty.js
@@ -4809,6 +5149,10 @@ function initRun() {
   on('ride-exit', (d) => {
     if (state.run && d.result === 'exit' && d.ok) state.run.stats.loops += 1;
   });
+  // клеверы заезда (фаза 3)
+  on('coin', () => {
+    if (state.run) state.run.stats.coins += 1;
+  });
   // PD2: крэш отнимает жизнь, заезд кончается только на нуле жизней.
   // Несданное комбо при этом сжигает combo.js по тому же событию.
   on('crash', (d) => {
@@ -4916,6 +5260,12 @@ function initCombo() {
   });
   // препятствие взято: +25 к базе за пролёт впритык
   on('obstacle-clear', (d) => feed(d.close ? 75 : 50));
+  // клевер (фаза 3): кормит горшок по множителю, цепь не растит —
+  // растёт только собранная россыпь целиком («полная линия»)
+  on('coin', (d) => {
+    feed(d.gold ? COIN_PTS * COIN_GOLD_MULT : COIN_PTS, 0);
+    if (d.full) feed(COIN_LINE_BONUS);
+  });
   // двойной прыжок кормит горшок, но цепь не растит
   on('trick', (d) => {
     if (d.kind === 'double') feed(30, 0);
@@ -4976,11 +5326,15 @@ const ZONE_TINTS = [
   'hue-rotate(-38deg) saturate(0.55) brightness(0.58) contrast(1.05)', // ночь
 ];
 let zoneUntil = 0; // state.t, до которого висит баннер «ЗОНА N»
-/** @type {{score: number, best: number, dist: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
+// кошелёк клевера (фаза 3): всего собрано за все заезды, живёт в
+// localStorage 'cow-skate-clover' — серверная синхронизация будет в фазе 5
+let cloverWallet = readClover();
+/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
 const shown = {
   score: -1,
   best: -1,
   dist: -1,
+  clover: -1,
   auto: null,
   cta: null,
   res: null,
@@ -5007,6 +5361,11 @@ function hud() {
     distEl.hidden = dist < 0;
     distEl.textContent = dist < 0 ? '' : `${dist.toLocaleString('ru-RU')} м`;
     shown.dist = dist;
+  }
+  // кошелёк клевера — общий накопленный баланс, показываем всегда
+  if (cloverWallet !== shown.clover) {
+    cloverTotalEl.textContent = cloverWallet.toLocaleString('ru-RU');
+    shown.clover = cloverWallet;
   }
   // колокольчики жизней — только в заезде, гаснут по одной при крэше
   const lives = state.run ? state.run.lives : -1;
@@ -5181,6 +5540,11 @@ function initUi() {
   on('crash', (d) => {
     if (!playerMode()) return;
     setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
+  });
+  // кошелёк клевера: собранный лист — сразу в накопленный баланс
+  on('coin', () => {
+    cloverWallet += 1;
+    writeClover(cloverWallet);
   });
 }
 
@@ -5847,15 +6211,20 @@ const tutorSkip = /** @type {HTMLElement | null} */ (
  */
 
 /**
- * Впереди (ближе leadS секунд по ходу) конструкция, чья подсказка
- * автопилота требует одно из перечисленных действий.
+ * Впереди (ближе leadS секунд по ходу) конструкция нужного вида, чья
+ * подсказка автопилота требует одно из перечисленных действий. Фильтр
+ * по типу обязателен: action 'none'/'jump' выдают и коллектиблы
+ * (клевер, фаза 3) — без него гейт «Трамплин!»/«Препятствие!»
+ * срабатывал бы на россыпь.
  * @param {number} Xb мировой X доски
  * @param {number} V скорость, px/с
  * @param {string[]} actions допустимые action из AutopilotHint
  * @param {number} leadS порог, секунды до конструкции
+ * @param {string[]} types допустимые вид(ы) конструкции
  */
-function featAhead(Xb, V, actions, leadS) {
+function featAhead(Xb, V, actions, leadS, types) {
   for (const f of feats) {
+    if (!types.includes(f.type)) continue;
     const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
     if (
       hnt &&
@@ -5880,7 +6249,7 @@ const GATES = [
     id: 'ob',
     title: 'Препятствие!',
     text: 'Смотри на «!» над ним — тапни заранее, чтобы перепрыгнуть. За взятое +50.',
-    when: (Xb, V) => featAhead(Xb, V, ['jump', 'double'], 1.7),
+    when: (Xb, V) => featAhead(Xb, V, ['jump', 'double'], 1.7, ['ob']),
   },
   {
     id: 'double',
@@ -5892,13 +6261,13 @@ const GATES = [
     id: 'ramp',
     title: 'Трамплин!',
     text: 'В большом вылете жми кнопки трюков внизу — серия трюков за один прыжок умножает очки.',
-    when: (Xb, V) => featAhead(Xb, V, ['none'], 2.6),
+    when: (Xb, V) => featAhead(Xb, V, ['none'], 2.6, ['ramp']),
   },
   {
     id: 'loop',
     title: 'Мёртвая петля!',
     text: 'Обычной скорости не хватит — качай кнопку «ГАЗ» заранее и держи зажатой, чтобы разогнаться и проехать круг.',
-    when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
+    when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0, ['loop']),
   },
   {
     id: 'combo',

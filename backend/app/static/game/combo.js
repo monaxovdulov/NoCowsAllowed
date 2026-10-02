@@ -10,6 +10,9 @@
 // вылете и «идеальное» приземление дороже — спам одного действия
 // проигрывает миксу и точному таймингу.
 import {
+  COIN_GOLD_MULT,
+  COIN_LINE_BONUS,
+  COIN_PTS,
   COMBO_MULT_MAX,
   COMBO_WINDOW_S,
   PERFECT_BONUS,
@@ -85,6 +88,12 @@ export function initCombo() {
   });
   // препятствие взято: +25 к базе за пролёт впритык
   on('obstacle-clear', (d) => feed(d.close ? 75 : 50));
+  // клевер (фаза 3): кормит горшок по множителю, цепь не растит —
+  // растёт только собранная россыпь целиком («полная линия»)
+  on('coin', (d) => {
+    feed(d.gold ? COIN_PTS * COIN_GOLD_MULT : COIN_PTS, 0);
+    if (d.full) feed(COIN_LINE_BONUS);
+  });
   // двойной прыжок кормит горшок, но цепь не растит
   on('trick', (d) => {
     if (d.kind === 'double') feed(30, 0);

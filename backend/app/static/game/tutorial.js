@@ -45,15 +45,20 @@ const tutorSkip = /** @type {HTMLElement | null} */ (
  */
 
 /**
- * Впереди (ближе leadS секунд по ходу) конструкция, чья подсказка
- * автопилота требует одно из перечисленных действий.
+ * Впереди (ближе leadS секунд по ходу) конструкция нужного вида, чья
+ * подсказка автопилота требует одно из перечисленных действий. Фильтр
+ * по типу обязателен: action 'none'/'jump' выдают и коллектиблы
+ * (клевер, фаза 3) — без него гейт «Трамплин!»/«Препятствие!»
+ * срабатывал бы на россыпь.
  * @param {number} Xb мировой X доски
  * @param {number} V скорость, px/с
  * @param {string[]} actions допустимые action из AutopilotHint
  * @param {number} leadS порог, секунды до конструкции
+ * @param {string[]} types допустимые вид(ы) конструкции
  */
-function featAhead(Xb, V, actions, leadS) {
+function featAhead(Xb, V, actions, leadS, types) {
   for (const f of feats) {
+    if (!types.includes(f.type)) continue;
     const hnt = FEATURE_TYPES[f.type].autopilot?.(f);
     if (
       hnt &&
@@ -78,7 +83,7 @@ const GATES = [
     id: 'ob',
     title: 'Препятствие!',
     text: 'Смотри на «!» над ним — тапни заранее, чтобы перепрыгнуть. За взятое +50.',
-    when: (Xb, V) => featAhead(Xb, V, ['jump', 'double'], 1.7),
+    when: (Xb, V) => featAhead(Xb, V, ['jump', 'double'], 1.7, ['ob']),
   },
   {
     id: 'double',
@@ -90,13 +95,13 @@ const GATES = [
     id: 'ramp',
     title: 'Трамплин!',
     text: 'В большом вылете жми кнопки трюков внизу — серия трюков за один прыжок умножает очки.',
-    when: (Xb, V) => featAhead(Xb, V, ['none'], 2.6),
+    when: (Xb, V) => featAhead(Xb, V, ['none'], 2.6, ['ramp']),
   },
   {
     id: 'loop',
     title: 'Мёртвая петля!',
     text: 'Обычной скорости не хватит — качай кнопку «ГАЗ» заранее и держи зажатой, чтобы разогнаться и проехать круг.',
-    when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0),
+    when: (Xb, V) => featAhead(Xb, V, ['hold'], 3.0, ['loop']),
   },
   {
     id: 'combo',

@@ -50,6 +50,10 @@ export const bestEl = /** @type {HTMLElement} */ (
 export const distEl = /** @type {HTMLElement} */ (
   document.getElementById('dist')
 );
+/** @type {HTMLElement} счётчик кошелька клевера в HUD (фаза 3) */
+export const cloverTotalEl = /** @type {HTMLElement} */ (
+  document.getElementById('cloverTotal')
+);
 /** @type {HTMLElement} */
 export const autoEl = /** @type {HTMLElement} */ (
   document.getElementById('auto')

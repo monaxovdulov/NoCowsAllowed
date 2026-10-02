@@ -32,6 +32,27 @@ export function writeBest(v) {
   }
 }
 
+const CLOVER_KEY = 'cow-skate-clover';
+/** @returns {number} кошелёк клевера — всего собрано за все заезды (фаза 3) */
+export function readClover() {
+  try {
+    const raw = localStorage.getItem(CLOVER_KEY);
+    return Math.max(0, parseInt(raw ?? '', 10) || 0);
+  } catch (error) {
+    warnStorage(error);
+    return 0;
+  }
+}
+
+/** @param {number} v всего собранных клеверов */
+export function writeClover(v) {
+  try {
+    localStorage.setItem(CLOVER_KEY, String(v));
+  } catch (error) {
+    warnStorage(error);
+  }
+}
+
 const TUT_KEY = 'cow-skate-tut';
 /** @returns {Set<string>} ids уже показанных туториал-гейтов */
 export function readTutored() {
