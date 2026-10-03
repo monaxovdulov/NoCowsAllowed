@@ -59,6 +59,9 @@ export function endRun(reason, crashReason = null) {
     distM: run.distM,
     durationS: state.t - run.t0,
     stats: run.stats,
+    // несданный горшок на момент конца: при crash подписка combo.js
+    // сожжёт его следом (run.js подписан раньше), при idle — так и висит
+    lostPot: state.combo.pot,
     reason,
     crashReason,
   };

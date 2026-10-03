@@ -7,7 +7,7 @@ import {
   rand,
   TAU,
 } from './utils.js';
-import { TRICKS } from './constants.js';
+import { COIN_GOLD_MULT, COIN_PTS, TRICKS } from './constants.js';
 import { on } from './events.js';
 import {
   clouds,
@@ -455,9 +455,11 @@ export function initEffects() {
     if (d.result === 'fail') return; // срыв — попап покажет crash
     popup(d.ok ? 'ПЕТЛЯ!' : 'НЕ ДОТЯНУЛ!', d.ok ? 'trick' : 'pts');
   });
-  // сбор клевера (фаза 3): зелёная вспышка, полная россыпь — «ПОВЕЗЛО!»
+  // сбор клевера (фаза 3): зелёная вспышка + «+N» — видно, что лист
+  // кормит горшок цепи; полная россыпь — «ПОВЕЗЛО!»
   on('coin', (d) => {
     sparks(d.x, d.y, d.z, d.gold ? 14 : 8, CLOVER_SPARK);
+    popup(`🍀 +${d.gold ? COIN_PTS * COIN_GOLD_MULT : COIN_PTS}`, 'pts');
     if (d.full) popup('ПОВЕЗЛО!', 'trick');
   });
 }

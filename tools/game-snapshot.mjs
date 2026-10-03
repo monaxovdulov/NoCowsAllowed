@@ -131,6 +131,7 @@ const initHook = ({ seed, coarse, tutored }) => {
           'loop',
           'combo',
           'lives',
+          'clover',
         ]),
       );
     } catch (e) {

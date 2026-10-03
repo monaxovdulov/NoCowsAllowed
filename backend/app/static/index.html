@@ -158,7 +158,15 @@
       .clover b {
         font-weight: 800;
       }
-      /* жизни заезда — колокольчики гаснут по одной при крэше */
+      /* тик кошелька при сборе листа — как .score.bump */
+      .clover {
+        transform-origin: left center;
+        transition: transform 0.18s ease;
+      }
+      .clover.bump {
+        transform: scale(1.25);
+      }
+      /* жизни заезда — сердечки гаснут по одной при крэше */
       .lives {
         display: inline-flex;
         gap: 4px;
@@ -366,12 +374,30 @@
         }
       }
       .result {
-        top: 26%;
+        top: 24%;
       }
       .result b {
         font-weight: 800;
         font-size: 21px;
         letter-spacing: 0.04em;
+      }
+      /* карточка конца заезда висит до тапа: заголовок, счёт, итоги */
+      .result .rTitle {
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        opacity: 0.8;
+      }
+      .result .rScore {
+        font-size: 30px;
+        color: var(--gold);
+      }
+      .result .lost {
+        color: #ff7a6e;
+      }
+      .result .again {
+        color: var(--gold);
+        animation: ctaPulse 1.15s ease-in-out infinite;
       }
       .result .newBest {
         color: var(--gold);
@@ -716,7 +742,7 @@
 
     <div class="hud ui" id="hud">
       <span class="score" id="score">0</span>
-      <span class="lives" id="lives" hidden> <i>🔔</i><i>🔔</i><i>🔔</i> </span>
+      <span class="lives" id="lives" hidden> <i>❤️</i><i>❤️</i><i>❤️</i> </span>
       <div class="combo" id="combo" hidden>
         <b id="comboMult">×1</b>
         <span class="pot" id="comboPot">+0</span>

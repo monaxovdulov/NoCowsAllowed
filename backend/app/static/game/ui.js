@@ -2,6 +2,7 @@ import {
   autoEl,
   bestEl,
   boostEl,
+  cloverEl,
   cloverTotalEl,
   coachEl,
   comboEl,
@@ -56,6 +57,10 @@ const ZONE_TINTS = [
   'hue-rotate(-38deg) saturate(0.55) brightness(0.58) contrast(1.05)', // ночь
 ];
 let zoneUntil = 0; // state.t, до которого висит баннер «ЗОНА N»
+// pid зажатых указателей (объявлены здесь: hud() освежает по ним
+// lastInput каждый кадр — удержание тоже живой ввод); -1 — свободен
+let holdPid = -1,
+  gasPid = -1;
 // кошелёк клевера (фаза 3): всего собрано за все заезды, живёт в
 // localStorage 'cow-skate-clover' — серверная синхронизация будет в фазе 5
 let cloverWallet = readClover();
@@ -77,6 +82,11 @@ const shown = {
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
+  // удержание — живой ввод: пока палец реально занят (pointerId на
+  // canvas/«ГАЗе»), заезд не должен уходить в idle. Автопилот жмёт
+  // state.throttle/gasHeld без pointerId — смотрим на pid, не на флаги,
+  // иначе демо никогда не отдало бы управление обратно.
+  if (holdPid >= 0 || gasPid >= 0) state.lastInput = state.t;
   if (state.score !== shown.score) {
     scoreEl.textContent = state.score.toLocaleString('ru-RU');
     shown.score = state.score;
@@ -184,7 +194,8 @@ export function hud() {
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
 }
 
-// карточка результата поверх крэша — замыкает петлю «заехал → упал → увидел счёт».
+// карточка результата — явный «конец заезда»: висит до следующего тапа
+// (run-start прячет через resultUntil=0), не растворяется в демо.
 // Место в топе приходит позже (cowskate:rank) — дописывается в [data-rank].
 let cardRun = 0; // заезд, чья карточка на экране — отсекает чужой rank
 /**
@@ -208,10 +219,17 @@ function showResult(d) {
   const stat = [`${Math.floor(d.distM).toLocaleString('ru-RU')} м`];
   if (d.stats.maxMult > 1) stat.push(`×${d.stats.maxMult}`);
   if (d.stats.tricks) stat.push(tricksWord(d.stats.tricks));
+  if (d.stats.coins) stat.push(`🍀 ${d.stats.coins}`);
   const crown = d.isNewBest ? '<span class="newBest">Новый рекорд!</span>' : '';
-  resultEl.innerHTML = `<b>Заезд: ${d.score.toLocaleString('ru-RU')}</b>${crown}<span>${stat.join(' · ')}</span><span data-rank></span>`;
+  // несданный горшок на конец заезда — «яснее сгорание»: крэш сжёг,
+  // молчаливый idle-финал просто не донёс до счёта
+  const lost =
+    d.lostPot > 0
+      ? `<span class="lost">${d.reason === 'crash' ? 'горшок сгорел' : 'не досдано'} −${d.lostPot.toLocaleString('ru-RU')}</span>`
+      : '';
+  resultEl.innerHTML = `<b class="rTitle">Заезд окончен</b><b class="rScore">${d.score.toLocaleString('ru-RU')}</b>${crown}<span>${stat.join(' · ')}</span>${lost}<span data-rank></span><span class="again">тапни — ещё раз</span>`;
   resultEl.classList.remove('dim');
-  state.resultUntil = state.t + 3.5;
+  state.resultUntil = Infinity; // до тапа: следующий заезд гасит карточку
 }
 
 // ---------------------------------------------------------------- coach (первый заезд)
@@ -253,8 +271,13 @@ export function initUi() {
     zoneEl.classList.remove('dim');
     zoneUntil = state.t + ZONE_BANNER_S;
   });
+  on('run-start', () => {
+    state.resultUntil = 0; // новый заезд гасит карточку конца предыдущего
+  });
   on('run-end', (d) => {
-    if (d.reason === 'crash') showResult(d);
+    // явная точка конца игры: и последняя жизнь, и тихий idle-финал
+    // показывают карточку — она висит до следующего тапа
+    if (d.reason === 'crash' || d.reason === 'idle') showResult(d);
   });
   // место в общем топе приходит асинхронно из /api/score (telegram-bridge)
   document.addEventListener('cowskate:rank', (e) => {
@@ -271,18 +294,23 @@ export function initUi() {
     if (!playerMode()) return;
     setCoach(d.score < 60 ? 'СМОТРИ НА «!» И ПРЫГАЙ ЗАРАНЕЕ' : null, 3.2);
   });
-  // кошелёк клевера: собранный лист — сразу в накопленный баланс
+  // кошелёк клевера: собранный лист — сразу в накопленный баланс.
+  // Только в заезде: демо-автопилот тоже собирает россыпи, но они
+  // не твои.
   on('coin', () => {
+    if (!state.run) return;
     cloverWallet += 1;
     writeClover(cloverWallet);
+    cloverEl.classList.remove('bump');
+    void cloverEl.offsetWidth;
+    cloverEl.classList.add('bump');
+    setTimeout(() => cloverEl.classList.remove('bump'), 200);
   });
 }
 
 // ---------------------------------------------------------------- input
 let holdTimer = 0,
-  holding = false,
-  holdPid = -1, // pointerId касания на canvas — чужие пальцы не снимают холд
-  gasPid = -1;
+  holding = false;
 function touched() {
   // перехват автопилота мог случиться между тиками stepRun — закрываем
   // заезд здесь, чтобы ввод честно начинал новый

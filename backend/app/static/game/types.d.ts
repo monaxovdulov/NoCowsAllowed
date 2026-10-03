@@ -646,6 +646,9 @@ export interface RunEndDetail {
   distM: number;
   durationS: number;
   stats: RunStats;
+  // несданный горшок цепи на момент конца (крэш сжигает — показываем
+  // «сгорело», idle — «не досдано»)
+  lostPot: number;
   reason: RunEndReason;
   crashReason: CrashReason | null;
 }
