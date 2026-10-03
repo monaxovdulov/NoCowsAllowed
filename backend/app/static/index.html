@@ -128,6 +128,19 @@
         transform: scale(1.14);
         color: var(--gold);
       }
+      /* несданный горшок цепи рядом со счётом: «очки идут» видно
+         на каждом действии — сольётся в счёт при сдаче, сгорит при крэше */
+      .score b {
+        font-weight: 800;
+      }
+      .score i {
+        font-style: normal;
+        font-size: 0.55em;
+        color: var(--gold);
+        opacity: 0.85;
+        margin-left: 6px;
+        vertical-align: baseline;
+      }
       .best {
         font-weight: 500;
         font-size: 10px;
@@ -591,6 +604,19 @@
         outline: 2px solid var(--gold);
         outline-offset: 2px;
       }
+      /* в воздухе с запасом прыжка кнопка зовёт «ЕЩЁ РАЗ» — видно,
+         что двойной доступен прямо сейчас */
+      .pad button.dbl {
+        border-color: var(--gold);
+        color: var(--gold);
+        box-shadow: 0 0 18px rgba(255, 216, 74, 0.45);
+        animation: dblPulse 0.8s ease-in-out infinite;
+      }
+      @keyframes dblPulse {
+        50% {
+          box-shadow: 0 0 4px rgba(255, 216, 74, 0.15);
+        }
+      }
       .pad kbd {
         font-family: inherit;
         font-weight: 500;
@@ -741,7 +767,9 @@
     <div class="grain" aria-hidden="true"></div>
 
     <div class="hud ui" id="hud">
-      <span class="score" id="score">0</span>
+      <span class="score" id="score"
+        ><b id="scoreNum">0</b><i id="scorePot"></i
+      ></span>
       <span class="lives" id="lives" hidden> <i>❤️</i><i>❤️</i><i>❤️</i> </span>
       <div class="combo" id="combo" hidden>
         <b id="comboMult">×1</b>

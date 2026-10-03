@@ -14,7 +14,7 @@
           "scene": "b15af4d1dfbb1979925043f3148410eaf14213d81fdd807ef51f6dea7f1877a9",
           "bloom": "289f59ac0cb95cd85508b399a4447958258e6b368f7450fa0d4251617f2b93b3",
           "hud": {
-            "score": "0",
+            "score": "0+390",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -102,7 +102,7 @@
           "scene": "61195038d97c8e7f21cde2860364fce5274e1feda6b8fabd5e858529c209e909",
           "bloom": "339276a9587329a421e4780e0b7f8a5cd1b420ab0f0e9d4fffdd052308c94152",
           "hud": {
-            "score": "0",
+            "score": "0+150",
             "best": "0",
             "autoHidden": true,
             "hudClass": "hud ui",
@@ -124,7 +124,7 @@
           "scene": "fa1a912d57b744e8c60dfe3495cb7ce1d373be51dccd8814a8638ef2e710a526",
           "bloom": "dd14c8c96e5493477cbb3a4acbd96433b23ced48bc7061f923166b8ae8926109",
           "hud": {
-            "score": "0",
+            "score": "0+800",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -146,7 +146,7 @@
           "scene": "647fb1d2e2e1a036654a7aed9c56257a2da5575df348ae55659905505c64b1b2",
           "bloom": "08d4643988bdf7ed5eec992d354f8e590b64fbdf2668f7cf306edb5ec56d9b0f",
           "hud": {
-            "score": "0",
+            "score": "0+2 315",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -176,7 +176,7 @@
           "scene": "40f2c40b94d3e6165b3408c4b074cf4f965536c773800672121aae2195a7e357",
           "bloom": "86098284dde7a3a51a012392665ada46cc209a6e6cda949e54d61697b53ff782",
           "hud": {
-            "score": "0",
+            "score": "0+485",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -220,7 +220,7 @@
           "scene": "465b88ea39e056d70208fbfef1f2ee13f253e5a796ea9b9d23adda6893aa7705",
           "bloom": "2cb7c93a42642640bc98c4bb27e9ca089dccc4c8ca010542ec4727e31cc240af",
           "hud": {
-            "score": "0",
+            "score": "0+100",
             "best": "0",
             "autoHidden": true,
             "hudClass": "hud ui",
@@ -242,7 +242,7 @@
           "scene": "d49f48800e766a662a89478147e3329c4ddafbaad8cf4f87fdf2a8c51ee89956",
           "bloom": "7088953a8ec2599b644e32e8d5cb94642040bdc4eb7cf700638611611ee9cf5f",
           "hud": {
-            "score": "0",
+            "score": "0+185",
             "best": "0",
             "autoHidden": true,
             "hudClass": "hud ui",
@@ -264,7 +264,7 @@
           "scene": "2ed09e351a6088d9ddf7316af39e7864fca9ba081f94b3430a4e97fcb556ceba",
           "bloom": "5627750fff362a6ed47d6c51c50713a35759a801bd4210bb32c16893fd1145bd",
           "hud": {
-            "score": "0",
+            "score": "0+575",
             "best": "0",
             "autoHidden": true,
             "hudClass": "hud ui",
@@ -286,7 +286,7 @@
           "scene": "16d4aa8d33658c115a10088afe14f8f3659b3ab74cea06a9d518450913418f86",
           "bloom": "77a3c902b42a708cd64a0a56a66869a88379467f60498329d2181d5afceac7f0",
           "hud": {
-            "score": "0",
+            "score": "0+1 040",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -308,7 +308,7 @@
           "scene": "4142b23542a234f0f40ad285f3484c751938b059316a05bd1cfa85fcee1f0e18",
           "bloom": "28d558a08c9479eb0805c75796341a63bfb4b3af26e7f351a034d7a3e6d2b0be",
           "hud": {
-            "score": "0",
+            "score": "0+330",
             "best": "0",
             "autoHidden": false,
             "hudClass": "hud ui dim",
@@ -338,7 +338,7 @@
           "scene": "0ccbd6725ad1f49da31b0a4c0eb8704f307c48f112df41443a246216146ca0d1",
           "bloom": "930edef6bfe57a52000d535e489b263abc08f730c6cd2454058d24bd50f1d95e",
           "hud": {
-            "score": "0",
+            "score": "0+230",
             "best": "0",
             "autoHidden": true,
             "hudClass": "hud ui",

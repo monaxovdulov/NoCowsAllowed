@@ -17,11 +17,14 @@ import {
   geometry,
   hintEl,
   hudEl,
+  jumpEl,
   livesEl,
   playerMode,
   resultEl,
   state,
   scoreEl,
+  scoreNumEl,
+  scorePotEl,
   turboBarEl,
   zoneEl,
 } from './state.js';
@@ -64,7 +67,7 @@ let holdPid = -1,
 // кошелёк клевера (фаза 3): всего собрано за все заезды, живёт в
 // localStorage 'cow-skate-clover' — серверная синхронизация будет в фазе 5
 let cloverWallet = readClover();
-/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
+/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number, dbl: boolean | null}} */
 const shown = {
   score: -1,
   best: -1,
@@ -79,6 +82,7 @@ const shown = {
   cMult: 1,
   cPot: 0,
   zone: 0,
+  dbl: null,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 export function hud() {
@@ -88,7 +92,7 @@ export function hud() {
   // иначе демо никогда не отдало бы управление обратно.
   if (holdPid >= 0 || gasPid >= 0) state.lastInput = state.t;
   if (state.score !== shown.score) {
-    scoreEl.textContent = state.score.toLocaleString('ru-RU');
+    scoreNumEl.textContent = state.score.toLocaleString('ru-RU');
     shown.score = state.score;
   }
   if (state.best !== shown.best) {
@@ -136,6 +140,10 @@ export function hud() {
   }
   if (c.pot !== shown.cPot) {
     comboPotEl.textContent = `+${c.pot.toLocaleString('ru-RU')}`;
+    // «очки идут» на глазах: несданный горшок висит рядом со счётом,
+    // при сдаче сольётся в число (bump), при крэше — пропадёт
+    scorePotEl.textContent =
+      c.pot > 0 ? `+${c.pot.toLocaleString('ru-RU')}` : '';
     shown.cPot = c.pot;
   }
   if (cOn)
@@ -192,6 +200,15 @@ export function hud() {
     shown.boost = boost;
   }
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
+  // двойной прыжок доступен прямо сейчас — кнопка зовёт «ЕЩЁ РАЗ»
+  const dbl = state.mode === 'air' && state.jumps < 2;
+  if (dbl !== shown.dbl) {
+    jumpEl.classList.toggle('dbl', dbl);
+    /** @type {Text} */ (jumpEl.firstChild).textContent = dbl
+      ? 'ЕЩЁ РАЗ'
+      : 'Прыжок';
+    shown.dbl = dbl;
+  }
 }
 
 // карточка результата — явный «конец заезда»: висит до следующего тапа

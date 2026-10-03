@@ -38,9 +38,21 @@ export const hintEl = /** @type {HTMLElement} */ (
 export const hudEl = /** @type {HTMLElement} */ (
   document.getElementById('hud')
 );
-/** @type {HTMLElement} */
+/** @type {HTMLElement} счёт: плашка-контейнер (bump при начислении) */
 export const scoreEl = /** @type {HTMLElement} */ (
   document.getElementById('score')
+);
+/** @type {HTMLElement} сданный счёт — число внутри .score */
+export const scoreNumEl = /** @type {HTMLElement} */ (
+  document.getElementById('scoreNum')
+);
+/** @type {HTMLElement} несданный горшок цепи — «+N» рядом со счётом */
+export const scorePotEl = /** @type {HTMLElement} */ (
+  document.getElementById('scorePot')
+);
+/** @type {HTMLButtonElement} кнопка прыжка в пэде — подсветка «ещё раз» */
+export const jumpEl = /** @type {HTMLButtonElement} */ (
+  document.querySelector('.pad [data-act="jump"]')
 );
 /** @type {HTMLElement} */
 export const bestEl = /** @type {HTMLElement} */ (
@@ -88,7 +100,7 @@ export const gasEl = /** @type {HTMLButtonElement} */ (
 export const turboBarEl = /** @type {HTMLElement} */ (
   document.getElementById('turboBar')
 );
-/** @type {HTMLElement} колокольчики жизней заезда */
+/** @type {HTMLElement} сердечки жизней заезда */
 export const livesEl = /** @type {HTMLElement} */ (
   document.getElementById('lives')
 );

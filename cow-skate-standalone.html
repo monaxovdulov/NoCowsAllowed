@@ -124,6 +124,19 @@
         transform: scale(1.14);
         color: var(--gold);
       }
+      /* несданный горшок цепи рядом со счётом: «очки идут» видно
+         на каждом действии — сольётся в счёт при сдаче, сгорит при крэше */
+      .score b {
+        font-weight: 800;
+      }
+      .score i {
+        font-style: normal;
+        font-size: 0.55em;
+        color: var(--gold);
+        opacity: 0.85;
+        margin-left: 6px;
+        vertical-align: baseline;
+      }
       .best {
         font-weight: 500;
         font-size: 10px;
@@ -587,6 +600,19 @@
         outline: 2px solid var(--gold);
         outline-offset: 2px;
       }
+      /* в воздухе с запасом прыжка кнопка зовёт «ЕЩЁ РАЗ» — видно,
+         что двойной доступен прямо сейчас */
+      .pad button.dbl {
+        border-color: var(--gold);
+        color: var(--gold);
+        box-shadow: 0 0 18px rgba(255, 216, 74, 0.45);
+        animation: dblPulse 0.8s ease-in-out infinite;
+      }
+      @keyframes dblPulse {
+        50% {
+          box-shadow: 0 0 4px rgba(255, 216, 74, 0.15);
+        }
+      }
       .pad kbd {
         font-family: inherit;
         font-weight: 500;
@@ -737,7 +763,9 @@
     <div class="grain" aria-hidden="true"></div>
 
     <div class="hud ui" id="hud">
-      <span class="score" id="score">0</span>
+      <span class="score" id="score"
+        ><b id="scoreNum">0</b><i id="scorePot"></i
+      ></span>
       <span class="lives" id="lives" hidden> <i>❤️</i><i>❤️</i><i>❤️</i> </span>
       <div class="combo" id="combo" hidden>
         <b id="comboMult">×1</b>
@@ -1192,9 +1220,21 @@ const hintEl = /** @type {HTMLElement} */ (
 const hudEl = /** @type {HTMLElement} */ (
   document.getElementById('hud')
 );
-/** @type {HTMLElement} */
+/** @type {HTMLElement} счёт: плашка-контейнер (bump при начислении) */
 const scoreEl = /** @type {HTMLElement} */ (
   document.getElementById('score')
+);
+/** @type {HTMLElement} сданный счёт — число внутри .score */
+const scoreNumEl = /** @type {HTMLElement} */ (
+  document.getElementById('scoreNum')
+);
+/** @type {HTMLElement} несданный горшок цепи — «+N» рядом со счётом */
+const scorePotEl = /** @type {HTMLElement} */ (
+  document.getElementById('scorePot')
+);
+/** @type {HTMLButtonElement} кнопка прыжка в пэде — подсветка «ещё раз» */
+const jumpEl = /** @type {HTMLButtonElement} */ (
+  document.querySelector('.pad [data-act="jump"]')
 );
 /** @type {HTMLElement} */
 const bestEl = /** @type {HTMLElement} */ (
@@ -1242,7 +1282,7 @@ const gasEl = /** @type {HTMLButtonElement} */ (
 const turboBarEl = /** @type {HTMLElement} */ (
   document.getElementById('turboBar')
 );
-/** @type {HTMLElement} колокольчики жизней заезда */
+/** @type {HTMLElement} сердечки жизней заезда */
 const livesEl = /** @type {HTMLElement} */ (
   document.getElementById('lives')
 );
@@ -5368,7 +5408,7 @@ let holdPid = -1,
 // кошелёк клевера (фаза 3): всего собрано за все заезды, живёт в
 // localStorage 'cow-skate-clover' — серверная синхронизация будет в фазе 5
 let cloverWallet = readClover();
-/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number}} */
+/** @type {{score: number, best: number, dist: number, clover: number, auto: boolean | null, cta: boolean | null, res: boolean | null, boost: boolean | null, lives: number, cOn: boolean | null, cMult: number, cPot: number, zone: number, dbl: boolean | null}} */
 const shown = {
   score: -1,
   best: -1,
@@ -5383,6 +5423,7 @@ const shown = {
   cMult: 1,
   cPot: 0,
   zone: 0,
+  dbl: null,
 };
 /** Обновляет HUD по текущему стейту (вызывается каждый кадр из render). */
 function hud() {
@@ -5392,7 +5433,7 @@ function hud() {
   // иначе демо никогда не отдало бы управление обратно.
   if (holdPid >= 0 || gasPid >= 0) state.lastInput = state.t;
   if (state.score !== shown.score) {
-    scoreEl.textContent = state.score.toLocaleString('ru-RU');
+    scoreNumEl.textContent = state.score.toLocaleString('ru-RU');
     shown.score = state.score;
   }
   if (state.best !== shown.best) {
@@ -5440,6 +5481,10 @@ function hud() {
   }
   if (c.pot !== shown.cPot) {
     comboPotEl.textContent = `+${c.pot.toLocaleString('ru-RU')}`;
+    // «очки идут» на глазах: несданный горшок висит рядом со счётом,
+    // при сдаче сольётся в число (bump), при крэше — пропадёт
+    scorePotEl.textContent =
+      c.pot > 0 ? `+${c.pot.toLocaleString('ru-RU')}` : '';
     shown.cPot = c.pot;
   }
   if (cOn)
@@ -5496,6 +5541,15 @@ function hud() {
     shown.boost = boost;
   }
   turboBarEl.style.height = `${Math.round(state.turbo * 100)}%`;
+  // двойной прыжок доступен прямо сейчас — кнопка зовёт «ЕЩЁ РАЗ»
+  const dbl = state.mode === 'air' && state.jumps < 2;
+  if (dbl !== shown.dbl) {
+    jumpEl.classList.toggle('dbl', dbl);
+    /** @type {Text} */ (jumpEl.firstChild).textContent = dbl
+      ? 'ЕЩЁ РАЗ'
+      : 'Прыжок';
+    shown.dbl = dbl;
+  }
 }
 
 // карточка результата — явный «конец заезда»: висит до следующего тапа
